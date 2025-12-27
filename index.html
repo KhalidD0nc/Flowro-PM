@@ -5,8 +5,6 @@
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>Flowro AI: Unified Blueprint Engine</title>
-    <link rel="icon" type="image/png" href="favicon.png" />
-    <link rel="apple-touch-icon" href="favicon.png" />
     <link href="https://fonts.googleapis.com" rel="preconnect" />
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
     <link
@@ -103,8 +101,8 @@
             </div>
             <div class="flex items-center gap-8">
                 <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-[#637588] dark:text-[#9dabb9]">
-                    <a class="hover:text-primary transition-colors" href="#">How it Works</a>
-                    <a class="hover:text-primary transition-colors" href="#">Features</a>
+                    <a class="hover:text-primary transition-colors" href="#how-it-works">How it Works</a>
+
                     <!-- <a class="hover:text-primary transition-colors" href="#">Pricing</a> -->
                 </nav>
                 <button
@@ -383,11 +381,7 @@
                         generate professional sequence diagrams and flowcharts automatically.
                     </p>
                 </div>
-                <button
-                    class="flex items-center gap-2 text-white bg-[#161b22] border border-border-dark px-6 py-3 rounded-lg hover:border-primary/50 transition-colors">
-                    <span class="material-symbols-outlined">download</span>
-                    Export to Mermaid.js
-                </button>
+
             </div>
             <div
                 class="max-w-[1000px] mx-auto bg-[#161b22] border border-border-dark rounded-xl shadow-2xl overflow-hidden relative group w-full flex flex-col md:flex-row">
@@ -514,7 +508,7 @@
             </div>
         </div>
     </section>
-    <section class="py-24 px-6 lg:px-40">
+    <section id="how-it-works" class="py-24 px-6 lg:px-40">
         <div class="layout-content-container max-w-[960px] mx-auto flex flex-col gap-16">
             <div class="flex flex-col items-center text-center gap-4">
                 <h2 class="text-3xl font-bold leading-tight tracking-[-0.015em] text-[#111418] dark:text-white">How it
@@ -663,7 +657,7 @@
             <form class="flex flex-col sm:flex-row gap-3 w-full max-w-[480px]">
                 <input
                     class="flex-1 h-12 rounded-lg bg-surface-dark border border-border-dark px-4 text-white placeholder-[#637588] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                    placeholder="Enter your email" type="email" />
+                    placeholder="Enter your email" type="email" disabled />
                 <button
                     class="h-12 px-6 rounded-lg bg-primary text-white font-bold hover:bg-primary/90 transition-all whitespace-nowrap"
                     type="button">
