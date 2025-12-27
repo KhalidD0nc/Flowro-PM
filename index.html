@@ -5,6 +5,8 @@
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>Flowro AI: Unified Blueprint Engine</title>
+    <meta name="description"
+        content="Flowro AI converts messy product documentation, transcripts, and notes into a single, clean Unified Blueprint (UBP) for faster development.">
     <link href="https://fonts.googleapis.com" rel="preconnect" />
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
     <link
@@ -86,6 +88,38 @@
                 stroke-dashoffset: -1000;
             }
         }
+
+        @keyframes toast-in {
+            from {
+                transform: translateY(1rem);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes toast-out {
+            from {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateY(1rem);
+                opacity: 0;
+            }
+        }
+
+        .animate-toast-in {
+            animation: toast-in 0.3s ease-out forwards;
+        }
+
+        .animate-toast-out {
+            animation: toast-out 0.3s ease-in forwards;
+        }
     </style>
 </head>
 
@@ -105,7 +139,7 @@
 
                     <!-- <a class="hover:text-primary transition-colors" href="#">Pricing</a> -->
                 </nav>
-                <button
+                <button id="header-coming-soon"
                     class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-9 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-primary/90 transition-all">
                     <span class="truncate">Coming Soon</span>
                 </button>
@@ -139,7 +173,7 @@
                             </h2>
                         </div>
                         <div class="flex flex-col sm:flex-row gap-4 pt-4">
-                            <button
+                            <!-- <button
                                 class="flex min-w-[160px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-8 bg-white text-background-dark text-base font-bold leading-normal tracking-[0.015em] hover:bg-gray-100 transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)]">
                                 <span class="material-symbols-outlined text-[20px]">bolt</span>
                                 <span class="truncate">Generate Blueprint</span>
@@ -148,7 +182,7 @@
                                 class="flex min-w-[160px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-transparent border border-border-dark text-white text-base font-medium leading-normal tracking-[0.015em] hover:bg-white/5 transition-all">
                                 <span class="truncate">View Examples</span>
                                 <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
-                            </button>
+                            </button> -->
                         </div>
                     </div>
                     <div class="flex-1 w-full max-w-[750px] relative">
@@ -654,16 +688,19 @@
                 Ready to find your flow?
             </h2>
 
-            <form class="flex flex-col sm:flex-row gap-3 w-full max-w-[480px]">
-                <input
-                    class="flex-1 h-12 rounded-lg bg-surface-dark border border-border-dark px-4 text-white placeholder-[#637588] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                    placeholder="Enter your email" type="email" disabled />
-                <button
-                    class="h-12 px-6 rounded-lg bg-primary text-white font-bold hover:bg-primary/90 transition-all whitespace-nowrap"
-                    type="button">
+            <div id="beta-form" class="flex flex-col sm:flex-row gap-3 w-full max-w-[480px]">
+                <div class="flex-1 relative group">
+                    <input id="email-input"
+                        class="w-full h-12 rounded-lg bg-surface-dark border border-border-dark px-4 text-white placeholder-[#637588] focus:outline-none transition-all cursor-not-allowed opacity-70"
+                        placeholder="Enter your email" type="email" disabled />
+                    <div id="email-overlay" class="absolute inset-0 cursor-pointer z-10"></div>
+                </div>
+                <button id="get-access-btn"
+                    class="h-12 px-6 rounded-lg bg-primary/50 text-white font-bold cursor-not-allowed whitespace-nowrap"
+                    type="button" disabled>
                     Get Access
                 </button>
-            </form>
+            </div>
             <p class="text-xs text-[#637588]">No credit card required. Beta invites sent weekly.</p>
         </div>
     </section>
@@ -682,6 +719,37 @@
             <p class="text-xs text-[#637588]">© 2025 Flowro AI Inc. All rights reserved.</p>
         </div>
     </footer>
+    <div id="toast-container" class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] pointer-events-none"></div>
+
+    <script>
+        document.getElementById('email-overlay').addEventListener('click', function () {
+            showToast("We will open beta try soon!");
+        });
+
+        document.getElementById('get-access-btn').addEventListener('click', function () {
+            showToast("We will open beta try soon!");
+        });
+
+        document.getElementById('header-coming-soon').addEventListener('click', function () {
+            showToast("We will open beta try soon!");
+        });
+
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'bg-surface-dark border border-primary/50 text-white px-6 py-3 rounded-xl shadow-2xl backdrop-blur-md mb-4 animate-toast-in flex items-center gap-3 pointer-events-auto';
+            toast.innerHTML = `
+                <span class="material-symbols-outlined text-primary">info</span>
+                <span class="text-sm font-medium">${message}</span>
+            `;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.replace('animate-toast-in', 'animate-toast-out');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
 </body>
 
 </html>
