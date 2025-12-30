@@ -1,4 +1,4 @@
-import { adminDb } from "@/lib/firebase-admin"
+import { getAdminDb } from "@/lib/firebase-admin"
 
 // Types
 export interface Blueprint {
@@ -30,7 +30,7 @@ export interface CreateBlueprintInput {
  * Fetches all blueprints for a specific user, ordered by creation date (newest first)
  */
 export async function getUserBlueprints(userId: string): Promise<Blueprint[]> {
-    const snapshot = await adminDb
+    const snapshot = await getAdminDb()
         .collection("blueprints")
         .where("userId", "==", userId)
         .orderBy("createdAt", "desc")
@@ -60,7 +60,7 @@ export async function createBlueprint(input: CreateBlueprintInput): Promise<Blue
         updatedAt: now,
     }
 
-    const docRef = await adminDb.collection("blueprints").add(blueprintData)
+    const docRef = await getAdminDb().collection("blueprints").add(blueprintData)
 
     return {
         id: docRef.id,
@@ -72,7 +72,7 @@ export async function createBlueprint(input: CreateBlueprintInput): Promise<Blue
  * Gets a blueprint by ID
  */
 export async function getBlueprintById(blueprintId: string): Promise<Blueprint | null> {
-    const doc = await adminDb.collection("blueprints").doc(blueprintId).get()
+    const doc = await getAdminDb().collection("blueprints").doc(blueprintId).get()
 
     if (!doc.exists) {
         return null
@@ -92,7 +92,7 @@ export async function updateBlueprintContent(
     content: unknown,
     newMessages: ChatMessage[]
 ): Promise<void> {
-    const blueprintRef = adminDb.collection("blueprints").doc(blueprintId)
+    const blueprintRef = getAdminDb().collection("blueprints").doc(blueprintId)
     const blueprint = await blueprintRef.get()
 
     if (!blueprint.exists) {

@@ -3,16 +3,40 @@ import { getAuth } from "firebase-admin/auth"
 import { getFirestore } from "firebase-admin/firestore"
 
 // Initialize Firebase Admin (for server-side)
-const adminApp =
-    getApps().length === 0
-        ? initializeApp({
-            credential: cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-            }),
-        })
-        : getApps()[0]
+// Initialize Firebase Admin (for server-side)
+function formatPrivateKey(key: string) {
+    return key.replace(/\\n/g, "\n")
+}
 
-export const adminAuth = getAuth(adminApp)
-export const adminDb = getFirestore(adminApp)
+export function getAdminApp() {
+    if (getApps().length > 0) {
+        return getApps()[0]
+    }
+
+    const projectId = process.env.FIREBASE_PROJECT_ID
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY
+
+    if (!projectId || !clientEmail || !privateKey) {
+        throw new Error(
+            "Missing Firebase Admin environment variables. " +
+            "Check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY."
+        )
+    }
+
+    return initializeApp({
+        credential: cert({
+            projectId,
+            clientEmail,
+            privateKey: formatPrivateKey(privateKey),
+        }),
+    })
+}
+
+export function getAdminAuth() {
+    return getAuth(getAdminApp())
+}
+
+export function getAdminDb() {
+    return getFirestore(getAdminApp())
+}

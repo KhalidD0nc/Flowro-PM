@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { adminAuth } from "@/lib/firebase-admin"
+import { getAdminAuth } from "@/lib/firebase-admin"
 
 export interface AuthResult {
     userId: string
@@ -26,7 +26,7 @@ export async function verifyAuthToken(
 
     try {
         const token = authHeader.replace("Bearer ", "")
-        const decodedToken = await adminAuth.verifyIdToken(token)
+        const decodedToken = await getAdminAuth().verifyIdToken(token)
 
         return {
             userId: decodedToken.uid,
