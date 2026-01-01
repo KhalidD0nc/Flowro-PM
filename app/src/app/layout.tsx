@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/Providers";
 
@@ -8,8 +8,13 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
-  title: "Flowro AI - Your AI Product Manager",
+  title: "Flowro AI: Unified Blueprint Engine",
   description: "Convert messy ideas into structured Unified Blueprints",
 };
 
@@ -26,7 +31,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className={`${inter.variable} font-sans antialiased bg-[#101922] text-white`}>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased bg-background-dark text-white`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

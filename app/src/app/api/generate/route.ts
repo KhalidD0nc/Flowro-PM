@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../blueprints/auth"
-import { getBlueprintById, updateBlueprintContent, ChatMessage } from "../blueprints/service"
+import { getProjectById, updateProjectChatHistory, getLatestBlueprint, updateBlueprintContent, ChatMessage } from "../blueprints/service"
 import { generateFromMessage } from "./service"
 
 export async function POST(request: NextRequest) {
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
         // 2. Parse request body
         const body = await request.json()
-        const { message, blueprintId, context } = body
+        const { message, projectId, context } = body
 
         if (!message) {
             return NextResponse.json({ error: "Message required" }, { status: 400 })
@@ -23,11 +23,11 @@ export async function POST(request: NextRequest) {
         // 3. Generate response from LLM
         const result = await generateFromMessage({ message, context })
 
-        // 4. Save to Firestore if blueprintId provided
-        if (blueprintId) {
-            const blueprint = await getBlueprintById(blueprintId)
+        // 4. Save chat history to Project (not Blueprint) if projectId provided
+        if (projectId) {
+            const project = await getProjectById(projectId)
 
-            if (blueprint && blueprint.userId === authResult.userId) {
+            if (project && project.userId === authResult.userId) {
                 const newMessages: ChatMessage[] = [
                     {
                         role: "user",
@@ -41,7 +41,19 @@ export async function POST(request: NextRequest) {
                     },
                 ]
 
-                await updateBlueprintContent(blueprintId, result.content, newMessages)
+                // Save chat history to project (continues even when blueprints are locked)
+                await updateProjectChatHistory(projectId, newMessages)
+
+                // Also update the latest draft blueprint's content if there is one
+                const latestBlueprint = await getLatestBlueprint(projectId)
+                if (latestBlueprint && latestBlueprint.status === "draft") {
+                    try {
+                        await updateBlueprintContent(latestBlueprint.id, result.content)
+                    } catch {
+                        // Blueprint might be locked, that's okay - chat still saved to project
+                        console.log("Blueprint is locked, chat history saved to project only")
+                    }
+                }
             }
         }
 

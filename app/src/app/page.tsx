@@ -1,456 +1,587 @@
 "use client"
 
 import Link from "next/link";
-import { useState } from "react";
 
 export default function Home() {
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-
-  const handleComingSoon = (message: string) => {
-    setToastMessage(message);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
-  };
-
-  return (
-    <div className="bg-[#0D1117] text-white overflow-x-hidden w-full">
-      <div className="relative flex min-h-screen w-full flex-col">
-        {/* Header */}
-        <header className="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-[#30363d] bg-[#0D1117]/80 backdrop-blur-md px-6 lg:px-10 py-3">
-          <div className="flex items-center gap-3 cursor-pointer">
-            <div className="size-8 text-[#137fec]">
-              <span className="material-symbols-outlined text-[32px]">hourglass_top</span>
-            </div>
-            <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">Flowro AI</h2>
-          </div>
-          <div className="flex items-center gap-8">
-            <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[#9dabb9]">
-              <a className="hover:text-[#137fec] transition-colors" href="#how-it-works">How it Works</a>
-            </nav>
-            <Link
-              href="/auth"
-              className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-9 px-4 bg-[#137fec] text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-[#137fec]/90 transition-all"
-            >
-              <span className="truncate">Get Started</span>
-            </Link>
-          </div>
-        </header>
-
-        <div className="flex h-full grow flex-col">
-          {/* Hero Section */}
-          <section className="relative flex flex-col pt-16 pb-20 px-6 lg:px-20 overflow-hidden" style={{
-            backgroundImage: 'linear-gradient(to right, rgba(48, 54, 61, 0.2) 1px, transparent 1px), linear-gradient(to bottom, rgba(48, 54, 61, 0.2) 1px, transparent 1px)',
-            backgroundSize: '40px 40px'
-          }}>
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-[#137fec]/10 blur-[120px] rounded-full pointer-events-none z-0"></div>
-
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-12 max-w-[1400px] mx-auto z-10 w-full">
-              {/* Left side - Text content */}
-              <div className="flex flex-col gap-8 flex-1 max-w-[640px]">
-                <div className="flex flex-col gap-6">
-                  <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black leading-[1.1] tracking-[-0.033em]">
-                    Your AI<br />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#137fec] to-blue-300">Product Manager.</span>
-                  </h1>
-                  <h2 className="text-[#9dabb9] text-lg sm:text-xl font-normal leading-relaxed max-w-[580px]">
-                    Flowro takes the burden of documentation off your shoulders. We convert messy product docs, transcripts, and notes into a single, clean <span className="text-white font-semibold">Unified Blueprint (UBP)</span>, so you can just build.
-                  </h2>
-                </div>
-              </div>
-
-              {/* Right side - Terminal/Engine visualization */}
-              <div className="flex-1 w-full max-w-[750px] relative">
-                <div className="rounded-xl border border-[#30363d] bg-[#0d1117] shadow-2xl overflow-hidden relative group">
-                  {/* Terminal header */}
-                  <div className="flex items-center justify-between border-b border-[#30363d] bg-[#161b22] px-4 py-3 z-30 relative">
-                    <div className="flex gap-2">
-                      <div className="size-3 rounded-full bg-[#ff5f56]"></div>
-                      <div className="size-3 rounded-full bg-[#ffbd2e]"></div>
-                      <div className="size-3 rounded-full bg-[#27c93f]"></div>
+    return (
+        <div className="bg-[#0D1117] text-white overflow-x-hidden w-full">
+            <div className="relative flex min-h-screen w-full flex-col group/design-root">
+                {/* Header */}
+                <header className="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-[#30363d] bg-[#0D1117]/80 backdrop-blur-md px-10 py-3">
+                    <div className="flex items-center gap-3 text-white cursor-pointer">
+                        <div className="size-8 text-[#137fec]">
+                            <span className="material-symbols-outlined text-[32px]">hourglass_top</span>
+                        </div>
+                        <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">Flowro AI</h2>
                     </div>
-                    <div className="text-xs font-mono text-[#7d8590] uppercase tracking-wider flex items-center gap-2">
-                      <span className="material-symbols-outlined text-sm text-[#137fec]">hourglass_top</span>
-                      Flowro Engine
+                    <div className="flex items-center gap-8">
+                        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[#9dabb9]">
+                            <a className="hover:text-[#137fec] transition-colors" href="#">How it Works</a>
+                            <a className="hover:text-[#137fec] transition-colors" href="#">Features</a>
+                            <a className="hover:text-[#137fec] transition-colors" href="#">Pricing</a>
+                        </nav>
+                        <Link
+                            href="/auth"
+                            className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-9 px-4 bg-[#137fec] text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-[#137fec]/90 transition-all"
+                        >
+                            <span className="truncate">Get Started</span>
+                        </Link>
                     </div>
-                    <div className="flex gap-2">
-                      <div className="px-2 py-0.5 rounded text-[10px] font-mono bg-green-500/20 text-green-500 border border-green-500/20">Active</div>
-                    </div>
-                  </div>
+                </header>
 
-                  {/* Terminal content */}
-                  <div className="relative h-[460px] bg-[#0d1117] overflow-hidden p-6 flex items-center justify-center">
-                    <div className="absolute inset-0" style={{
-                      backgroundImage: 'radial-gradient(#30363d 1px, transparent 1px)',
-                      backgroundSize: '20px 20px',
-                      opacity: 0.3
-                    }}></div>
+                <div className="layout-container flex h-full grow flex-col">
+                    {/* Hero Section */}
+                    <section className="relative flex flex-col pt-16 pb-20 px-6 lg:px-20 overflow-hidden" style={{
+                        backgroundImage: 'linear-gradient(to right, rgba(48, 54, 61, 0.2) 1px, transparent 1px), linear-gradient(to bottom, rgba(48, 54, 61, 0.2) 1px, transparent 1px)',
+                        backgroundSize: '40px 40px'
+                    }}>
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-[#137fec]/10 blur-[120px] rounded-full pointer-events-none z-0"></div>
 
-                    <div className="relative w-full max-w-[600px] h-[300px] flex items-center justify-between z-10">
-                      {/* Messy Input side */}
-                      <div className="relative w-32 h-full flex flex-col justify-center items-center">
-                        <div className="absolute inset-0 border border-dashed border-white/10 rounded-xl bg-white/5"></div>
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0d1117] px-2 text-[10px] text-gray-500 font-mono uppercase tracking-widest whitespace-nowrap">Messy Input</div>
-
-                        {/* Floating document icons */}
-                        <div className="absolute top-10 left-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-6deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_4s_ease-in-out_infinite]">
-                          <span className="material-symbols-outlined text-blue-400">description</span>
-                        </div>
-                        <div className="absolute top-24 right-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[12deg] hover:scale-110 transition-transform cursor-default z-20 animate-[float_5s_ease-in-out_infinite_1s]">
-                          <span className="material-symbols-outlined text-yellow-500">sticky_note_2</span>
-                        </div>
-                        <div className="absolute bottom-20 left-4 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-3deg] hover:scale-110 transition-transform cursor-default z-0 animate-[float_4s_ease-in-out_infinite_0.5s]">
-                          <span className="material-symbols-outlined text-purple-400">video_file</span>
-                        </div>
-                        <div className="absolute bottom-8 right-6 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[8deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_6s_ease-in-out_infinite_2s]">
-                          <span className="material-symbols-outlined text-green-400">chat</span>
-                        </div>
-                      </div>
-
-                      {/* Middle - empty flow area */}
-                      <div className="flex-1 h-full relative overflow-hidden"></div>
-
-                      {/* Unified Blueprint side */}
-                      <div className="relative w-36 h-full flex flex-col justify-center items-center">
-                        <div className="absolute inset-0 border border-dashed border-white/10 rounded-xl bg-white/5"></div>
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0d1117] px-2 text-[10px] text-gray-500 font-mono uppercase tracking-widest whitespace-nowrap">Unified Blueprint</div>
-
-                        <div className="relative z-10 w-28 h-40 bg-[#161b22] border border-[#137fec]/50 rounded-lg shadow-[0_0_30px_rgba(19,127,236,0.15)] flex flex-col p-4 group-hover:scale-105 transition-transform duration-500 overflow-hidden">
-                          <div className="flex items-center gap-2 mb-3 border-b border-white/10 pb-2">
-                            <span className="material-symbols-outlined text-[#137fec] text-[14px]">article</span>
-                            <div className="h-1.5 w-10 bg-white/20 rounded-full"></div>
-                          </div>
-                          <div className="space-y-2 flex-1">
-                            <div className="flex gap-1.5">
-                              <div className="h-1 w-2 bg-[#137fec]/40 rounded-full"></div>
-                              <div className="h-1 w-16 bg-white/10 rounded-full"></div>
+                        <div className="layout-content-container flex flex-col lg:flex-row items-center justify-between gap-12 max-w-[1400px] mx-auto z-10 w-full">
+                            {/* Left side - Text content */}
+                            <div className="flex flex-col gap-8 flex-1 max-w-[640px]">
+                                <div className="inline-flex items-center gap-2 rounded-full border border-[#30363d] bg-[#161b22]/50 backdrop-blur-sm px-3 py-1 w-fit">
+                                    <span className="flex size-2 rounded-full bg-green-500 animate-pulse"></span>
+                                    <span className="text-xs font-medium text-[#9dabb9]">v2.0 Beta is Live</span>
+                                </div>
+                                <div className="flex flex-col gap-6">
+                                    <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black leading-[1.1] tracking-[-0.033em]">
+                                        Your vision, <br />
+                                        <span className="text-[#137fec] bg-clip-text text-transparent bg-gradient-to-r from-[#137fec] to-blue-300">architected in seconds.</span>
+                                    </h1>
+                                    <h2 className="text-[#9dabb9] text-lg sm:text-xl font-normal leading-relaxed max-w-[580px]">
+                                        Turn messy ideas into a clear blueprint for AI.
+                                    </h2>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                                    <Link
+                                        href="/auth"
+                                        className="flex min-w-[160px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-8 bg-white text-[#0D1117] text-base font-bold leading-normal tracking-[0.015em] hover:bg-gray-100 transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">bolt</span>
+                                        <span className="truncate">Build Your Blueprint</span>
+                                    </Link>
+                                    <button className="flex min-w-[160px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-transparent border border-[#30363d] text-white text-base font-medium leading-normal tracking-[0.015em] hover:bg-white/5 transition-all">
+                                        <span className="truncate">See the Framework</span>
+                                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                                    </button>
+                                </div>
                             </div>
-                            <div className="flex gap-1.5">
-                              <div className="h-1 w-2 bg-[#137fec]/40 rounded-full"></div>
-                              <div className="h-1 w-12 bg-white/10 rounded-full"></div>
+
+                            {/* Right side - Terminal/Engine visualization */}
+                            <div className="flex-1 w-full max-w-[750px] relative">
+                                <div className="rounded-xl border border-[#30363d] bg-[#0d1117] shadow-2xl overflow-hidden relative group">
+                                    {/* Terminal header */}
+                                    <div className="flex items-center justify-between border-b border-[#30363d] bg-[#161b22] px-4 py-3 z-30 relative">
+                                        <div className="flex gap-2">
+                                            <div className="size-3 rounded-full bg-[#ff5f56]"></div>
+                                            <div className="size-3 rounded-full bg-[#ffbd2e]"></div>
+                                            <div className="size-3 rounded-full bg-[#27c93f]"></div>
+                                        </div>
+                                        <div className="text-xs font-mono text-[#7d8590] uppercase tracking-wider flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-sm text-[#137fec]">hourglass_top</span>
+                                            Flowro Ingestion Engine
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <div className="px-2 py-0.5 rounded text-[10px] font-mono bg-green-500/20 text-green-500 border border-green-500/20">Active</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Terminal content */}
+                                    <div className="relative h-[460px] bg-[#0d1117] overflow-hidden p-6 flex items-center justify-center">
+                                        <div className="absolute inset-0" style={{
+                                            backgroundImage: 'radial-gradient(#30363d 1px, transparent 1px)',
+                                            backgroundSize: '20px 20px',
+                                            opacity: 0.3
+                                        }}></div>
+
+                                        <div className="relative w-full max-w-[600px] h-[300px] flex items-center justify-between z-10">
+                                            {/* Messy Input side */}
+                                            <div className="relative w-32 h-full flex flex-col justify-center items-center">
+                                                <div className="absolute inset-0 border border-dashed border-white/10 rounded-xl bg-white/5"></div>
+                                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0d1117] px-2 text-[10px] text-gray-500 font-mono uppercase tracking-widest whitespace-nowrap">Messy Input</div>
+
+                                                {/* Floating document icons */}
+                                                <div className="absolute top-10 left-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-6deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_4s_ease-in-out_infinite]">
+                                                    <span className="material-symbols-outlined text-blue-400">description</span>
+                                                </div>
+                                                <div className="absolute top-24 right-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[12deg] hover:scale-110 transition-transform cursor-default z-20 animate-[float_5s_ease-in-out_infinite_1s]">
+                                                    <span className="material-symbols-outlined text-yellow-500">sticky_note_2</span>
+                                                </div>
+                                                <div className="absolute bottom-20 left-4 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-3deg] hover:scale-110 transition-transform cursor-default z-0 animate-[float_4s_ease-in-out_infinite_0.5s]">
+                                                    <span className="material-symbols-outlined text-purple-400">video_file</span>
+                                                </div>
+                                                <div className="absolute bottom-8 right-6 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[8deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_6s_ease-in-out_infinite_2s]">
+                                                    <span className="material-symbols-outlined text-green-400">chat</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Middle - flow animation area */}
+                                            <div className="flex-1 h-full relative overflow-hidden">
+                                                <svg className="absolute inset-0 w-full h-full">
+                                                    <defs>
+                                                        <linearGradient id="flowGradient" x1="0%" x2="100%" y1="0%" y2="0%">
+                                                            <stop offset="0%" stopColor="#30363d" stopOpacity="0"></stop>
+                                                            <stop offset="50%" stopColor="#137fec" stopOpacity="1"></stop>
+                                                            <stop offset="100%" stopColor="#137fec" stopOpacity="0"></stop>
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <path className="opacity-0 animate-[fadeIn_2s_infinite]" d="M 0 80 Q 80 80 140 150" fill="none" stroke="url(#flowGradient)" strokeWidth="2"></path>
+                                                    <path className="opacity-0 animate-[fadeIn_2s_infinite_0.5s]" d="M 0 220 Q 80 220 140 150" fill="none" stroke="url(#flowGradient)" strokeWidth="2"></path>
+                                                    <path className="opacity-0 animate-[fadeIn_2s_infinite_0.2s]" d="M 0 150 L 140 150" fill="none" stroke="url(#flowGradient)" strokeWidth="2"></path>
+                                                </svg>
+                                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3">
+                                                    <div className="relative">
+                                                        <div className="absolute inset-0 bg-[#137fec]/20 blur-xl rounded-full animate-pulse"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Unified Blueprint side */}
+                                            <div className="relative w-36 h-full flex flex-col justify-center items-center">
+                                                <div className="absolute inset-0 border border-dashed border-white/10 rounded-xl bg-white/5"></div>
+                                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0d1117] px-2 text-[10px] text-gray-500 font-mono uppercase tracking-widest whitespace-nowrap">Unified Blueprint</div>
+
+                                                <div className="relative z-10 w-28 h-40 bg-[#161b22] border border-[#137fec]/50 rounded-lg shadow-[0_0_30px_rgba(19,127,236,0.15)] flex flex-col p-4 group-hover:scale-105 transition-transform duration-500 overflow-hidden">
+                                                    <div className="flex items-center gap-2 mb-3 border-b border-white/10 pb-2">
+                                                        <span className="material-symbols-outlined text-[#137fec] text-[14px]">article</span>
+                                                        <div className="h-1.5 w-10 bg-white/20 rounded-full"></div>
+                                                    </div>
+                                                    <div className="space-y-2 flex-1">
+                                                        <div className="flex gap-1.5">
+                                                            <div className="h-1 w-2 bg-[#137fec]/40 rounded-full"></div>
+                                                            <div className="h-1 w-16 bg-white/10 rounded-full"></div>
+                                                        </div>
+                                                        <div className="flex gap-1.5">
+                                                            <div className="h-1 w-2 bg-[#137fec]/40 rounded-full"></div>
+                                                            <div className="h-1 w-12 bg-white/10 rounded-full"></div>
+                                                        </div>
+                                                        <div className="flex gap-1.5">
+                                                            <div className="h-1 w-2 bg-[#137fec]/40 rounded-full"></div>
+                                                            <div className="h-1 w-14 bg-white/10 rounded-full"></div>
+                                                        </div>
+                                                        <div className="mt-2 p-1.5 bg-[#137fec]/5 rounded border border-[#137fec]/10">
+                                                            <div className="h-1 w-full bg-[#137fec]/20 rounded-full mb-1"></div>
+                                                            <div className="h-1 w-2/3 bg-[#137fec]/20 rounded-full"></div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="absolute -top-2 -right-2 bg-green-500 text-black rounded-full p-0.5 shadow-lg scale-0 group-hover:scale-100 transition-transform delay-300 duration-300">
+                                                        <span className="material-symbols-outlined text-[14px] font-bold">check</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Terminal footer */}
+                                    <div className="flex items-center justify-between border-t border-[#30363d] bg-[#0d1117] px-4 py-3">
+                                        <div className="flex gap-4">
+                                            <div className="flex items-center gap-1.5 opacity-50 animate-[pulse_2s_ease-in-out_infinite]">
+                                                <span className="material-symbols-outlined text-[14px] text-green-500">terminal</span>
+                                                <span className="text-[10px] font-mono text-[#7d8590]">Merging disjointed contexts...</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-1.5 w-24 bg-[#161b22] rounded-full overflow-hidden">
+                                                <div className="h-full bg-[#137fec] animate-[widthGrow_4s_ease-out_forwards] w-0"></div>
+                                            </div>
+                                            <span className="text-[10px] font-mono text-[#7d8590]">100%</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="flex gap-1.5">
-                              <div className="h-1 w-2 bg-[#137fec]/40 rounded-full"></div>
-                              <div className="h-1 w-14 bg-white/10 rounded-full"></div>
-                            </div>
-                            <div className="mt-2 p-1.5 bg-[#137fec]/5 rounded border border-[#137fec]/10">
-                              <div className="h-1 w-full bg-[#137fec]/20 rounded-full mb-1"></div>
-                              <div className="h-1 w-2/3 bg-[#137fec]/20 rounded-full"></div>
-                            </div>
-                          </div>
-                          <div className="absolute -top-2 -right-2 bg-green-500 text-black rounded-full p-0.5 shadow-lg scale-0 group-hover:scale-100 transition-transform delay-300 duration-300">
-                            <span className="material-symbols-outlined text-[14px] font-bold">check</span>
-                          </div>
                         </div>
-                      </div>
+                    </section>
+                </div>
+
+                <div className="absolute -right-20 -bottom-20 w-[400px] h-[400px] bg-[#137fec]/20 blur-[100px] rounded-full pointer-events-none z-0"></div>
+            </div>
+
+            {/* UBP Visualizer Section */}
+            <section className="py-24 px-6 lg:px-20 bg-[#0d1117] border-y border-[#30363d] overflow-hidden relative">
+                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#137fec]/5 blur-[120px] rounded-full pointer-events-none"></div>
+                <div className="layout-content-container max-w-[1200px] mx-auto flex flex-col gap-16 relative z-10">
+                    <div className="flex flex-col md:flex-row justify-between items-end gap-6">
+                        <div className="flex flex-col gap-4 max-w-[600px]">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-[#137fec]/30 bg-[#137fec]/10 px-3 py-1 w-fit">
+                                <span className="material-symbols-outlined text-[14px] text-[#137fec]">auto_graph</span>
+                                <span className="text-xs font-bold text-[#137fec]">UBP Visualizer</span>
+                            </div>
+                            <h2 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight text-white">
+                                Visuals <span className="italic text-[#137fec]">derived</span> from <br />
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">your Unified Blueprint.</span>
+                            </h2>
+                            <p className="text-[#9dabb9] text-lg">
+                                The UBP isn&apos;t just a static document—it&apos;s a structured engine. Flowro parses your Blueprint to generate professional sequence diagrams and flowcharts automatically.
+                            </p>
+                        </div>
                     </div>
-                  </div>
 
-                  {/* Terminal footer */}
-                  <div className="flex items-center justify-between border-t border-[#30363d] bg-[#0d1117] px-4 py-3">
-                    <div className="flex gap-4">
-                      <div className="flex items-center gap-1.5 opacity-50 animate-pulse">
-                        <span className="material-symbols-outlined text-[14px] text-green-500">terminal</span>
-                        <span className="text-[10px] font-mono text-[#7d8590]">Merging disjointed contexts...</span>
-                      </div>
+                    {/* Visualizer Demo */}
+                    <div className="max-w-[1000px] mx-auto bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl overflow-hidden relative group w-full flex flex-col md:flex-row">
+                        {/* Left - Code view */}
+                        <div className="w-full md:w-[40%] border-r border-[#30363d] bg-[#0d1117] flex flex-col">
+                            <div className="px-4 py-3 border-b border-[#30363d] flex items-center justify-between bg-[#161b22]">
+                                <div className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-[14px] text-blue-400">description</span>
+                                    <span className="font-mono text-xs text-[#7d8590]">unified_blueprint.ubp</span>
+                                </div>
+                            </div>
+                            <div className="p-6 font-mono text-xs leading-relaxed text-gray-400 overflow-hidden relative">
+                                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0d1117] z-10"></div>
+                                <div className="text-purple-400 mb-2">## Authentication Flow</div>
+                                <div className="pl-4 border-l border-[#30363d] mb-4">
+                                    <span className="text-blue-400">Participant:</span> User<br />
+                                    <span className="text-blue-400">Participant:</span> Client App<br />
+                                    <span className="text-blue-400">Participant:</span> API Gateway<br />
+                                    <span className="text-blue-400">Participant:</span> Auth Svc
+                                </div>
+                                <div className="text-yellow-400 mb-2"># Logic Steps</div>
+                                <div className="pl-4 border-l border-[#30363d]">
+                                    1. User clicks login<br />
+                                    2. Client POST /auth/login<br />
+                                    3. Gateway validates token<br />
+                                    4. <span className="text-green-400">If valid:</span> Create session<br />
+                                    5. Return 200 OK
+                                </div>
+                                <div className="mt-8 text-gray-600 italic">// This structured text generates the visual on the right automatically.</div>
+                            </div>
+                        </div>
+
+                        {/* Right - Diagram view */}
+                        <div className="w-full md:w-[60%] bg-[#161b22] relative flex flex-col">
+                            <div className="px-4 py-3 border-b border-[#30363d] flex items-center justify-between bg-[#161b22]">
+                                <div className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-[14px] text-green-400">preview</span>
+                                    <span className="font-mono text-xs text-[#7d8590]">Preview: Sequence Diagram</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="size-2 rounded-full bg-red-500/20"></div>
+                                    <div className="size-2 rounded-full bg-yellow-500/20"></div>
+                                    <div className="size-2 rounded-full bg-green-500/20"></div>
+                                </div>
+                            </div>
+                            <div className="p-8 relative min-h-[400px] bg-[#1e2329]">
+                                <div className="absolute inset-0 opacity-20" style={{
+                                    backgroundImage: 'radial-gradient(#30363d 1px, transparent 1px)',
+                                    backgroundSize: '24px 24px'
+                                }}></div>
+                                <div className="relative z-10 w-full h-full flex justify-between">
+                                    {/* Diagram participants */}
+                                    <div className="flex flex-col items-center h-full relative group/col w-1/4">
+                                        <div className="p-2 bg-[#0d1117] border border-[#30363d] rounded mb-4 z-20 shadow-lg">
+                                            <span className="material-symbols-outlined text-white text-[18px]">person</span>
+                                        </div>
+                                        <div className="text-[10px] font-mono text-[#7d8590] mb-4">User</div>
+                                        <div className="w-px bg-[#30363d] h-[300px] border-l border-dashed border-[#30363d] relative"></div>
+                                    </div>
+                                    <div className="flex flex-col items-center h-full relative group/col w-1/4">
+                                        <div className="p-2 bg-[#0d1117] border border-[#30363d] rounded mb-4 z-20 shadow-lg">
+                                            <span className="material-symbols-outlined text-blue-400 text-[18px]">smartphone</span>
+                                        </div>
+                                        <div className="text-[10px] font-mono text-[#7d8590] mb-4">App</div>
+                                        <div className="w-px bg-[#30363d] h-[300px] border-l border-dashed border-[#30363d] relative">
+                                            <div className="absolute top-[40px] left-1/2 -translate-x-1/2 w-2 h-[60px] bg-blue-500/20 border border-blue-500/50 rounded-sm"></div>
+                                            <div className="absolute top-[180px] left-1/2 -translate-x-1/2 w-2 h-[40px] bg-blue-500/20 border border-blue-500/50 rounded-sm"></div>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-center h-full relative group/col w-1/4">
+                                        <div className="p-2 bg-[#0d1117] border border-[#30363d] rounded mb-4 z-20 shadow-lg">
+                                            <span className="material-symbols-outlined text-purple-400 text-[18px]">dns</span>
+                                        </div>
+                                        <div className="text-[10px] font-mono text-[#7d8590] mb-4">API</div>
+                                        <div className="w-px bg-[#30363d] h-[300px] border-l border-dashed border-[#30363d] relative">
+                                            <div className="absolute top-[80px] left-1/2 -translate-x-1/2 w-2 h-[120px] bg-purple-500/20 border border-purple-500/50 rounded-sm"></div>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-center h-full relative group/col w-1/4">
+                                        <div className="p-2 bg-[#0d1117] border border-[#30363d] rounded mb-4 z-20 shadow-lg">
+                                            <span className="material-symbols-outlined text-orange-400 text-[18px]">shield</span>
+                                        </div>
+                                        <div className="text-[10px] font-mono text-[#7d8590] mb-4">Auth</div>
+                                        <div className="w-px bg-[#30363d] h-[300px] border-l border-dashed border-[#30363d] relative">
+                                            <div className="absolute top-[110px] left-1/2 -translate-x-1/2 w-2 h-[60px] bg-orange-500/20 border border-orange-500/50 rounded-sm"></div>
+                                        </div>
+                                    </div>
+                                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible">
+                                        <defs>
+                                            <marker id="arrow" markerHeight="10" markerUnits="strokeWidth" markerWidth="10" orient="auto" refX="9" refY="3">
+                                                <path d="M0,0 L0,6 L9,3 z" fill="#6b7280"></path>
+                                            </marker>
+                                            <marker id="arrow-blue" markerHeight="10" markerUnits="strokeWidth" markerWidth="10" orient="auto" refX="9" refY="3">
+                                                <path d="M0,0 L0,6 L9,3 z" fill="#3b82f6"></path>
+                                            </marker>
+                                        </defs>
+                                        <line markerEnd="url(#arrow)" stroke="#6b7280" strokeWidth="1.5" x1="12%" x2="37%" y1="120" y2="120"></line>
+                                        <line markerEnd="url(#arrow-blue)" stroke="#3b82f6" strokeWidth="1.5" x1="37%" x2="62%" y1="150" y2="150"></line>
+                                        <line markerEnd="url(#arrow)" stroke="#6b7280" strokeWidth="1.5" x1="62%" x2="87%" y1="180" y2="180"></line>
+                                        <line markerEnd="url(#arrow)" stroke="#6b7280" strokeDasharray="4 2" strokeWidth="1.5" x1="87%" x2="62%" y1="210" y2="210"></line>
+                                        <line markerEnd="url(#arrow-blue)" stroke="#3b82f6" strokeDasharray="4 2" strokeWidth="1.5" x1="62%" x2="37%" y1="240" y2="240"></line>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="h-1.5 w-24 bg-[#161b22] rounded-full overflow-hidden">
-                        <div className="h-full bg-[#137fec] w-full"></div>
-                      </div>
-                      <span className="text-[10px] font-mono text-[#7d8590]">100%</span>
+                </div>
+            </section>
+
+            {/* How it Works Section */}
+            <section className="py-24 px-6 lg:px-40">
+                <div className="layout-content-container max-w-[960px] mx-auto flex flex-col gap-16">
+                    <div className="flex flex-col items-center text-center gap-4">
+                        <h2 className="text-3xl font-bold leading-tight tracking-[-0.015em] text-white">How it Works</h2>
+                        <p className="text-[#9dabb9] text-lg max-w-[600px]">
+                            Turn your scattered ideas into a production-ready blueprint in 5 automated steps.
+                        </p>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <div className="absolute -right-20 -bottom-20 w-[400px] h-[400px] bg-[#137fec]/20 blur-[100px] rounded-full pointer-events-none z-0"></div>
-      </div>
-
-      {/* Problems Section */}
-      <section className="py-20 px-6 lg:px-40 bg-[#161b22] border-y border-[#30363d]">
-        <div className="max-w-[960px] mx-auto flex flex-col gap-12">
-          <div className="flex flex-col gap-4 text-center">
-            <h2 className="text-3xl font-bold leading-tight tracking-[-0.015em]">The Vibe Killer: Context Switching</h2>
-            <p className="text-[#9dabb9] text-lg max-w-[600px] mx-auto">Stop losing time searching for requirements. Flowro eliminates the chaos of scattered documentation.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Card 1 */}
-            <div className="group flex flex-col gap-4 rounded-xl border border-[#30363d] bg-[#0D1117] p-6 hover:border-[#137fec]/50 transition-colors">
-              <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec]/20 group-hover:text-[#137fec] transition-colors">
-                <span className="material-symbols-outlined text-[28px]">description</span>
-              </div>
-              <div className="flex flex-col gap-2">
-                <h3 className="text-lg font-bold">Scattered Docs</h3>
-                <p className="text-[#9dabb9] text-sm leading-relaxed">Requirements buried in drive folders, Slack threads, and forgotten Jira tickets.</p>
-              </div>
-            </div>
-            {/* Card 2 */}
-            <div className="group flex flex-col gap-4 rounded-xl border border-[#30363d] bg-[#0D1117] p-6 hover:border-[#137fec]/50 transition-colors">
-              <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec]/20 group-hover:text-[#137fec] transition-colors">
-                <span className="material-symbols-outlined text-[28px]">sync_problem</span>
-              </div>
-              <div className="flex flex-col gap-2">
-                <h3 className="text-lg font-bold">Context Switching</h3>
-                <p className="text-[#9dabb9] text-sm leading-relaxed">Constantly breaking your flow state to find answers to simple logic questions.</p>
-              </div>
-            </div>
-            {/* Card 3 */}
-            <div className="group flex flex-col gap-4 rounded-xl border border-[#30363d] bg-[#0D1117] p-6 hover:border-[#137fec]/50 transition-colors">
-              <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec]/20 group-hover:text-[#137fec] transition-colors">
-                <span className="material-symbols-outlined text-[28px]">schedule</span>
-              </div>
-              <div className="flex flex-col gap-2">
-                <h3 className="text-lg font-bold">Slow Velocity</h3>
-                <p className="text-[#9dabb9] text-sm leading-relaxed">Weeks wasted on clarification cycles before you write a single line of effective code.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* UBP Visualizer Section */}
-      <section className="py-24 px-6 lg:px-20 bg-[#0d1117] border-b border-[#30363d] overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#137fec]/5 blur-[120px] rounded-full pointer-events-none"></div>
-        <div className="max-w-[1200px] mx-auto flex flex-col gap-16 relative z-10">
-          <div className="flex flex-col md:flex-row justify-between items-end gap-6">
-            <div className="flex flex-col gap-4 max-w-[600px]">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#137fec]/30 bg-[#137fec]/10 px-3 py-1 w-fit">
-                <span className="material-symbols-outlined text-[14px] text-[#137fec]">auto_graph</span>
-                <span className="text-xs font-bold text-[#137fec]">UBP Visualizer</span>
-              </div>
-              <h2 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight text-white">
-                Visuals <span className="italic text-[#137fec]">derived</span> from <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">your Unified Blueprint.</span>
-              </h2>
-              <p className="text-[#9dabb9] text-lg">
-                The UBP isn't just a static document—it's a structured engine. Flowro parses your Blueprint to generate professional sequence diagrams and flowcharts automatically.
-              </p>
-            </div>
-          </div>
-
-          {/* Visualizer Demo */}
-          <div className="max-w-[1000px] mx-auto bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl overflow-hidden relative group w-full flex flex-col md:flex-row">
-            {/* Left - Code view */}
-            <div className="w-full md:w-[40%] border-r border-[#30363d] bg-[#0d1117] flex flex-col">
-              <div className="px-4 py-3 border-b border-[#30363d] flex items-center justify-between bg-[#161b22]">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[14px] text-blue-400">description</span>
-                  <span className="font-mono text-xs text-[#7d8590]">unified_blueprint.ubp</span>
-                </div>
-              </div>
-              <div className="p-6 font-mono text-xs leading-relaxed text-gray-400 overflow-hidden relative">
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0d1117] z-10"></div>
-                <div className="text-purple-400 mb-2">## Authentication Flow</div>
-                <div className="pl-4 border-l border-[#30363d] mb-4">
-                  <span className="text-blue-400">Participant:</span> User<br />
-                  <span className="text-blue-400">Participant:</span> Client App<br />
-                  <span className="text-blue-400">Participant:</span> API Gateway<br />
-                  <span className="text-blue-400">Participant:</span> Auth Svc
-                </div>
-                <div className="text-yellow-400 mb-2"># Logic Steps</div>
-                <div className="pl-4 border-l border-[#30363d]">
-                  1. User clicks login<br />
-                  2. Client POST /auth/login<br />
-                  3. Gateway validates token<br />
-                  4. <span className="text-green-400">If valid:</span> Create session<br />
-                  5. Return 200 OK
-                </div>
-                <div className="mt-8 text-gray-600 italic">// This structured text generates the visual on the right automatically.</div>
-              </div>
-            </div>
-
-            {/* Right - Diagram view */}
-            <div className="w-full md:w-[60%] bg-[#161b22] relative flex flex-col">
-              <div className="px-4 py-3 border-b border-[#30363d] flex items-center justify-between bg-[#161b22]">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[14px] text-green-400">preview</span>
-                  <span className="font-mono text-xs text-[#7d8590]">Preview: Sequence Diagram</span>
-                </div>
-                <div className="flex gap-2">
-                  <div className="size-2 rounded-full bg-red-500/20"></div>
-                  <div className="size-2 rounded-full bg-yellow-500/20"></div>
-                  <div className="size-2 rounded-full bg-green-500/20"></div>
-                </div>
-              </div>
-              <div className="p-8 relative min-h-[400px] bg-[#1e2329]">
-                <div className="absolute inset-0 opacity-20" style={{
-                  backgroundImage: 'radial-gradient(#30363d 1px, transparent 1px)',
-                  backgroundSize: '24px 24px'
-                }}></div>
-                <div className="relative z-10 w-full h-full flex justify-between">
-                  {/* Diagram participants */}
-                  {[
-                    { icon: 'person', color: 'text-white', label: 'User' },
-                    { icon: 'smartphone', color: 'text-blue-400', label: 'App' },
-                    { icon: 'dns', color: 'text-purple-400', label: 'API' },
-                    { icon: 'shield', color: 'text-orange-400', label: 'Auth' }
-                  ].map((item, idx) => (
-                    <div key={idx} className="flex flex-col items-center h-full relative w-1/4">
-                      <div className="p-2 bg-[#0d1117] border border-[#30363d] rounded mb-4 z-20 shadow-lg">
-                        <span className={`material-symbols-outlined ${item.color} text-[18px]`}>{item.icon}</span>
-                      </div>
-                      <div className="text-[10px] font-mono text-[#7d8590] mb-4">{item.label}</div>
-                      <div className="w-px bg-[#30363d] h-[300px] border-l border-dashed border-[#30363d] relative"></div>
+                    <div className="flex flex-col pl-4 sm:pl-20 max-w-[800px] mx-auto w-full">
+                        {/* Step 1 */}
+                        <div className="flex gap-6 group">
+                            <div className="flex flex-col items-center">
+                                <div className="size-14 rounded-full border border-[#30363d] bg-[#161b22] flex items-center justify-center z-10 group-hover:border-[#137fec] transition-colors shadow-sm">
+                                    <span className="material-symbols-outlined text-white text-[28px]">playlist_add</span>
+                                </div>
+                                <div className="w-[2px] h-full bg-[#30363d] -my-2 group-hover:bg-[#137fec]/50 transition-colors"></div>
+                            </div>
+                            <div className="pb-16 pt-3">
+                                <h3 className="text-xl font-bold text-white mb-2">Builder Dumps &quot;Chaos&quot; Idea</h3>
+                                <p className="text-[#9dabb9] leading-relaxed text-base">Paste raw notes, Loom transcripts, or messy docs. Flowro handles the chaos.</p>
+                            </div>
+                        </div>
+                        {/* Step 2 */}
+                        <div className="flex gap-6 group">
+                            <div className="flex flex-col items-center">
+                                <div className="size-14 rounded-full border border-[#30363d] bg-[#161b22] flex items-center justify-center z-10 group-hover:border-[#137fec] transition-colors shadow-sm">
+                                    <span className="material-symbols-outlined text-white text-[28px]">psychology</span>
+                                </div>
+                                <div className="w-[2px] h-full bg-[#30363d] -my-2 group-hover:bg-[#137fec]/50 transition-colors"></div>
+                            </div>
+                            <div className="pb-16 pt-3">
+                                <h3 className="text-xl font-bold text-white mb-2">Agent Studies Needs &amp; Infers Gaps</h3>
+                                <p className="text-[#9dabb9] leading-relaxed text-base">AI analyzes context, flags contradictions, and intelligently infers missing logic.</p>
+                            </div>
+                        </div>
+                        {/* Step 3 */}
+                        <div className="flex gap-6 group">
+                            <div className="flex flex-col items-center">
+                                <div className="size-14 rounded-full border border-[#30363d] bg-[#161b22] flex items-center justify-center z-10 group-hover:border-[#137fec] transition-colors shadow-sm">
+                                    <span className="material-symbols-outlined text-white text-[28px]">architecture</span>
+                                </div>
+                                <div className="w-[2px] h-full bg-[#30363d] -my-2 group-hover:bg-[#137fec]/50 transition-colors"></div>
+                            </div>
+                            <div className="pb-16 pt-3">
+                                <h3 className="text-xl font-bold text-white mb-2">Agent Generates Full UBP Draft</h3>
+                                <p className="text-[#9dabb9] leading-relaxed text-base">Receive a structured Unified Blueprint (UBP) draft instantly, ready for code generation.</p>
+                            </div>
+                        </div>
+                        {/* Step 4 */}
+                        <div className="flex gap-6 group">
+                            <div className="flex flex-col items-center">
+                                <div className="size-14 rounded-full border border-[#30363d] bg-[#161b22] flex items-center justify-center z-10 group-hover:border-[#137fec] transition-colors shadow-sm">
+                                    <span className="material-symbols-outlined text-white text-[28px]">rate_review</span>
+                                </div>
+                                <div className="w-[2px] h-full bg-[#30363d] -my-2 group-hover:bg-[#137fec]/50 transition-colors"></div>
+                            </div>
+                            <div className="pb-16 pt-3">
+                                <h3 className="text-xl font-bold text-white mb-2">Builder Reviews &amp; Refines</h3>
+                                <p className="text-[#9dabb9] leading-relaxed text-base">Collaborate with the AI to refine specs. It learns from your feedback.</p>
+                            </div>
+                        </div>
+                        {/* Step 5 - Final */}
+                        <div className="flex gap-6 group">
+                            <div className="flex flex-col items-center">
+                                <div className="size-14 rounded-full border border-[#137fec] bg-[#137fec] flex items-center justify-center z-10 shadow-[0_0_20px_rgba(19,127,236,0.4)]">
+                                    <span className="material-symbols-outlined text-white text-[28px]">lock</span>
+                                </div>
+                            </div>
+                            <div className="pt-3">
+                                <h3 className="text-xl font-bold text-[#137fec] mb-2">Agent Locks Version &amp; Exports</h3>
+                                <p className="text-[#9dabb9] leading-relaxed text-base">Version locked. Export your UBP directly to your development pipeline.</p>
+                            </div>
+                        </div>
                     </div>
-                  ))}
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+            </section>
 
-      {/* How it Works Section */}
-      <section id="how-it-works" className="py-24 px-6 lg:px-40">
-        <div className="max-w-[960px] mx-auto flex flex-col gap-16">
-          <div className="flex flex-col items-center text-center gap-4">
-            <h2 className="text-3xl font-bold leading-tight tracking-[-0.015em]">How it Works</h2>
-            <p className="text-[#9dabb9] text-lg max-w-[600px]">
-              Turn your scattered ideas into a production-ready blueprint in 5 automated steps.
-            </p>
-          </div>
-          <div className="flex flex-col pl-4 sm:pl-20 max-w-[800px] mx-auto w-full">
-            {/* Step 1 */}
-            <div className="flex gap-6 group">
-              <div className="flex flex-col items-center">
-                <div className="size-14 rounded-full border border-[#30363d] bg-[#161b22] flex items-center justify-center z-10 group-hover:border-[#137fec] transition-colors shadow-sm">
-                  <span className="material-symbols-outlined text-white text-[28px]">playlist_add</span>
-                </div>
-                <div className="w-[2px] h-full bg-[#30363d] -my-2 group-hover:bg-[#137fec]/50 transition-colors"></div>
-              </div>
-              <div className="pb-16 pt-3">
-                <h3 className="text-xl font-bold mb-2">Builder Dumps "Chaos" Idea</h3>
-                <p className="text-[#9dabb9] leading-relaxed text-base">Paste raw notes, Loom transcripts, or messy docs. Flowro handles the chaos.</p>
-              </div>
-            </div>
-            {/* Step 2 */}
-            <div className="flex gap-6 group">
-              <div className="flex flex-col items-center">
-                <div className="size-14 rounded-full border border-[#30363d] bg-[#161b22] flex items-center justify-center z-10 group-hover:border-[#137fec] transition-colors shadow-sm">
-                  <span className="material-symbols-outlined text-white text-[28px]">psychology</span>
-                </div>
-                <div className="w-[2px] h-full bg-[#30363d] -my-2 group-hover:bg-[#137fec]/50 transition-colors"></div>
-              </div>
-              <div className="pb-16 pt-3">
-                <h3 className="text-xl font-bold mb-2">Agent Studies Needs & Infers Gaps</h3>
-                <p className="text-[#9dabb9] leading-relaxed text-base">AI analyzes context, flags contradictions, and intelligently infers missing logic.</p>
-              </div>
-            </div>
-            {/* Step 3 */}
-            <div className="flex gap-6 group">
-              <div className="flex flex-col items-center">
-                <div className="size-14 rounded-full border border-[#30363d] bg-[#161b22] flex items-center justify-center z-10 group-hover:border-[#137fec] transition-colors shadow-sm">
-                  <span className="material-symbols-outlined text-white text-[28px]">architecture</span>
-                </div>
-                <div className="w-[2px] h-full bg-[#30363d] -my-2 group-hover:bg-[#137fec]/50 transition-colors"></div>
-              </div>
-              <div className="pb-16 pt-3">
-                <h3 className="text-xl font-bold mb-2">Agent Generates Full UBP Draft</h3>
-                <p className="text-[#9dabb9] leading-relaxed text-base">Receive a structured Unified Blueprint (UBP) draft instantly, ready for code generation.</p>
-              </div>
-            </div>
-            {/* Step 4 */}
-            <div className="flex gap-6 group">
-              <div className="flex flex-col items-center">
-                <div className="size-14 rounded-full border border-[#30363d] bg-[#161b22] flex items-center justify-center z-10 group-hover:border-[#137fec] transition-colors shadow-sm">
-                  <span className="material-symbols-outlined text-white text-[28px]">rate_review</span>
-                </div>
-                <div className="w-[2px] h-full bg-[#30363d] -my-2 group-hover:bg-[#137fec]/50 transition-colors"></div>
-              </div>
-              <div className="pb-16 pt-3">
-                <h3 className="text-xl font-bold mb-2">Builder Reviews & Refines</h3>
-                <p className="text-[#9dabb9] leading-relaxed text-base">Collaborate with the AI to refine specs. It learns from your feedback.</p>
-              </div>
-            </div>
-            {/* Step 5 - Final */}
-            <div className="flex gap-6 group">
-              <div className="flex flex-col items-center">
-                <div className="size-14 rounded-full border border-[#137fec] bg-[#137fec] flex items-center justify-center z-10 shadow-[0_0_20px_rgba(19,127,236,0.4)]">
-                  <span className="material-symbols-outlined text-white text-[28px]">lock</span>
-                </div>
-              </div>
-              <div className="pt-3">
-                <h3 className="text-xl font-bold text-[#137fec] mb-2">Agent Locks Version & Exports</h3>
-                <p className="text-[#9dabb9] leading-relaxed text-base">Version locked. Export your UBP directly to your development pipeline.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+            {/* UBP Standard Section */}
+            <section className="py-24 px-6 lg:px-20 bg-[#0d1117] border-t border-[#30363d] relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#137fec]/5 blur-[120px] rounded-full pointer-events-none"></div>
+                <div className="layout-content-container max-w-[1200px] mx-auto flex flex-col gap-20 relative z-10">
+                    <div className="flex flex-col gap-12">
+                        <div className="flex flex-col gap-6 max-w-[720px]">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-[#137fec]/30 bg-[#137fec]/10 px-3 py-1 w-fit">
+                                <span className="material-symbols-outlined text-[14px] text-[#137fec]">schema</span>
+                                <span className="text-xs font-bold text-[#137fec]">The UBP Standard</span>
+                            </div>
+                            <h2 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight text-white">
+                                The Unified Blueprint Framework
+                            </h2>
+                            <p className="text-[#9dabb9] text-lg">
+                                Structured thinking, automated. The UBP isn&apos;t just a document; it&apos;s a rigorous framework designed to bridge the gap between human ideas and AI implementation.
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
+                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
+                                    <span className="material-symbols-outlined text-[24px]">center_focus_strong</span>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-white text-lg mb-2">Single Source of Truth</h3>
+                                    <p className="text-sm text-[#9dabb9] leading-relaxed">No scattered docs. One master file that rules them all.</p>
+                                </div>
+                            </div>
+                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
+                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
+                                    <span className="material-symbols-outlined text-[24px]">psychology</span>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-white text-lg mb-2">Consultant Logic</h3>
+                                    <p className="text-sm text-[#9dabb9] leading-relaxed">Applies senior PM frameworks to organize chaos into clarity.</p>
+                                </div>
+                            </div>
+                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
+                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
+                                    <span className="material-symbols-outlined text-[24px]">smart_toy</span>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-white text-lg mb-2">Agent-Ready</h3>
+                                    <p className="text-sm text-[#9dabb9] leading-relaxed">Optimized context window usage for AI coding agents.</p>
+                                </div>
+                            </div>
+                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
+                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
+                                    <span className="material-symbols-outlined text-[24px]">do_not_disturb_on</span>
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-white text-lg mb-2">No Narrative</h3>
+                                    <p className="text-sm text-[#9dabb9] leading-relaxed">Zero fluff. Pure specifications, constraints, and logical flows.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-      {/* CTA Section */}
-      <section className="py-24 px-6 lg:px-40 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#137fec]/5 pointer-events-none"></div>
-        <div className="max-w-[720px] mx-auto flex flex-col items-center text-center gap-8 relative z-10">
-          <div className="size-16 rounded-2xl bg-gradient-to-br from-[#161b22] to-[#0D1117] border border-[#30363d] flex items-center justify-center shadow-xl mb-4">
-            <span className="material-symbols-outlined text-[#137fec] text-[40px]">hourglass_bottom</span>
-          </div>
-          <h2 className="text-4xl md:text-5xl font-black leading-tight tracking-[-0.033em]">
-            Ready to find your flow?
-          </h2>
-          <div className="flex flex-col sm:flex-row gap-3 w-full max-w-[480px]">
-            <div className="flex-1 relative group">
-              <input
-                className="w-full h-12 rounded-lg bg-[#161b22] border border-[#30363d] px-4 text-white placeholder-[#637588] focus:outline-none transition-all cursor-not-allowed opacity-70"
-                placeholder="Enter your email"
-                type="email"
-                disabled
-                onClick={() => handleComingSoon("We will open beta try soon!")}
-              />
-              <div
-                className="absolute inset-0 cursor-pointer z-10"
-                onClick={() => handleComingSoon("We will open beta try soon!")}
-              ></div>
-            </div>
-            <button
-              className="h-12 px-6 rounded-lg bg-[#137fec]/50 text-white font-bold cursor-not-allowed whitespace-nowrap"
-              type="button"
-              disabled
-              onClick={() => handleComingSoon("We will open beta try soon!")}
-            >
-              Get Access
-            </button>
-          </div>
-          <p className="text-xs text-[#637588]">No credit card required. Beta invites sent weekly.</p>
-        </div>
-      </section>
+                    {/* 9-Section Anatomy */}
+                    <div className="rounded-2xl border border-[#30363d] bg-[#0b0e11] overflow-hidden flex flex-col lg:flex-row shadow-2xl">
+                        <div className="p-8 lg:p-12 flex flex-col justify-center gap-6 lg:w-[40%] border-b lg:border-b-0 lg:border-r border-[#30363d] z-10 bg-[#0b0e11]">
+                            <h3 className="text-2xl font-bold text-white">The 9-Section Anatomy</h3>
+                            <p className="text-[#9dabb9] text-base leading-relaxed">
+                                Every UBP is generated with a strict 9-point structure. This ensures that whether you&apos;re handing off to a human developer or an AI agent, every requirement is explicitly defined.
+                            </p>
+                            <div className="flex flex-col gap-3 mt-2">
+                                <div className="flex items-center gap-3">
+                                    <span className="material-symbols-outlined text-green-500 text-[20px]">check_circle</span>
+                                    <span className="text-sm text-white">Standardized Output</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="material-symbols-outlined text-green-500 text-[20px]">check_circle</span>
+                                    <span className="text-sm text-white">Machine Readable</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-8 lg:p-12 lg:w-[60%] bg-[#161b22] relative overflow-hidden">
+                            <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
+                                backgroundImage: 'radial-gradient(#637588 1px, transparent 1px)',
+                                backgroundSize: '20px 20px'
+                            }}></div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
+                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
+                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">01</span>
+                                    <span className="text-sm font-medium text-gray-300">Product Vision</span>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
+                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">02</span>
+                                    <span className="text-sm font-medium text-gray-300">Scope</span>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
+                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">03</span>
+                                    <span className="text-sm font-medium text-gray-300">Actors</span>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
+                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">04</span>
+                                    <span className="text-sm font-medium text-gray-300">Behaviors</span>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
+                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">05</span>
+                                    <span className="text-sm font-medium text-gray-300">Constraints &amp; Risks</span>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
+                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">06</span>
+                                    <span className="text-sm font-medium text-gray-300">Technology Decisions</span>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
+                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">07</span>
+                                    <span className="text-sm font-medium text-gray-300">Implementation Phases</span>
+                                </div>
+                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
+                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">08</span>
+                                    <span className="text-sm font-medium text-gray-300">Integration Points</span>
+                                </div>
+                                <div className="col-span-1 sm:col-span-2 flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
+                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">09</span>
+                                    <span className="text-sm font-medium text-gray-300">Change Log</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-      {/* Footer */}
-      <footer className="border-t border-[#30363d] bg-[#0D1117] py-12 px-6 lg:px-40">
-        <div className="max-w-[960px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#137fec]">hourglass_top</span>
-            <span className="text-white font-bold text-lg">Flowro AI</span>
-          </div>
-          <div className="flex gap-8 text-sm text-[#9dabb9]"></div>
-          <p className="text-xs text-[#637588]">© 2025 Flowro AI Inc. All rights reserved.</p>
-        </div>
-      </footer>
+            {/* CTA Section */}
+            <section className="py-4 px-6 lg:px-40 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#137fec]/5 pointer-events-none"></div>
+                <div className="layout-content-container max-w-[720px] mx-auto flex flex-col items-center text-center gap-8 relative z-10">
+                 <span className="material-symbols-outlined text-[#137fec] text-[40px] scale-180">
+  hourglass_bottom
+</span>
 
-      {/* Toast */}
-      {showToast && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100]">
-          <div className="bg-[#161b22] border border-[#137fec]/50 text-white px-6 py-3 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-3 animate-[fadeIn_0.3s_ease-out]">
-            <span className="material-symbols-outlined text-[#137fec]">info</span>
-            <span className="text-sm font-medium">{toastMessage}</span>
-          </div>
-        </div>
-      )}
+                    <h2 className="text-4xl md:text-5xl font-black leading-tight tracking-[-0.033em]">
+                        Ready to find your flow?
+                    </h2>
+                    <p className="text-[#9dabb9] text-lg max-w-[500px]">
+                        Join 2,000+ Vibe Coders using Flowro to reclaim their time and sanity.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 w-full max-w-[480px]">
+                        <Link
+                            href="/auth"
+                            className="h-12 px-6 rounded-lg bg-[#137fec] text-white font-bold hover:bg-[#137fec]/90 transition-all whitespace-nowrap flex items-center justify-center"
+                        >
+                            Get Started
+                        </Link>
+                    </div>
+                    <p className="text-xs text-[#637588]">No credit card required</p>
+                </div>
+            </section>
 
-      <style jsx>{`
-                @keyframes float {
-                    0%, 100% { transform: translateY(0); }
-                    50% { transform: translateY(-10px); }
-                }
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(10px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-            `}</style>
-    </div>
-  );
+            {/* Footer */}
+            <footer className="border-t border-[#30363d] bg-[#0D1117] py-12 px-6 lg:px-40">
+                <div className="layout-content-container max-w-[960px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[#137fec]">hourglass_top</span>
+                        <span className="text-white font-bold text-lg">Flowro AI</span>
+                    </div>
+                    <div className="flex gap-8 text-sm text-[#9dabb9]">
+                        <a className="hover:text-white transition-colors" href="#">Twitter</a>
+                        <a className="hover:text-white transition-colors" href="#">GitHub</a>
+                        <a className="hover:text-white transition-colors" href="#">Discord</a>
+                    </div>
+                    <p className="text-xs text-[#637588]">© 2026 Flowro AI Inc. All rights reserved.</p>
+                </div>
+            </footer>
+
+            <style jsx>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+        @keyframes fadeIn {
+          0%, 100% { opacity: 0; }
+          50% { opacity: 1; }
+        }
+        @keyframes widthGrow {
+          0% { width: 0; }
+          100% { width: 100%; }
+        }
+      `}</style>
+        </div>
+    );
 }

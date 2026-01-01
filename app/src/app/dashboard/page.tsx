@@ -6,19 +6,24 @@ import { useEffect, useState, useMemo } from "react"
 import { signOut } from "firebase/auth"
 import { auth } from "@/lib/firebase"
 
-interface Blueprint {
+interface Project {
     id: string
     projectName: string
-    status: string
-    version: string
+    chatHistory: { role: string; content: string; timestamp: string }[]
     createdAt: string
+    updatedAt: string
+    latestBlueprint?: {
+        id: string
+        version: string
+        status: string
+    }
 }
 
 export default function DashboardPage() {
     const { user, loading } = useAuth()
     const router = useRouter()
-    const [blueprints, setBlueprints] = useState<Blueprint[]>([])
-    const [loadingBlueprints, setLoadingBlueprints] = useState(true)
+    const [projects, setProjects] = useState<Project[]>([])
+    const [loadingProjects, setLoadingProjects] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
 
     // Redirect if not logged in
@@ -28,77 +33,77 @@ export default function DashboardPage() {
         }
     }, [user, loading, router])
 
-    // Fetch blueprints
+    // Fetch projects
     useEffect(() => {
-        async function fetchBlueprints() {
+        async function fetchProjects() {
             if (!user) return
 
             try {
                 const token = await user.getIdToken()
-                const res = await fetch("/api/blueprints", {
+                const res = await fetch("/api/projects", {
                     headers: { Authorization: `Bearer ${token}` },
                 })
                 const data = await res.json()
-                setBlueprints(data.blueprints || [])
+                setProjects(data.projects || [])
             } catch (error) {
-                console.error("Error fetching blueprints:", error)
+                console.error("Error fetching projects:", error)
             } finally {
-                setLoadingBlueprints(false)
+                setLoadingProjects(false)
             }
         }
 
         if (user) {
-            fetchBlueprints()
+            fetchProjects()
         }
     }, [user])
 
     // Calculate stats from real data
     const stats = useMemo(() => {
-        const total = blueprints.length
-        const processing = blueprints.filter(bp => bp.status === "processing" || bp.status === "draft").length
-        const completed = blueprints.filter(bp => bp.status === "locked" || bp.status === "ready").length
+        const total = projects.length
+        const processing = projects.filter(p => p.latestBlueprint?.status === "draft").length
+        const completed = projects.filter(p => p.latestBlueprint?.status === "locked" || p.latestBlueprint?.status === "approved").length
         return { total, processing, completed }
-    }, [blueprints])
+    }, [projects])
 
-    // Filter blueprints by search
-    const filteredBlueprints = useMemo(() => {
-        if (!searchQuery) return blueprints
-        return blueprints.filter(bp =>
-            bp.projectName.toLowerCase().includes(searchQuery.toLowerCase())
+    // Filter projects by search
+    const filteredProjects = useMemo(() => {
+        if (!searchQuery) return projects
+        return projects.filter(p =>
+            p.projectName.toLowerCase().includes(searchQuery.toLowerCase())
         )
-    }, [blueprints, searchQuery])
+    }, [projects, searchQuery])
 
     const handleSignOut = async () => {
         await signOut(auth)
         router.push("/auth")
     }
 
-    const handleCreateBlueprint = async () => {
+    const handleCreateProject = async () => {
         if (!user) return
 
         try {
             const token = await user.getIdToken()
-            const res = await fetch("/api/blueprints", {
+            const res = await fetch("/api/projects", {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`,
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ projectName: "New Blueprint" }),
+                body: JSON.stringify({ projectName: "New Project" }),
             })
-            const newBlueprint = await res.json()
-            router.push(`/chat/${newBlueprint.id}`)
+            const newProject = await res.json()
+            router.push(`/chat/${newProject.id}`)
         } catch (error) {
-            console.error("Error creating blueprint:", error)
+            console.error("Error creating project:", error)
         }
     }
 
-    const getStatusColor = (status: string) => {
+    const getStatusColor = (status?: string) => {
         switch (status) {
             case "locked":
-            case "ready":
+            case "approved":
                 return { bg: "bg-green-500/10", dot: "bg-green-500", text: "text-green-400" }
-            case "processing":
+            case "draft":
                 return { bg: "bg-blue-500/10", dot: "bg-blue-500 animate-pulse", text: "text-blue-400" }
             default:
                 return { bg: "bg-slate-700/50", dot: "bg-slate-500", text: "text-slate-300" }
@@ -201,11 +206,11 @@ export default function DashboardPage() {
                             <p className="text-base text-[#9dabb9]">Let's build a unified blueprint today.</p>
                         </div>
                         <button
-                            onClick={handleCreateBlueprint}
+                            onClick={handleCreateProject}
                             className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#137fec] px-6 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#101922]"
                         >
                             <span className="material-symbols-outlined text-[20px]">add</span>
-                            <span>Create New UBP</span>
+                            <span>Create New Project</span>
                         </button>
                     </header>
 
@@ -267,41 +272,42 @@ export default function DashboardPage() {
                     <section className="flex flex-col gap-4">
                         <div className="flex items-center justify-between px-1">
                             <h2 className="text-xl font-bold text-white">Recent Projects</h2>
-                            {blueprints.length > 0 && (
+                            {projects.length > 0 && (
                                 <a className="text-sm font-medium text-[#137fec] hover:text-blue-400" href="#">View All</a>
                             )}
                         </div>
 
                         {/* Projects Grid */}
-                        {loadingBlueprints ? (
+                        {loadingProjects ? (
                             <div className="flex items-center justify-center py-12">
                                 <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_empty</span>
-                                <span className="ml-3 text-[#9dabb9]">Loading blueprints...</span>
+                                <span className="ml-3 text-[#9dabb9]">Loading projects...</span>
                             </div>
-                        ) : filteredBlueprints.length === 0 ? (
+                        ) : filteredProjects.length === 0 ? (
                             <div className="bg-[#18212b] border border-[#283039] rounded-xl p-12 text-center">
                                 <span className="material-symbols-outlined text-[#9dabb9] text-5xl mb-4 block">folder_open</span>
                                 <p className="text-[#9dabb9] mb-6">
-                                    {searchQuery ? "No blueprints match your search" : "No blueprints yet"}
+                                    {searchQuery ? "No projects match your search" : "No projects yet"}
                                 </p>
                                 {!searchQuery && (
                                     <button
-                                        onClick={handleCreateBlueprint}
+                                        onClick={handleCreateProject}
                                         className="bg-[#137fec] hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-colors shadow-lg shadow-blue-500/20"
                                     >
-                                        Create Your First Blueprint
+                                        Create Your First Project
                                     </button>
                                 )}
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                {filteredBlueprints.map((bp, index) => {
-                                    const statusColors = getStatusColor(bp.status)
+                                {filteredProjects.map((project, index) => {
+                                    const status = project.latestBlueprint?.status || "draft"
+                                    const statusColors = getStatusColor(status)
                                     const iconConfig = getIconByIndex(index)
                                     return (
                                         <div
-                                            key={bp.id}
-                                            onClick={() => router.push(`/chat/${bp.id}`)}
+                                            key={project.id}
+                                            onClick={() => router.push(`/chat/${project.id}`)}
                                             className="group relative flex flex-col gap-4 rounded-xl border border-[#283039] bg-[#18212b] p-5 shadow-sm transition-all hover:border-[#137fec]/50 hover:shadow-md cursor-pointer"
                                         >
                                             <div className="flex items-start justify-between">
@@ -310,8 +316,8 @@ export default function DashboardPage() {
                                                         <span className="material-symbols-outlined">{iconConfig.icon}</span>
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <h3 className="text-base font-bold text-white">{bp.projectName}</h3>
-                                                        <p className="text-xs text-[#9dabb9]">v{bp.version}</p>
+                                                        <h3 className="text-base font-bold text-white">{project.projectName}</h3>
+                                                        <p className="text-xs text-[#9dabb9]">v{project.latestBlueprint?.version || "0.1"}</p>
                                                     </div>
                                                 </div>
                                                 <button className="rounded p-1 text-slate-400 hover:bg-white/10">
@@ -319,10 +325,10 @@ export default function DashboardPage() {
                                                 </button>
                                             </div>
 
-                                            {/* Blueprint preview placeholder */}
+                                            {/* Project preview - show chat history count */}
                                             <div className="h-20 w-full rounded-lg bg-[#11161d] overflow-hidden relative">
                                                 <div className="p-3">
-                                                    <div className="h-2 w-1/3 rounded-full bg-slate-700 mb-2"></div>
+                                                    <div className="text-xs text-slate-500 mb-2">{project.chatHistory?.length || 0} messages</div>
                                                     <div className="h-2 w-2/3 rounded-full bg-slate-700 mb-2"></div>
                                                     <div className="h-2 w-1/2 rounded-full bg-slate-700"></div>
                                                 </div>
@@ -332,7 +338,7 @@ export default function DashboardPage() {
                                                 <div className={`flex items-center gap-2 rounded-full ${statusColors.bg} px-2.5 py-1`}>
                                                     <div className={`size-1.5 rounded-full ${statusColors.dot}`}></div>
                                                     <span className={`text-xs font-semibold ${statusColors.text}`}>
-                                                        {bp.status.charAt(0).toUpperCase() + bp.status.slice(1)}
+                                                        {status.charAt(0).toUpperCase() + status.slice(1)}
                                                     </span>
                                                 </div>
                                             </div>

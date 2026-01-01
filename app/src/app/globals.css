@@ -5,29 +5,77 @@
 :root {
   --primary: #137fec;
   --background-light: #f6f7f8;
-  --background-dark: #101922;
-  --sidebar-dark: #0d141c;
-  --card-dark: #18212b;
-  --border-dark: #283039;
+  --background-dark: #0D1117;
+  --surface-dark: #161b22;
+  --border-dark: #30363d;
+  --accent: #2f81f7;
   --text-secondary: #9dabb9;
 }
 
 @theme inline {
   --color-primary: var(--primary);
   --color-background: var(--background-dark);
-  --color-foreground: #ffffff;
-  --color-card-dark: var(--card-dark);
+  --color-background-light: var(--background-light);
+  --color-surface-dark: var(--surface-dark);
   --color-border-dark: var(--border-dark);
+  --color-accent: var(--accent);
   --color-text-secondary: var(--text-secondary);
   --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+
+  --animate-spin-slow: spin 3s linear infinite;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-flow-beam: flowBeam 2s linear infinite;
+  --animate-float: float 6s ease-in-out infinite;
+
+  @keyframes flowBeam {
+    0% {
+      transform: translateX(-100%);
+    }
+
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-10px);
+    }
+  }
 }
 
-/* Blueprint grid pattern */
-.bg-grid-pattern {
-  background-size: 40px 40px;
+/* Custom Utilities from index.html */
+.glass-gradient {
+  background: linear-gradient(180deg, rgba(19, 127, 236, 0.05) 0%, rgba(19, 127, 236, 0) 100%);
+}
+
+.grid-bg {
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, rgba(48, 54, 61, 0.2) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(48, 54, 61, 0.2) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.doc-card {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+}
+
+.flow-line {
+  stroke-dasharray: 6;
+  animation: dash 30s linear infinite;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -1000;
+  }
 }
 
 /* Custom scrollbar for dark mode */
@@ -37,11 +85,11 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #101922;
+  background: var(--background-dark);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #283039;
+  background: var(--border-dark);
   border-radius: 4px;
 }
 
