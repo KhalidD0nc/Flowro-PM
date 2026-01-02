@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState, useMemo } from "react"
 import { signOut } from "firebase/auth"
 import { auth } from "@/lib/firebase"
+import CreateProjectModal from "@/components/CreateProjectModal"
 
 interface Project {
     id: string
@@ -25,6 +26,7 @@ export default function DashboardPage() {
     const [projects, setProjects] = useState<Project[]>([])
     const [loadingProjects, setLoadingProjects] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
+    const [showCreateModal, setShowCreateModal] = useState(false)
 
     // Redirect if not logged in
     useEffect(() => {
@@ -78,24 +80,34 @@ export default function DashboardPage() {
         router.push("/auth")
     }
 
-    const handleCreateProject = async () => {
+    const handleOpenCreateModal = () => {
+        setShowCreateModal(true)
+    }
+
+    const handleCloseCreateModal = () => {
+        setShowCreateModal(false)
+    }
+
+    const handleCreateProject = async (projectName: string, description?: string) => {
         if (!user) return
 
-        try {
-            const token = await user.getIdToken()
-            const res = await fetch("/api/projects", {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ projectName: "New Project" }),
-            })
-            const newProject = await res.json()
-            router.push(`/chat/${newProject.id}`)
-        } catch (error) {
-            console.error("Error creating project:", error)
+        const token = await user.getIdToken()
+        const res = await fetch("/api/projects", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ projectName, description }),
+        })
+
+        if (!res.ok) {
+            const errorData = await res.json()
+            throw new Error(errorData.error || "Failed to create project")
         }
+
+        const newProject = await res.json()
+        router.push(`/chat/${newProject.id}`)
     }
 
     const getStatusColor = (status?: string) => {
@@ -206,7 +218,7 @@ export default function DashboardPage() {
                             <p className="text-base text-[#9dabb9]">Let's build a unified blueprint today.</p>
                         </div>
                         <button
-                            onClick={handleCreateProject}
+                            onClick={handleOpenCreateModal}
                             className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#137fec] px-6 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#101922]"
                         >
                             <span className="material-symbols-outlined text-[20px]">add</span>
@@ -291,7 +303,7 @@ export default function DashboardPage() {
                                 </p>
                                 {!searchQuery && (
                                     <button
-                                        onClick={handleCreateProject}
+                                        onClick={handleOpenCreateModal}
                                         className="bg-[#137fec] hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-colors shadow-lg shadow-blue-500/20"
                                     >
                                         Create Your First Project
@@ -350,6 +362,13 @@ export default function DashboardPage() {
                     </section>
                 </div>
             </main>
+
+            {/* Create Project Modal */}
+            <CreateProjectModal
+                isOpen={showCreateModal}
+                onClose={handleCloseCreateModal}
+                onCreateProject={handleCreateProject}
+            />
         </div>
     )
 }

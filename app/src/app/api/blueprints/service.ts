@@ -18,6 +18,7 @@ export interface Project {
     id: string
     userId: string
     projectName: string
+    description?: string
     chatHistory: ChatMessage[]
     createdAt: string
     updatedAt: string
@@ -40,6 +41,7 @@ export interface Blueprint {
 export interface CreateProjectInput {
     userId: string
     projectName: string
+    description?: string
 }
 
 // =============================================================================
@@ -66,7 +68,7 @@ export async function getUserProjects(userId: string): Promise<Project[]> {
  * Creates a new project for a user with an initial draft blueprint
  */
 export async function createProject(input: CreateProjectInput): Promise<{ project: Project; blueprint: Blueprint }> {
-    const { userId, projectName } = input
+    const { userId, projectName, description } = input
     const now = new Date().toISOString()
     const db = getAdminDb()
 
@@ -74,6 +76,7 @@ export async function createProject(input: CreateProjectInput): Promise<{ projec
     const projectData = {
         userId,
         projectName,
+        description: description || undefined,
         chatHistory: [],
         createdAt: now,
         updatedAt: now,
@@ -118,6 +121,47 @@ export async function getProjectById(projectId: string): Promise<Project | null>
         id: doc.id,
         ...doc.data(),
     } as Project
+}
+
+/**
+ * Verifies that a user owns a specific project
+ * @param projectId - The project ID to check
+ * @param userId - The user ID to verify ownership for
+ * @returns True if the user owns the project
+ * @throws Error if project not found or user doesn't own it
+ */
+export async function verifyProjectOwnership(projectId: string, userId: string): Promise<boolean> {
+    const project = await getProjectById(projectId)
+
+    if (!project) {
+        throw new Error("Project not found")
+    }
+
+    if (project.userId !== userId) {
+        throw new Error("Access denied: You don't have permission to access this project")
+    }
+
+    return true
+}
+
+/**
+ * Verifies that a user owns a blueprint (via its parent project)
+ * @param blueprintId - The blueprint ID to check
+ * @param userId - The user ID to verify ownership for
+ * @returns The blueprint if ownership is verified
+ * @throws Error if blueprint not found or user doesn't own it
+ */
+export async function verifyBlueprintOwnership(blueprintId: string, userId: string): Promise<Blueprint> {
+    const blueprint = await getBlueprintById(blueprintId)
+
+    if (!blueprint) {
+        throw new Error("Blueprint not found")
+    }
+
+    // Verify ownership through the parent project
+    await verifyProjectOwnership(blueprint.projectId, userId)
+
+    return blueprint
 }
 
 /**

@@ -6,6 +6,7 @@ import {
     signOut as firebaseSignOut,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
+    sendPasswordResetEmail,
     updateProfile,
     UserCredential
 } from "firebase/auth"
@@ -22,7 +23,37 @@ interface UserData {
     photoURL: string | null
     createdAt: ReturnType<typeof serverTimestamp>
     updatedAt: ReturnType<typeof serverTimestamp>
-}                     
+}
+
+/**
+ * Sanitizes user input to prevent XSS and ensure data quality
+ * @param input - Raw string input
+ * @param maxLength - Maximum allowed length (default 100)
+ * @returns Sanitized string
+ */
+function sanitizeInput(input: string | undefined | null, maxLength = 100): string | null {
+    if (!input) return null
+
+    return input
+        .trim()
+        .slice(0, maxLength)
+        // Remove any HTML tags
+        .replace(/<[^>]*>/g, '')
+        // Remove control characters
+        .replace(/[\x00-\x1F\x7F]/g, '')
+        // Normalize whitespace
+        .replace(/\s+/g, ' ')
+}
+
+/**
+ * Validates email format
+ * @param email - Email to validate
+ * @returns True if email is valid
+ */
+function isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email) && email.length <= 320
+}
 
 /**
  * Signs in the user with Google OAuth
@@ -32,7 +63,7 @@ interface UserData {
 export async function signInWithGoogle(): Promise<void> {
     const provider = new GoogleAuthProvider()
     const result = await signInWithPopup(auth, provider)
-                          
+
     // Store user in Firestore if first time
     await storeUserInFirestore(result)
 }
@@ -45,7 +76,18 @@ export async function signInWithGoogle(): Promise<void> {
  * @throws Error if sign-in fails
  */
 export async function signIn(email: string, password: string): Promise<UserCredential> {
-    const result = await signInWithEmailAndPassword(auth, email, password)
+    // Validate email format
+    const sanitizedEmail = sanitizeInput(email, 320)
+    if (!sanitizedEmail || !isValidEmail(sanitizedEmail)) {
+        throw new Error("auth/invalid-email")
+    }
+
+    // Password validation (min 6 chars - Firebase requirement)
+    if (!password || password.length < 6) {
+        throw new Error("auth/weak-password")
+    }
+
+    const result = await signInWithEmailAndPassword(auth, sanitizedEmail, password)
     return result
 }
 
@@ -63,18 +105,47 @@ export async function signUp(
     password: string,
     displayName?: string
 ): Promise<UserCredential> {
+    // Validate and sanitize email
+    const sanitizedEmail = sanitizeInput(email, 320)
+    if (!sanitizedEmail || !isValidEmail(sanitizedEmail)) {
+        throw new Error("auth/invalid-email")
+    }
+
+    // Password validation
+    if (!password || password.length < 6) {
+        throw new Error("auth/weak-password")
+    }
+
+    // Sanitize display name
+    const sanitizedDisplayName = sanitizeInput(displayName, 100)
+
     // Create the user account
-    const result = await createUserWithEmailAndPassword(auth, email, password)
+    const result = await createUserWithEmailAndPassword(auth, sanitizedEmail, password)
 
     // Update the user's display name if provided
-    if (displayName && result.user) {
-        await updateProfile(result.user, { displayName })
+    if (sanitizedDisplayName && result.user) {
+        await updateProfile(result.user, { displayName: sanitizedDisplayName })
     }
 
     // Store user data in Firestore
-    await storeUserInFirestore(result, displayName)
+    await storeUserInFirestore(result, sanitizedDisplayName)
 
     return result
+}
+
+/**
+ * Sends a password reset email to the specified email address
+ * @param email - User's email address
+ * @throws Error if sending fails
+ */
+export async function resetPassword(email: string): Promise<void> {
+    // Validate email format
+    const sanitizedEmail = sanitizeInput(email, 320)
+    if (!sanitizedEmail || !isValidEmail(sanitizedEmail)) {
+        throw new Error("auth/invalid-email")
+    }
+
+    await sendPasswordResetEmail(auth, sanitizedEmail)
 }
 
 /**
@@ -84,7 +155,7 @@ export async function signUp(
  */
 async function storeUserInFirestore(
     userCredential: UserCredential,
-    displayName?: string
+    displayName?: string | null
 ): Promise<void> {
     const user = userCredential.user
     const userRef = doc(db, "Users", user.uid)
@@ -93,11 +164,11 @@ async function storeUserInFirestore(
     const userSnap = await getDoc(userRef)
 
     if (!userSnap.exists()) {
-        // Create new user document
+        // Create new user document with sanitized data
         const userData: UserData = {
             uid: user.uid,
             email: user.email,
-            displayName: displayName || user.displayName,
+            displayName: sanitizeInput(displayName || user.displayName, 100),
             photoURL: user.photoURL,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()

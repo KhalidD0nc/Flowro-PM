@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "./auth"
-import { getProjectBlueprints, getBlueprintById, updateBlueprintContent, lockBlueprint, createBlueprintVersion } from "./service"
+import {
+    getProjectBlueprints,
+    updateBlueprintContent,
+    lockBlueprint,
+    createBlueprintVersion,
+    verifyProjectOwnership,
+    verifyBlueprintOwnership
+} from "./service"
 
 // GET /api/blueprints?projectId=xxx - List blueprints for a project
 export async function GET(request: NextRequest) {
@@ -18,12 +25,17 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "projectId query parameter required" }, { status: 400 })
         }
 
+        // Verify user owns this project before returning blueprints
+        await verifyProjectOwnership(projectId, authResult.userId)
+
         const blueprints = await getProjectBlueprints(projectId)
 
         return NextResponse.json({ blueprints })
     } catch (error) {
         console.error("List blueprints error:", error)
-        return NextResponse.json({ error: "Failed to list blueprints" }, { status: 500 })
+        const message = error instanceof Error ? error.message : "Failed to list blueprints"
+        const status = message.includes("Access denied") ? 403 : message.includes("not found") ? 404 : 500
+        return NextResponse.json({ error: message }, { status })
     }
 }
 
@@ -43,12 +55,17 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "projectId required" }, { status: 400 })
         }
 
+        // Verify user owns this project before creating blueprint
+        await verifyProjectOwnership(projectId, authResult.userId)
+
         const blueprint = await createBlueprintVersion(projectId, version || "0.1")
 
         return NextResponse.json(blueprint)
     } catch (error) {
         console.error("Create blueprint error:", error)
-        return NextResponse.json({ error: "Failed to create blueprint" }, { status: 500 })
+        const message = error instanceof Error ? error.message : "Failed to create blueprint"
+        const status = message.includes("Access denied") ? 403 : message.includes("not found") ? 404 : 500
+        return NextResponse.json({ error: message }, { status })
     }
 }
 
@@ -68,6 +85,9 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: "blueprintId required" }, { status: 400 })
         }
 
+        // Verify user owns this blueprint before modifying
+        await verifyBlueprintOwnership(blueprintId, authResult.userId)
+
         // Lock action
         if (action === "lock") {
             await lockBlueprint(blueprintId)
@@ -84,6 +104,9 @@ export async function PATCH(request: NextRequest) {
     } catch (error) {
         console.error("Update blueprint error:", error)
         const message = error instanceof Error ? error.message : "Failed to update blueprint"
-        return NextResponse.json({ error: message }, { status: 500 })
+        const status = message.includes("Access denied") ? 403 :
+            message.includes("not found") ? 404 :
+                message.includes("locked") ? 409 : 500
+        return NextResponse.json({ error: message }, { status })
     }
 }
