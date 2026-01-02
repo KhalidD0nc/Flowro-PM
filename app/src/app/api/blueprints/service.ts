@@ -55,13 +55,17 @@ export async function getUserProjects(userId: string): Promise<Project[]> {
     const snapshot = await getAdminDb()
         .collection("projects")
         .where("userId", "==", userId)
-        .orderBy("createdAt", "desc")
         .get()
 
-    return snapshot.docs.map((doc) => ({
+    const projects = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
     })) as Project[]
+
+    // Sort in JavaScript to avoid needing composite index
+    return projects.sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
 }
 
 /**
@@ -72,14 +76,18 @@ export async function createProject(input: CreateProjectInput): Promise<{ projec
     const now = new Date().toISOString()
     const db = getAdminDb()
 
-    // Create the project document
-    const projectData = {
+    // Create the project document - only include description if provided
+    const projectData: Record<string, unknown> = {
         userId,
         projectName,
-        description: description || undefined,
         chatHistory: [],
         createdAt: now,
         updatedAt: now,
+    }
+
+    // Only add description if it's provided (Firestore doesn't accept undefined)
+    if (description) {
+        projectData.description = description
     }
 
     const projectRef = await db.collection("projects").add(projectData)
@@ -98,8 +106,13 @@ export async function createProject(input: CreateProjectInput): Promise<{ projec
     return {
         project: {
             id: projectRef.id,
-            ...projectData,
-        },
+            userId,
+            projectName,
+            description,
+            chatHistory: [],
+            createdAt: now,
+            updatedAt: now,
+        } as Project,
         blueprint: {
             id: blueprintRef.id,
             ...blueprintData,
@@ -197,13 +210,17 @@ export async function getProjectBlueprints(projectId: string): Promise<Blueprint
     const snapshot = await getAdminDb()
         .collection("blueprints")
         .where("projectId", "==", projectId)
-        .orderBy("createdAt", "desc")
         .get()
 
-    return snapshot.docs.map((doc) => ({
+    const blueprints = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
     })) as Blueprint[]
+
+    // Sort in JavaScript to avoid needing composite index
+    return blueprints.sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
 }
 
 /**
@@ -295,17 +312,21 @@ export async function getLatestBlueprint(projectId: string): Promise<Blueprint |
     const snapshot = await getAdminDb()
         .collection("blueprints")
         .where("projectId", "==", projectId)
-        .orderBy("createdAt", "desc")
-        .limit(1)
         .get()
 
     if (snapshot.empty) {
         return null
     }
 
-    const doc = snapshot.docs[0]
-    return {
+    // Sort in JavaScript to find the latest (avoid composite index requirement)
+    const blueprints = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-    } as Blueprint
+    })) as Blueprint[]
+
+    blueprints.sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+
+    return blueprints[0]
 }

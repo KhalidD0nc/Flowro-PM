@@ -143,7 +143,7 @@ export default function DashboardPage() {
             <div className="min-h-screen bg-[#101922] flex items-center justify-center">
                 <div className="flex items-center gap-3">
                     <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_empty</span>
-                    <span className="text-white">Loading...</span>
+                    {/* <span className="text-white">Loading...</span> */}
                 </div>
             </div>
         )
@@ -293,7 +293,7 @@ export default function DashboardPage() {
                         {loadingProjects ? (
                             <div className="flex items-center justify-center py-12">
                                 <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_empty</span>
-                                <span className="ml-3 text-[#9dabb9]">Loading projects...</span>
+                                {/* <span className="ml-3 text-[#9dabb9]">Loading projects...</span> */}
                             </div>
                         ) : filteredProjects.length === 0 ? (
                             <div className="bg-[#18212b] border border-[#283039] rounded-xl p-12 text-center">
