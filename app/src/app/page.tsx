@@ -16,8 +16,8 @@ export default function Home() {
                     </div>
                     <div className="flex items-center gap-8">
                         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[#9dabb9]">
-                            <a className="hover:text-[#137fec] transition-colors" href="#">How it Works</a>
-                            <a className="hover:text-[#137fec] transition-colors" href="#">Features</a>
+                            <a className="hover:text-[#137fec] transition-colors" href="#how-it-works">How it Works</a>
+                            <a className="hover:text-[#137fec] transition-colors" href="#features">Features</a>
                             <a className="hover:text-[#137fec] transition-colors" href="#">Pricing</a>
                         </nav>
                         <Link
@@ -61,10 +61,10 @@ export default function Home() {
                                         <span className="material-symbols-outlined text-[20px]">bolt</span>
                                         <span className="truncate">Build Your Blueprint</span>
                                     </Link>
-                                    <button className="flex min-w-[160px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-transparent border border-[#30363d] text-white text-base font-medium leading-normal tracking-[0.015em] hover:bg-white/5 transition-all">
+                                    <a href="#ubp-standard" className="flex min-w-[160px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-transparent border border-[#30363d] text-white text-base font-medium leading-normal tracking-[0.015em] hover:bg-white/5 transition-all">
                                         <span className="truncate">See the Framework</span>
                                         <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                                    </button>
+                                    </a>
                                 </div>
                             </div>
 
@@ -326,7 +326,7 @@ export default function Home() {
             </section>
 
             {/* How it Works Section */}
-            <section className="py-24 px-6 lg:px-40">
+            <section id="how-it-works" className="py-24 px-6 lg:px-40 scroll-mt-20">
                 <div className="layout-content-container max-w-[960px] mx-auto flex flex-col gap-16">
                     <div className="flex flex-col items-center text-center gap-4">
                         <h2 className="text-3xl font-bold leading-tight tracking-[-0.015em] text-white">How it Works</h2>
@@ -403,8 +403,65 @@ export default function Home() {
                 </div>
             </section>
 
+            {/* Features Section */}
+            <section id="features" className="py-24 px-6 lg:px-40 bg-[#0d1117] border-b border-[#30363d] scroll-mt-20">
+                <div className="layout-content-container max-w-[1200px] mx-auto flex flex-col gap-12">
+                    <div className="flex flex-col gap-4 text-center items-center">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-[#137fec]/30 bg-[#137fec]/10 px-3 py-1 w-fit">
+                            <span className="material-symbols-outlined text-[14px] text-[#137fec]">feature_search</span>
+                            <span className="text-xs font-bold text-[#137fec]">Features</span>
+                        </div>
+                        <h2 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight text-white">
+                            Powering the next generation of <br />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#137fec] to-blue-300">product development.</span>
+                        </h2>
+                        <p className="text-[#9dabb9] text-lg max-w-[600px]">
+                            Flowro handles the tedious parts of product management so you can focus on building.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="group flex flex-col gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6 hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300">
+                            <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
+                                <span className="material-symbols-outlined text-[24px]">input</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <h3 className="text-lg font-bold text-white">Zero-Friction Discovery</h3>
+                                <p className="text-[#9dabb9] text-sm leading-relaxed">Dump any document, transcript, or rough note. Flowro ingests chaotic inputs without requiring manual formatting.</p>
+                            </div>
+                        </div>
+                        <div className="group flex flex-col gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6 hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300">
+                            <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
+                                <span className="material-symbols-outlined text-[24px]">architecture</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <h3 className="text-lg font-bold text-white">Auto-Drafting Engine</h3>
+                                <p className="text-[#9dabb9] text-sm leading-relaxed">Instantly generate a standardized Unified Blueprint (UBP) from your scattered inputs, ready for review.</p>
+                            </div>
+                        </div>
+                        <div className="group flex flex-col gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6 hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300">
+                            <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
+                                <span className="material-symbols-outlined text-[24px]">psychology_alt</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <h3 className="text-lg font-bold text-white">Proactive Suggestions</h3>
+                                <p className="text-[#9dabb9] text-sm leading-relaxed">AI identifies gaps and conflicts in logic before you write code, saving weeks of rework.</p>
+                            </div>
+                        </div>
+                        <div className="group flex flex-col gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6 hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300">
+                            <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
+                                <span className="material-symbols-outlined text-[24px]">terminal</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <h3 className="text-lg font-bold text-white">Code-Ready Export</h3>
+                                <p className="text-[#9dabb9] text-sm leading-relaxed">Export locked blueprints into technical specs, Mermaid diagrams, and boilerplate code.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* UBP Standard Section */}
-            <section className="py-24 px-6 lg:px-20 bg-[#0d1117] border-t border-[#30363d] relative overflow-hidden">
+            <section id="ubp-standard" className="py-24 px-6 lg:px-20 bg-[#0d1117] border-t border-[#30363d] relative overflow-hidden scroll-mt-20">
                 <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#137fec]/5 blur-[120px] rounded-full pointer-events-none"></div>
                 <div className="layout-content-container max-w-[1200px] mx-auto flex flex-col gap-20 relative z-10">
                     <div className="flex flex-col gap-12">
@@ -530,17 +587,15 @@ export default function Home() {
             <section className="py-4 px-6 lg:px-40 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#137fec]/5 pointer-events-none"></div>
                 <div className="layout-content-container max-w-[720px] mx-auto flex flex-col items-center text-center gap-8 relative z-10">
-                 <span className="material-symbols-outlined text-[#137fec] text-[40px] scale-180">
-  hourglass_bottom
-</span>
+                    <span className="material-symbols-outlined text-[#137fec] text-[40px] scale-180">
+                        hourglass_bottom
+                    </span>
 
-                    <h2 className="text-4xl md:text-5xl font-black leading-tight tracking-[-0.033em]">
+                    <h2 className="text-4xl md:text-5xl font-black leading-tight tracking-[-0.033em] underline decoration-[#137fec]">
                         Ready to find your flow?
                     </h2>
-                    <p className="text-[#9dabb9] text-lg max-w-[500px]">
-                        Join 2,000+ Vibe Coders using Flowro to reclaim their time and sanity.
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-3 w-full max-w-[480px]">
+
+                    <div className="flex flex-col sm:flex-row gap-3 w-full max-w-[480px] items-center justify-center">
                         <Link
                             href="/auth"
                             className="h-12 px-6 rounded-lg bg-[#137fec] text-white font-bold hover:bg-[#137fec]/90 transition-all whitespace-nowrap flex items-center justify-center"
