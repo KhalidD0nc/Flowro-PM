@@ -3,41 +3,44 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 export interface Message {
-    role: "system" | "user" | "assistant"
-    content: string
-    reasoning_details?: unknown[]
+  role: "system" | "user" | "assistant"
+  content: string
+  reasoning_details?: unknown[]
 }
 
 export interface GenerateOptions {
-    messages: Message[]
-    stream?: boolean
-    reasoning?: boolean
+  messages: Message[]
+  stream?: boolean
+  reasoning?: boolean
 }
 
 export async function generateCompletion(options: GenerateOptions) {
-    const { messages, stream = false, reasoning = true } = options
+  const { messages, stream = false, reasoning = true } = options
 
-    const response = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-            "X-Title": "Flowro-PM",
-        },
-        body: JSON.stringify({
-            model: process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free",
-            messages,
-            stream,
-            ...(reasoning && { reasoning: { enabled: true } }),
-        }),
-    })
+  const response = await fetch(OPENROUTER_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      "X-Title": "Flowro-PM",
+    },
+    body: JSON.stringify({
+      model: process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free",
+      messages,
+      stream,
+      ...(reasoning && { reasoning: { enabled: true } }),
+    }),
+  })
 
-    if (!response.ok) {
-        throw new Error(`OpenRouter error: ${response.status}`)
-    }
+  if (!response.ok) {
+    const errorBody = await response.text()
+    const model = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
+    console.error(`OpenRouter error - Model: ${model}, Status: ${response.status}, Body: ${errorBody}`)
+    throw new Error(`OpenRouter error: ${response.status} - ${errorBody}`)
+  }
 
-    return response
+  return response
 }
 
 // System prompt for UBP generation

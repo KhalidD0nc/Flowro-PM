@@ -19,6 +19,22 @@ interface ChatMessage {
     timestamp: string
 }
 
+// Helper to safely convert any content to a displayable string
+function getContentAsString(content: unknown): string {
+    if (typeof content === "string") {
+        return content
+    }
+    if (content && typeof content === "object") {
+        // Handle the {raw: ...} fallback from the API
+        if ("raw" in content && typeof (content as { raw: unknown }).raw === "string") {
+            return (content as { raw: string }).raw
+        }
+        // For other objects (UBP JSON), stringify nicely
+        return JSON.stringify(content, null, 2)
+    }
+    return String(content)
+}
+
 export default function ChatPage() {
     const { user, loading } = useAuth()
     const router = useRouter()
@@ -120,10 +136,11 @@ export default function ChatPage() {
 
             const data = await res.json()
 
-            // Add assistant response
+            // Add assistant response - safely extract content
+            const assistantContent = getContentAsString(data.content) || "I couldn't generate a response."
             const assistantMessage: ChatMessage = {
                 role: "assistant",
-                content: data.content?.rawContent || data.content || "I couldn't generate a response.",
+                content: assistantContent,
                 timestamp: new Date().toISOString(),
             }
 
@@ -221,11 +238,11 @@ export default function ChatPage() {
                             >
                                 <div
                                     className={`max-w-[80%] rounded-2xl px-4 py-3 ${msg.role === "user"
-                                            ? "bg-[#137fec] text-white"
-                                            : "bg-[#18212b] border border-[#283039] text-white"
+                                        ? "bg-[#137fec] text-white"
+                                        : "bg-[#18212b] border border-[#283039] text-white"
                                         }`}
                                 >
-                                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                                    <p className="whitespace-pre-wrap">{typeof msg.content === "string" ? msg.content : getContentAsString(msg.content)}</p>
                                     <p className={`text-xs mt-2 ${msg.role === "user" ? "text-blue-200" : "text-[#9dabb9]"}`}>
                                         {new Date(msg.timestamp).toLocaleTimeString()}
                                     </p>

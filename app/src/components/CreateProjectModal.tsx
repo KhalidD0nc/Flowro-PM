@@ -95,7 +95,7 @@ export default function CreateProjectModal({
         >
             <div
                 ref={modalRef}
-                className="relative w-full max-w-lg mx-4 rounded-2xl border border-[#283039] bg-[#18212b]/95 p-8 shadow-2xl shadow-black/40"
+                className="relative w-full max-w-lg mx-4 rounded-2xl border border-[#283039] bg-[#18212b]/95 p-6 md:p-8 shadow-2xl shadow-black/40"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="modal-title"
