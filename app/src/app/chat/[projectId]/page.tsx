@@ -3,6 +3,17 @@
 import { useAuth } from "@/components/Providers"
 import { useRouter, useParams } from "next/navigation"
 import { useEffect, useState, useRef } from "react"
+import UBPViewer, { UBPContent } from "@/components/UBPViewer"
+
+interface Blueprint {
+    id: string
+    projectId: string
+    version: string
+    status: "draft" | "locked" | "approved"
+    content: unknown | null
+    createdAt: string
+    lockedAt?: string
+}
 
 interface Project {
     id: string
@@ -11,28 +22,188 @@ interface Project {
     chatHistory: { role: string; content: string; timestamp: string }[]
     createdAt: string
     updatedAt: string
+    latestBlueprint?: Blueprint
 }
 
 interface ChatMessage {
     role: "user" | "assistant"
     content: string
     timestamp: string
+    hasUBP?: boolean  // Flag if this message contains UBP content
 }
 
-// Helper to safely convert any content to a displayable string
-function getContentAsString(content: unknown): string {
-    if (typeof content === "string") {
-        return content
-    }
-    if (content && typeof content === "object") {
-        // Handle the {raw: ...} fallback from the API
-        if ("raw" in content && typeof (content as { raw: unknown }).raw === "string") {
-            return (content as { raw: string }).raw
+// Helper to detect if content is UBP JSON
+function isUBPContent(content: unknown): boolean {
+    if (!content || typeof content !== "object") return false
+
+    // Check for UBP structure keys (API format or viewer format)
+    const ubpKeys = ["productVision", "scope", "actors", "behaviors", "constraints", "constraintsRisks", "techDecisions", "techStack", "phases", "integrations", "changelog", "changeLog"]
+    const contentObj = content as Record<string, unknown>
+
+    return ubpKeys.some(key => key in contentObj)
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function transformApiToUBP(apiData: any): UBPContent {
+    // DEBUG: Log the incoming data structure
+    console.log("=== UBP Transform Debug ===")
+    console.log("Raw API Data:", JSON.stringify(apiData, null, 2))
+    console.log("apiData.productVision:", apiData.productVision)
+    console.log("apiData.scope:", apiData.scope)
+    console.log("apiData.actors:", apiData.actors)
+    console.log("apiData.behaviors:", apiData.behaviors)
+
+    // Transform productVision
+    const productVision = apiData.productVision ? {
+        description: apiData.productVision.problem || apiData.productVision.description,
+        primaryGoal: apiData.productVision.successSignal || apiData.productVision.primaryGoal,
+        targetAudience: apiData.productVision.targetActor || apiData.productVision.targetAudience
+    } : undefined
+
+    // Transform actors from API format to array format
+    let actors: { name: string; description: string; icon?: string }[] | undefined
+    if (apiData.actors) {
+        if (Array.isArray(apiData.actors)) {
+            actors = apiData.actors
+        } else {
+            // Convert object format to array
+            actors = []
+            if (apiData.actors.primary) {
+                actors.push({ name: apiData.actors.primary, description: "Primary user", icon: "person" })
+            }
+            if (apiData.actors.secondary && Array.isArray(apiData.actors.secondary)) {
+                apiData.actors.secondary.forEach((s: string) => {
+                    actors!.push({ name: s, description: "Support role", icon: "group" })
+                })
+            }
+            if (apiData.actors.systems && Array.isArray(apiData.actors.systems)) {
+                apiData.actors.systems.forEach((s: string) => {
+                    actors!.push({ name: s, description: "External system", icon: "smart_toy" })
+                })
+            }
         }
-        // For other objects (UBP JSON), stringify nicely
-        return JSON.stringify(content, null, 2)
     }
-    return String(content)
+
+    // Transform behaviors
+    const behaviors = apiData.behaviors?.map((b: { id?: string; trigger?: string; systemResponse?: string; title?: string; given?: string; when?: string; then?: string; diagramCode?: string; diagram?: string; priority?: string }) => ({
+        id: b.id || "BH-01",
+        title: b.title || b.systemResponse || "Behavior",
+        priority: b.priority,
+        given: b.given || (b.trigger ? `User triggers: ${b.trigger}` : undefined),
+        when: b.when || b.trigger,
+        then: b.then || b.systemResponse,
+        diagram: b.diagram || b.diagramCode
+    }))
+
+    // Transform constraints from constraintsRisks
+    let constraints: { type: "warning" | "risk"; title: string; description: string }[] | undefined
+    if (apiData.constraints && Array.isArray(apiData.constraints)) {
+        constraints = apiData.constraints
+    } else if (apiData.constraintsRisks) {
+        constraints = []
+        if (apiData.constraintsRisks.constraints) {
+            apiData.constraintsRisks.constraints.forEach((c: string) => {
+                constraints!.push({ type: "warning", title: "Constraint", description: c })
+            })
+        }
+        if (apiData.constraintsRisks.risks) {
+            apiData.constraintsRisks.risks.forEach((r: string) => {
+                constraints!.push({ type: "risk", title: "Risk", description: r })
+            })
+        }
+    }
+
+    // Transform techStack to techDecisions
+    let techDecisions: { category: string; choice: string }[] | undefined
+    if (apiData.techDecisions && Array.isArray(apiData.techDecisions)) {
+        techDecisions = apiData.techDecisions
+    } else if (apiData.techStack) {
+        techDecisions = Object.entries(apiData.techStack).map(([category, choice]) => ({
+            category: category.charAt(0).toUpperCase() + category.slice(1),
+            choice: String(choice)
+        }))
+    }
+
+    // Transform phases
+    const phases = apiData.phases?.map((p: { phase?: string; name?: string; goal?: string; description?: string; outputs?: string[]; timeline?: string; status?: string }, i: number) => ({
+        name: p.name || p.phase || `Phase ${i + 1}`,
+        timeline: p.timeline,
+        description: p.description || p.goal || (p.outputs ? p.outputs.join(", ") : ""),
+        status: p.status || (i === 0 ? "current" : "upcoming") as "completed" | "current" | "upcoming"
+    }))
+
+    // Transform integrations
+    const integrations = apiData.integrations?.map((i: { service?: string; system?: string; purpose?: string; dataFlow?: string; method?: string }) => ({
+        system: i.system || i.service || "External Service",
+        method: i.method || i.dataFlow || "API",
+        purpose: i.purpose || ""
+    }))
+
+    // Transform changelog
+    let changelog: { version: string; title: string; description: string; timestamp?: string }[] | undefined
+    if (apiData.changelog && Array.isArray(apiData.changelog)) {
+        changelog = apiData.changelog
+    } else if (apiData.changeLog && Array.isArray(apiData.changeLog)) {
+        changelog = apiData.changeLog.map((c: { version?: string; summary?: string; reason?: string; title?: string; description?: string; timestamp?: string }) => ({
+            version: c.version || "0.1",
+            title: c.title || c.summary || "Update",
+            description: c.description || c.reason || "",
+            timestamp: c.timestamp || "Just now"
+        }))
+    }
+
+    return {
+        productVision,
+        scope: apiData.scope,
+        actors,
+        behaviors,
+        constraints,
+        techDecisions,
+        phases,
+        integrations,
+        changelog
+    }
+}
+
+// Helper to parse UBP content from a string
+function parseUBPFromString(content: string): UBPContent | null {
+    try {
+        const parsed = JSON.parse(content)
+        if (isUBPContent(parsed)) {
+            return transformApiToUBP(parsed)
+        }
+    } catch {
+        // Not JSON
+    }
+    return null
+}
+
+// Helper to get display message for assistant content
+function getDisplayMessage(content: string): { text: string; hasUBP: boolean } {
+    // Try to parse as JSON
+    try {
+        const parsed = JSON.parse(content)
+        if (isUBPContent(parsed)) {
+            // Use the message field if provided by the agent, otherwise use a default
+            const agentMessage = parsed.message || "✨ I've updated your Unified Blueprint! Click \"Open Blueprint\" to see the details."
+            return {
+                text: agentMessage,
+                hasUBP: true
+            }
+        }
+        // Other JSON - still don't show raw
+        if (typeof parsed === "object") {
+            const agentMessage = parsed.message || "I've processed your request and updated the project."
+            return {
+                text: agentMessage,
+                hasUBP: false
+            }
+        }
+    } catch {
+        // Not JSON, return as-is
+    }
+
+    return { text: content, hasUBP: false }
 }
 
 export default function ChatPage() {
@@ -46,6 +217,8 @@ export default function ChatPage() {
     const [message, setMessage] = useState("")
     const [isGenerating, setIsGenerating] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [isUBPViewerOpen, setIsUBPViewerOpen] = useState(false)
+    const [currentUBP, setCurrentUBP] = useState<UBPContent | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     // Redirect if not logged in
@@ -72,6 +245,11 @@ export default function ChatPage() {
 
                 const data = await res.json()
                 setProject(data)
+
+                // Extract UBP from latest blueprint if available
+                if (data.latestBlueprint?.content) {
+                    setCurrentUBP(transformApiToUBP(data.latestBlueprint.content))
+                }
             } catch (err) {
                 console.error("Error fetching project:", err)
                 setError("Project not found")
@@ -136,11 +314,14 @@ export default function ChatPage() {
 
             const data = await res.json()
 
-            // Add assistant response - safely extract content
-            const assistantContent = getContentAsString(data.content) || "I couldn't generate a response."
+            // Store raw content for chat history
+            const rawContent = typeof data.content === "string"
+                ? data.content
+                : JSON.stringify(data.content)
+
             const assistantMessage: ChatMessage = {
                 role: "assistant",
-                content: assistantContent,
+                content: rawContent,
                 timestamp: new Date().toISOString(),
             }
 
@@ -152,6 +333,16 @@ export default function ChatPage() {
                     }
                     : prev
             )
+
+            // Update current UBP if response contains UBP content
+            if (data.content && typeof data.content === "object" && isUBPContent(data.content)) {
+                setCurrentUBP(transformApiToUBP(data.content))
+            } else if (typeof data.content === "string") {
+                const parsed = parseUBPFromString(data.content)
+                if (parsed) {
+                    setCurrentUBP(parsed)
+                }
+            }
         } catch (err) {
             console.error("Error generating response:", err)
             setError("Failed to generate response. Please try again.")
@@ -162,6 +353,10 @@ export default function ChatPage() {
 
     const handleBackToDashboard = () => {
         router.push("/dashboard")
+    }
+
+    const handleOpenUBP = () => {
+        setIsUBPViewerOpen(true)
     }
 
     if (loading || loadingProject) {
@@ -213,7 +408,19 @@ export default function ChatPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <span className="text-sm text-[#9dabb9]">{project.chatHistory.length} messages</span>
+                    {/* Blueprint button */}
+                    <button
+                        onClick={handleOpenUBP}
+                        className="flex items-center gap-2 bg-[#1f2937] hover:bg-[#283039] border border-[#283039] text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[18px] text-[#137fec]">description</span>
+                        <span className="hidden sm:inline">Blueprint</span>
+                        {project.latestBlueprint && (
+                            <span className="text-xs bg-[#137fec]/20 text-[#137fec] px-1.5 py-0.5 rounded">
+                                v{project.latestBlueprint.version}
+                            </span>
+                        )}
+                    </button>
                 </div>
             </header>
 
@@ -231,24 +438,43 @@ export default function ChatPage() {
                             </p>
                         </div>
                     ) : (
-                        project.chatHistory.map((msg, index) => (
-                            <div
-                                key={index}
-                                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                            >
+                        project.chatHistory.map((msg, index) => {
+                            const isUser = msg.role === "user"
+                            const displayInfo = isUser
+                                ? { text: msg.content, hasUBP: false }
+                                : getDisplayMessage(msg.content)
+
+                            return (
                                 <div
-                                    className={`max-w-[80%] rounded-2xl px-4 py-3 ${msg.role === "user"
-                                        ? "bg-[#137fec] text-white"
-                                        : "bg-[#18212b] border border-[#283039] text-white"
-                                        }`}
+                                    key={index}
+                                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                                 >
-                                    <p className="whitespace-pre-wrap">{typeof msg.content === "string" ? msg.content : getContentAsString(msg.content)}</p>
-                                    <p className={`text-xs mt-2 ${msg.role === "user" ? "text-blue-200" : "text-[#9dabb9]"}`}>
-                                        {new Date(msg.timestamp).toLocaleTimeString()}
-                                    </p>
+                                    <div
+                                        className={`max-w-[80%] rounded-2xl px-4 py-3 ${isUser
+                                            ? "bg-[#137fec] text-white"
+                                            : "bg-[#18212b] border border-[#283039] text-white"
+                                            }`}
+                                    >
+                                        <p className="whitespace-pre-wrap">{displayInfo.text}</p>
+
+                                        {/* Open Blueprint button */}
+                                        {displayInfo.hasUBP && (
+                                            <button
+                                                onClick={handleOpenUBP}
+                                                className="mt-3 flex items-center gap-2 bg-[#137fec]/20 hover:bg-[#137fec]/30 text-[#137fec] font-medium py-2 px-3 rounded-lg transition-colors text-sm"
+                                            >
+                                                <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                                                Open Blueprint
+                                            </button>
+                                        )}
+
+                                        <p className={`text-xs mt-2 ${isUser ? "text-blue-200" : "text-[#9dabb9]"}`}>
+                                            {new Date(msg.timestamp).toLocaleTimeString()}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                        ))
+                            )
+                        })
                     )}
 
                     {isGenerating && (
@@ -258,7 +484,7 @@ export default function ChatPage() {
                                     <span className="material-symbols-outlined animate-spin text-[#137fec] text-[18px]">
                                         progress_activity
                                     </span>
-                                    <span className="text-[#9dabb9]">Generating blueprint...</span>
+                                    <span className="text-[#9dabb9]">Crafting your blueprint...</span>
                                 </div>
                             </div>
                         </div>
@@ -298,6 +524,20 @@ export default function ChatPage() {
                     </div>
                 </form>
             </footer>
+
+            {/* UBP Viewer Side Panel */}
+            <UBPViewer
+                isOpen={isUBPViewerOpen}
+                onClose={() => setIsUBPViewerOpen(false)}
+                ubp={currentUBP}
+                projectName={project.projectName}
+                version={project.latestBlueprint?.version || "0.1"}
+                status={project.latestBlueprint?.status || "draft"}
+                lastUpdated={project.latestBlueprint?.createdAt
+                    ? new Date(project.latestBlueprint.createdAt).toLocaleDateString()
+                    : undefined
+                }
+            />
         </div>
     )
 }
