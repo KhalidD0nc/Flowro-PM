@@ -169,7 +169,7 @@ export default function UBPViewer({
             />
 
             {/* Panel */}
-            <div className="fixed top-0 right-0 h-full w-full max-w-[900px] bg-[#101922] border-l border-[#283039] z-50 flex flex-col overflow-hidden animate-slide-in-right">
+            <div className="fixed top-0 right-0 h-full w-full max-w-[1200px] bg-[#101922] border-l border-[#283039] z-50 flex flex-col overflow-hidden animate-slide-in-right">
                 {/* Header */}
                 <header className="flex items-center justify-between px-6 py-4 border-b border-[#283039] bg-[#0d141c] shrink-0">
                     <div className="flex items-center gap-4">
