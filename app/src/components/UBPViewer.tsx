@@ -1,0 +1,560 @@
+"use client"
+
+import { useEffect, useRef } from "react"
+import mermaid from "mermaid"
+
+// Initialize mermaid
+mermaid.initialize({
+    startOnLoad: false,
+    theme: "dark",
+    themeVariables: {
+        primaryColor: "#137fec",
+        primaryTextColor: "#fff",
+        primaryBorderColor: "#283039",
+        lineColor: "#9dabb9",
+        secondaryColor: "#1f2937",
+        tertiaryColor: "#111418",
+    },
+})
+
+// UBP Types
+export interface UBPContent {
+    productVision?: {
+        description?: string
+        primaryGoal?: string
+        targetAudience?: string
+    }
+    scope?: {
+        inScope?: string[]
+        outOfScope?: string[]
+    }
+    actors?: {
+        name: string
+        description: string
+        icon?: string
+        color?: string
+    }[]
+    behaviors?: {
+        id: string
+        title: string
+        priority?: string
+        given?: string
+        when?: string
+        then?: string
+        diagram?: string // Mermaid diagram code
+    }[]
+    constraints?: {
+        type: "warning" | "risk" | "constraint"
+        title: string
+        description: string
+    }[]
+    techDecisions?: {
+        category: string
+        choice: string
+    }[]
+    phases?: {
+        name: string
+        timeline?: string
+        description: string
+        status?: "completed" | "current" | "upcoming"
+    }[]
+    integrations?: {
+        system: string
+        method: string
+        purpose: string
+    }[]
+    changelog?: {
+        version: string
+        title: string
+        description: string
+        timestamp?: string
+    }[]
+}
+
+interface UBPViewerProps {
+    isOpen: boolean
+    onClose: () => void
+    ubp: UBPContent | null
+    projectName?: string
+    version?: string
+    status?: "draft" | "locked" | "approved"
+    lastUpdated?: string
+}
+
+// Section navigation items
+const sections = [
+    { id: "vision", label: "1. Product Vision", icon: "visibility" },
+    { id: "scope", label: "2. Scope", icon: "my_location" },
+    { id: "actors", label: "3. Actors", icon: "group" },
+    { id: "behaviors", label: "4. Behaviors", icon: "bolt" },
+    { id: "constraints", label: "5. Constraints & Risks", icon: "warning" },
+    { id: "tech", label: "6. Tech Decisions", icon: "code" },
+    { id: "phases", label: "7. Implementation", icon: "stairs" },
+    { id: "integration", label: "8. Integration Pts", icon: "cable" },
+    { id: "changelog", label: "9. Change Log", icon: "history" },
+]
+
+export default function UBPViewer({
+    isOpen,
+    onClose,
+    ubp,
+    projectName = "Project",
+    version = "0.1",
+    status = "draft",
+    lastUpdated,
+}: UBPViewerProps) {
+    const mermaidRef = useRef<HTMLDivElement>(null)
+    const contentRef = useRef<HTMLDivElement>(null)
+
+    // Re-render mermaid diagrams when UBP changes
+    useEffect(() => {
+        if (isOpen && ubp?.behaviors) {
+            const renderDiagrams = async () => {
+                const elements = document.querySelectorAll(".mermaid-diagram")
+                for (const el of elements) {
+                    const code = el.getAttribute("data-mermaid")
+                    if (code) {
+                        try {
+                            const { svg } = await mermaid.render(`mermaid-${Math.random().toString(36).substr(2, 9)}`, code)
+                            el.innerHTML = svg
+                        } catch (e) {
+                            console.error("Mermaid render error:", e)
+                        }
+                    }
+                }
+            }
+            setTimeout(renderDiagrams, 100)
+        }
+    }, [isOpen, ubp])
+
+    // Handle escape key
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === "Escape" && isOpen) {
+                onClose()
+            }
+        }
+        window.addEventListener("keydown", handleEscape)
+        return () => window.removeEventListener("keydown", handleEscape)
+    }, [isOpen, onClose])
+
+    // Scroll to section
+    const scrollToSection = (id: string) => {
+        const element = document.getElementById(`ubp-${id}`)
+        if (element && contentRef.current) {
+            element.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+    }
+
+    if (!isOpen) return null
+
+    const statusColors = {
+        draft: "bg-yellow-500/10 border-yellow-500/20 text-yellow-400",
+        locked: "bg-blue-500/10 border-blue-500/20 text-blue-400",
+        approved: "bg-green-500/10 border-green-500/20 text-green-400",
+    }
+
+    const statusLabels = {
+        draft: "Draft",
+        locked: "Locked",
+        approved: "Agent-Ready",
+    }
+
+    return (
+        <>
+            {/* Backdrop */}
+            <div
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity"
+                onClick={onClose}
+            />
+
+            {/* Panel */}
+            <div className="fixed top-0 right-0 h-full w-full max-w-[900px] bg-[#101922] border-l border-[#283039] z-50 flex flex-col overflow-hidden animate-slide-in-right">
+                {/* Header */}
+                <header className="flex items-center justify-between px-6 py-4 border-b border-[#283039] bg-[#0d141c] shrink-0">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={onClose}
+                            className="flex items-center justify-center rounded-lg p-2 text-[#9dabb9] transition-colors hover:bg-white/10 hover:text-white"
+                            title="Close"
+                        >
+                            <span className="material-symbols-outlined">close</span>
+                        </button>
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-lg font-bold text-white">{projectName}</h1>
+                                <span className="text-[#9dabb9] text-sm">v{version}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-bold uppercase tracking-wide ${statusColors[status]}`}>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                                    {statusLabels[status]}
+                                </span>
+                                {lastUpdated && (
+                                    <span className="text-[#9dabb9] text-xs">
+                                        Last updated {lastUpdated}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <div className="flex flex-1 overflow-hidden">
+                    {/* Sidebar Navigation */}
+                    <aside className="w-56 flex-none bg-[#0d141c] border-r border-[#283039] hidden md:flex flex-col overflow-y-auto custom-scrollbar p-4">
+                        <p className="px-3 text-[#9dabb9] text-xs font-semibold uppercase tracking-wider mb-3">
+                            Sections
+                        </p>
+                        <div className="flex flex-col gap-1">
+                            {sections.map((section) => (
+                                <button
+                                    key={section.id}
+                                    onClick={() => scrollToSection(section.id)}
+                                    className="flex items-center gap-3 px-3 py-2 rounded-lg text-[#9dabb9] hover:text-white hover:bg-[#283039] transition-colors text-left"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">
+                                        {section.icon}
+                                    </span>
+                                    <span className="text-sm font-medium">{section.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </aside>
+
+                    {/* Main Content */}
+                    <main ref={contentRef} className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
+                        <div className="p-6 pb-20 space-y-6">
+                            {/* No UBP Content */}
+                            {!ubp && (
+                                <div className="flex flex-col items-center justify-center py-20 text-center">
+                                    <div className="size-16 rounded-2xl bg-[#137fec]/10 flex items-center justify-center mb-4">
+                                        <span className="material-symbols-outlined text-[#137fec] text-3xl">
+                                            description
+                                        </span>
+                                    </div>
+                                    <h2 className="text-xl font-bold text-white mb-2">No Blueprint Yet</h2>
+                                    <p className="text-[#9dabb9] max-w-md">
+                                        Continue chatting with the AI to generate your Unified Blueprint.
+                                    </p>
+                                </div>
+                            )}
+
+                            {ubp && (
+                                <>
+                                    {/* Product Vision */}
+                                    <Section id="vision" icon="visibility" title="1. Product Vision">
+                                        {ubp.productVision?.description && (
+                                            <p className="text-[#d0d6dc] text-base leading-relaxed mb-6">
+                                                {ubp.productVision.description}
+                                            </p>
+                                        )}
+                                        <div className="grid md:grid-cols-2 gap-4">
+                                            {ubp.productVision?.primaryGoal && (
+                                                <InfoCard title="Primary Goal" content={ubp.productVision.primaryGoal} />
+                                            )}
+                                            {ubp.productVision?.targetAudience && (
+                                                <InfoCard title="Target Audience" content={ubp.productVision.targetAudience} />
+                                            )}
+                                        </div>
+                                    </Section>
+
+                                    {/* Scope */}
+                                    <Section id="scope" icon="my_location" title="2. Scope">
+                                        <div className="grid md:grid-cols-2 gap-6">
+                                            {ubp.scope?.inScope && ubp.scope.inScope.length > 0 && (
+                                                <div>
+                                                    <h3 className="flex items-center gap-2 text-white font-semibold mb-4 text-sm uppercase tracking-wider">
+                                                        <span className="text-green-500 material-symbols-outlined text-lg">check_circle</span>
+                                                        In Scope
+                                                    </h3>
+                                                    <ul className="space-y-3">
+                                                        {ubp.scope.inScope.map((item, i) => (
+                                                            <li key={i} className="flex items-start gap-3 text-[#d0d6dc] text-sm">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-[#9dabb9] mt-2 shrink-0" />
+                                                                <span>{item}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                            {ubp.scope?.outOfScope && ubp.scope.outOfScope.length > 0 && (
+                                                <div>
+                                                    <h3 className="flex items-center gap-2 text-white font-semibold mb-4 text-sm uppercase tracking-wider">
+                                                        <span className="text-red-500 material-symbols-outlined text-lg">cancel</span>
+                                                        Out of Scope
+                                                    </h3>
+                                                    <ul className="space-y-3">
+                                                        {ubp.scope.outOfScope.map((item, i) => (
+                                                            <li key={i} className="flex items-start gap-3 text-[#9dabb9] text-sm">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-[#3d4a56] mt-2 shrink-0" />
+                                                                <span>{item}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </Section>
+
+                                    {/* Actors */}
+                                    <Section id="actors" icon="group" title="3. Actors">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {ubp.actors?.map((actor, i) => (
+                                                <div key={i} className="bg-[#283039]/40 p-4 rounded-lg border border-[#283039] flex flex-col gap-2">
+                                                    <div className={`size-10 rounded-full flex items-center justify-center mb-2 ${getActorColor(i)}`}>
+                                                        <span className="material-symbols-outlined">
+                                                            {actor.icon || "person"}
+                                                        </span>
+                                                    </div>
+                                                    <h4 className="text-white font-bold text-sm">{actor.name}</h4>
+                                                    <p className="text-[#9dabb9] text-xs leading-normal">{actor.description}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Section>
+
+                                    {/* Behaviors */}
+                                    <Section id="behaviors" icon="bolt" title="4. Behaviors">
+                                        <div className="divide-y divide-[#283039]">
+                                            {ubp.behaviors?.map((behavior, i) => (
+                                                <div key={i} className="py-6 first:pt-0 last:pb-0">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <h4 className="text-white font-semibold text-sm">{behavior.id}: {behavior.title}</h4>
+                                                        {behavior.priority && (
+                                                            <span className="text-[#9dabb9] text-xs font-mono bg-[#283039] px-2 py-1 rounded">
+                                                                {behavior.priority}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="bg-[#111418] rounded-lg p-4 font-mono text-sm border border-[#283039]">
+                                                        {behavior.given && (
+                                                            <p className="text-purple-400">
+                                                                <span className="text-[#9dabb9] font-bold">GIVEN</span> {behavior.given}
+                                                            </p>
+                                                        )}
+                                                        {behavior.when && (
+                                                            <p className="text-blue-400">
+                                                                <span className="text-[#9dabb9] font-bold">WHEN</span> {behavior.when}
+                                                            </p>
+                                                        )}
+                                                        {behavior.then && (
+                                                            <p className="text-green-400">
+                                                                <span className="text-[#9dabb9] font-bold">THEN</span> {behavior.then}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    {behavior.diagram && (
+                                                        <div
+                                                            className="mermaid-diagram mt-4 bg-[#111418] rounded-lg p-4 border border-[#283039] overflow-x-auto"
+                                                            data-mermaid={behavior.diagram}
+                                                        />
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Section>
+
+                                    {/* Constraints & Risks */}
+                                    <Section id="constraints" icon="warning" title="5. Constraints & Risks">
+                                        <div className="grid gap-4">
+                                            {ubp.constraints?.map((constraint, i) => (
+                                                <div
+                                                    key={i}
+                                                    className={`flex gap-4 p-4 rounded-lg ${constraint.type === "risk"
+                                                        ? "bg-red-500/10 border border-red-500/20"
+                                                        : "bg-yellow-500/10 border border-yellow-500/20"
+                                                        }`}
+                                                >
+                                                    <span className={`material-symbols-outlined flex-none ${constraint.type === "risk" ? "text-red-500" : "text-yellow-500"
+                                                        }`}>
+                                                        {constraint.type === "risk" ? "lock" : "dns"}
+                                                    </span>
+                                                    <div>
+                                                        <h4 className={`font-bold text-sm mb-1 ${constraint.type === "risk" ? "text-red-500" : "text-yellow-500"
+                                                            }`}>
+                                                            {constraint.title}
+                                                        </h4>
+                                                        <p className="text-[#d0d6dc] text-sm">{constraint.description}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Section>
+
+                                    {/* Tech Decisions */}
+                                    <Section id="tech" icon="code" title="6. Technology Decisions">
+                                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                            {ubp.techDecisions?.map((tech, i) => (
+                                                <div key={i} className="p-4 bg-[#283039] rounded-lg border border-[#283039]">
+                                                    <p className="text-[#9dabb9] text-xs uppercase tracking-wide mb-1">{tech.category}</p>
+                                                    <p className="text-white font-bold">{tech.choice}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Section>
+
+                                    {/* Implementation Phases */}
+                                    <Section id="phases" icon="stairs" title="7. Implementation Phases">
+                                        <div className="relative pl-6 border-l-2 border-[#283039] space-y-8">
+                                            {ubp.phases?.map((phase, i) => (
+                                                <div key={i} className="relative">
+                                                    <div className={`absolute -left-[31px] top-1 w-4 h-4 rounded-full border-2 border-[#1f2937] ${phase.status === "completed"
+                                                        ? "bg-green-500"
+                                                        : phase.status === "current"
+                                                            ? "bg-[#137fec]"
+                                                            : "bg-[#283039]"
+                                                        }`}
+                                                    />
+                                                    <h4 className={`font-bold text-sm mb-1 ${phase.status === "upcoming" ? "text-[#9dabb9]" : "text-white"
+                                                        }`}>
+                                                        {phase.name}
+                                                    </h4>
+                                                    {phase.timeline && (
+                                                        <p className="text-[#9dabb9] text-xs mb-2">{phase.timeline}</p>
+                                                    )}
+                                                    <p className={`text-sm ${phase.status === "upcoming" ? "text-[#9dabb9]" : "text-[#d0d6dc]"
+                                                        }`}>
+                                                        {phase.description}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Section>
+
+                                    {/* Integration Points */}
+                                    <Section id="integration" icon="cable" title="8. Integration Points">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left text-sm text-[#d0d6dc]">
+                                                <thead className="text-xs uppercase bg-[#283039] text-[#9dabb9]">
+                                                    <tr>
+                                                        <th className="px-4 py-3 rounded-l-lg">System</th>
+                                                        <th className="px-4 py-3">Method</th>
+                                                        <th className="px-4 py-3 rounded-r-lg">Purpose</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-[#283039]">
+                                                    {ubp.integrations?.map((integration, i) => (
+                                                        <tr key={i}>
+                                                            <td className="px-4 py-3 font-medium text-white">{integration.system}</td>
+                                                            <td className="px-4 py-3">
+                                                                <code className="bg-[#111418] px-2 py-0.5 rounded text-xs">
+                                                                    {integration.method}
+                                                                </code>
+                                                            </td>
+                                                            <td className="px-4 py-3">{integration.purpose}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </Section>
+
+                                    {/* Change Log */}
+                                    <Section id="changelog" icon="history" title="9. Change Log">
+                                        <div className="space-y-4">
+                                            {ubp.changelog?.map((entry, i) => (
+                                                <div key={i} className="flex gap-4">
+                                                    <div className="text-[#9dabb9] text-sm font-mono whitespace-nowrap pt-0.5">
+                                                        {entry.timestamp || "—"}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="bg-blue-500/20 text-blue-400 text-xs px-2 py-0.5 rounded font-bold">
+                                                                v{entry.version}
+                                                            </span>
+                                                            <span className="text-white font-medium text-sm">{entry.title}</span>
+                                                        </div>
+                                                        <p className="text-[#9dabb9] text-sm">{entry.description}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Section>
+                                </>
+                            )}
+                        </div>
+                    </main>
+                </div>
+            </div>
+
+            {/* Styles */}
+            <style jsx global>{`
+                @keyframes slide-in-right {
+                    from {
+                        transform: translateX(100%);
+                    }
+                    to {
+                        transform: translateX(0);
+                    }
+                }
+                .animate-slide-in-right {
+                    animation: slide-in-right 0.3s ease-out;
+                }
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 6px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: #111418;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #283039;
+                    border-radius: 3px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #3d4a56;
+                }
+            `}</style>
+        </>
+    )
+}
+
+// Section wrapper component
+function Section({
+    id,
+    icon,
+    title,
+    children,
+}: {
+    id: string
+    icon: string
+    title: string
+    children: React.ReactNode
+}) {
+    return (
+        <section id={`ubp-${id}`} className="scroll-mt-6">
+            <div className="bg-[#1f2937] border border-[#283039] rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#283039] bg-[#111418]/50">
+                    <h2 className="text-white text-lg font-bold flex items-center gap-2">
+                        <span className="text-[#137fec] material-symbols-outlined">{icon}</span>
+                        {title}
+                    </h2>
+                </div>
+                <div className="p-6">{children}</div>
+            </div>
+        </section>
+    )
+}
+
+// Info card component
+function InfoCard({ title, content }: { title: string; content: string }) {
+    return (
+        <div className="bg-[#283039]/50 rounded-lg p-4 border border-[#283039]">
+            <h4 className="text-white text-sm font-bold mb-2 uppercase tracking-wide text-xs">{title}</h4>
+            <p className="text-[#9dabb9] text-sm">{content}</p>
+        </div>
+    )
+}
+
+// Actor color helper
+function getActorColor(index: number): string {
+    const colors = [
+        "bg-blue-500/20 text-blue-400",
+        "bg-purple-500/20 text-purple-400",
+        "bg-orange-500/20 text-orange-400",
+        "bg-green-500/20 text-green-400",
+        "bg-pink-500/20 text-pink-400",
+        "bg-cyan-500/20 text-cyan-400",
+    ]
+    return colors[index % colors.length]
+}

@@ -3,41 +3,44 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 export interface Message {
-    role: "system" | "user" | "assistant"
-    content: string
-    reasoning_details?: unknown[]
+  role: "system" | "user" | "assistant"
+  content: string
+  reasoning_details?: unknown[]
 }
 
 export interface GenerateOptions {
-    messages: Message[]
-    stream?: boolean
-    reasoning?: boolean
+  messages: Message[]
+  stream?: boolean
+  reasoning?: boolean
 }
 
 export async function generateCompletion(options: GenerateOptions) {
-    const { messages, stream = false, reasoning = true } = options
+  const { messages, stream = false, reasoning = true } = options
 
-    const response = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-            "X-Title": "Flowro-PM",
-        },
-        body: JSON.stringify({
-            model: process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free",
-            messages,
-            stream,
-            ...(reasoning && { reasoning: { enabled: true } }),
-        }),
-    })
+  const response = await fetch(OPENROUTER_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      "X-Title": "Flowro-PM",
+    },
+    body: JSON.stringify({
+      model: process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free",
+      messages,
+      stream,
+      ...(reasoning && { reasoning: { enabled: true } }),
+    }),
+  })
 
-    if (!response.ok) {
-        throw new Error(`OpenRouter error: ${response.status}`)
-    }
+  if (!response.ok) {
+    const errorBody = await response.text()
+    const model = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
+    console.error(`OpenRouter error - Model: ${model}, Status: ${response.status}, Body: ${errorBody}`)
+    throw new Error(`OpenRouter error: ${response.status} - ${errorBody}`)
+  }
 
-    return response
+  return response
 }
 
 // System prompt for UBP generation
@@ -48,6 +51,7 @@ You are **Flowro AI**, a Lead Product Manager and Software Architect. Your purpo
 1. **Zero-Friction Discovery:** When the user provides a "chaos dump," do NOT reject it. INFER the missing details and SYNTHESIZE a full draft.
 2. **Proactive Invention:** You must PROPOSE the best industry-standard Tech Stack and Behaviors if the user doesn't specify them.
 3. **Visual Requirements:** For complex behaviors with 2+ actors OR conditional logic, include a Mermaid diagram. Simple CRUD operations do not need diagrams.
+4. **Conversational Response:** Always include a friendly "message" field summarizing what you've built or updated. Never return just JSON without context.
 
 ### MERMAID DIAGRAM RULES (When Applicable)
 - **When to Include:** Multi-actor interactions, API call chains, complex branching logic
@@ -60,6 +64,7 @@ You are **Flowro AI**, a Lead Product Manager and Software Architect. Your purpo
 Return a valid JSON object with this structure:
 
 {
+  "message": "A friendly conversational message to the user. Example: 'I've drafted your blueprint for TaskFlow! I focused on the core features and proposed a modern tech stack. Take a look and let me know what you'd like to refine.'",
   "metadata": {
     "productName": "String",
     "version": "0.1",
@@ -125,6 +130,7 @@ Return a valid JSON object with this structure:
 }
 
 ### RULES
+- The "message" field is REQUIRED - always write a friendly summary
 - Be specific, not vague
 - No marketing language or filler text
 - Infer reasonable defaults when user is vague

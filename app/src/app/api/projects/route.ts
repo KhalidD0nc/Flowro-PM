@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { projectName } = body
+        const { projectName, description } = body
 
         if (!projectName) {
             return NextResponse.json({ error: "Project name required" }, { status: 400 })
@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
         const { project, blueprint } = await createProject({
             userId: authResult.userId,
             projectName,
+            description,
         })
 
         // Return both project and its initial blueprint

@@ -88,52 +88,86 @@ export default function Home() {
                                     </div>
 
                                     {/* Terminal content */}
-                                    <div className="relative h-[460px] bg-[#0d1117] overflow-hidden p-6 flex items-center justify-center">
+                                    <div className="relative h-auto min-h-[500px] md:h-[460px] bg-[#0d1117] overflow-hidden p-6 flex items-center justify-center">
                                         <div className="absolute inset-0" style={{
                                             backgroundImage: 'radial-gradient(#30363d 1px, transparent 1px)',
                                             backgroundSize: '20px 20px',
                                             opacity: 0.3
                                         }}></div>
 
-                                        <div className="relative w-full max-w-[600px] h-[300px] flex items-center justify-between z-10">
+                                        <div className="relative w-full max-w-[600px] h-full flex flex-col md:flex-row items-center justify-between z-10 gap-8 md:gap-0">
                                             {/* Messy Input side */}
-                                            <div className="relative w-32 h-full flex flex-col justify-center items-center">
+                                            <div className="relative w-32 h-32 md:h-full flex flex-col justify-center items-center shrink-0">
                                                 <div className="absolute inset-0 border border-dashed border-white/10 rounded-xl bg-white/5"></div>
                                                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0d1117] px-2 text-[10px] text-gray-500 font-mono uppercase tracking-widest whitespace-nowrap">Messy Input</div>
 
                                                 {/* Floating document icons */}
-                                                <div className="absolute top-10 left-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-6deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_4s_ease-in-out_infinite]">
+                                                <div className="absolute top-4 md:top-10 left-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-6deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_4s_ease-in-out_infinite]">
                                                     <span className="material-symbols-outlined text-blue-400">description</span>
                                                 </div>
-                                                <div className="absolute top-24 right-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[12deg] hover:scale-110 transition-transform cursor-default z-20 animate-[float_5s_ease-in-out_infinite_1s]">
+                                                <div className="absolute top-12 md:top-24 right-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[12deg] hover:scale-110 transition-transform cursor-default z-20 animate-[float_5s_ease-in-out_infinite_1s]">
                                                     <span className="material-symbols-outlined text-yellow-500">sticky_note_2</span>
                                                 </div>
-                                                <div className="absolute bottom-20 left-4 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-3deg] hover:scale-110 transition-transform cursor-default z-0 animate-[float_4s_ease-in-out_infinite_0.5s]">
+                                                <div className="absolute bottom-10 md:bottom-20 left-4 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-3deg] hover:scale-110 transition-transform cursor-default z-0 animate-[float_4s_ease-in-out_infinite_0.5s]">
                                                     <span className="material-symbols-outlined text-purple-400">video_file</span>
                                                 </div>
-                                                <div className="absolute bottom-8 right-6 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[8deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_6s_ease-in-out_infinite_2s]">
+                                                <div className="absolute bottom-2 md:bottom-8 right-6 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[8deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_6s_ease-in-out_infinite_2s]">
                                                     <span className="material-symbols-outlined text-green-400">chat</span>
                                                 </div>
                                             </div>
 
                                             {/* Middle - flow animation area */}
-                                            <div className="flex-1 h-full relative overflow-hidden">
-                                                <svg className="absolute inset-0 w-full h-full">
-                                                    <defs>
-                                                        <linearGradient id="flowGradient" x1="0%" x2="100%" y1="0%" y2="0%">
-                                                            <stop offset="0%" stopColor="#30363d" stopOpacity="0"></stop>
-                                                            <stop offset="50%" stopColor="#137fec" stopOpacity="1"></stop>
-                                                            <stop offset="100%" stopColor="#137fec" stopOpacity="0"></stop>
-                                                        </linearGradient>
-                                                    </defs>
-                                                    <path className="opacity-0 animate-[fadeIn_2s_infinite]" d="M 0 80 Q 80 80 140 150" fill="none" stroke="url(#flowGradient)" strokeWidth="2"></path>
-                                                    <path className="opacity-0 animate-[fadeIn_2s_infinite_0.5s]" d="M 0 220 Q 80 220 140 150" fill="none" stroke="url(#flowGradient)" strokeWidth="2"></path>
-                                                    <path className="opacity-0 animate-[fadeIn_2s_infinite_0.2s]" d="M 0 150 L 140 150" fill="none" stroke="url(#flowGradient)" strokeWidth="2"></path>
-                                                </svg>
-                                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3">
-                                                    <div className="relative">
-                                                        <div className="absolute inset-0 bg-[#137fec]/20 blur-xl rounded-full animate-pulse"></div>
+                                            <div className="flex-1 w-full md:w-auto md:h-full relative flex items-center justify-center px-4 py-8 md:py-0">
+                                                {/* Connecting track (Horizontal for Desktop) */}
+                                                <div className="hidden md:flex absolute inset-0 items-center px-8">
+                                                    <div className="w-full h-[2px] bg-[#30363d] relative overflow-visible">
+                                                        {/* Moving data packets */}
+                                                        <div className="absolute top-1/2 -translate-y-1/2 left-0 size-2 bg-[#137fec] rounded-full shadow-[0_0_10px_#137fec] animate-[moveRight_3s_linear_infinite]"></div>
+                                                        <div className="absolute top-1/2 -translate-y-1/2 left-0 size-1.5 bg-white/80 rounded-full shadow-[0_0_8px_white] animate-[moveRight_3s_linear_infinite_1s]"></div>
+                                                        <div className="absolute top-1/2 -translate-y-1/2 left-0 size-2 bg-[#137fec] rounded-full shadow-[0_0_10px_#137fec] animate-[moveRight_3s_linear_infinite_2s]"></div>
+
+                                                        {/* Static arrow head at the end */}
+                                                        <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 text-[#30363d]">
+                                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="rotate-0">
+                                                                <path d="M8 5v14l11-7z" />
+                                                            </svg>
+                                                        </div>
                                                     </div>
+                                                </div>
+
+                                                {/* Connecting track (Vertical for Mobile) */}
+                                                <div className="flex md:hidden absolute inset-0 justify-center py-8">
+                                                    <div className="h-full w-[2px] bg-[#30363d] relative overflow-visible">
+                                                        {/* Moving data packets (Downwards) */}
+                                                        <div className="absolute left-1/2 -translate-x-1/2 top-0 size-2 bg-[#137fec] rounded-full shadow-[0_0_10px_#137fec] animate-[moveDown_3s_linear_infinite]"></div>
+                                                        <div className="absolute left-1/2 -translate-x-1/2 top-0 size-1.5 bg-white/80 rounded-full shadow-[0_0_8px_white] animate-[moveDown_3s_linear_infinite_1s]"></div>
+                                                        <div className="absolute left-1/2 -translate-x-1/2 top-0 size-2 bg-[#137fec] rounded-full shadow-[0_0_10px_#137fec] animate-[moveDown_3s_linear_infinite_2s]"></div>
+
+                                                        {/* Static arrow head at the end */}
+                                                        <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 text-[#30363d]">
+                                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="rotate-90">
+                                                                <path d="M8 5v14l11-7z" />
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Central Processing Node */}
+                                                <div className="relative z-10 size-20 flex items-center justify-center shrink-0">
+                                                    <div className="absolute inset-0 bg-[#0d1117] rounded-full border-2 border-[#30363d] z-10"></div>
+
+                                                    {/* Animated rings */}
+                                                    <div className="absolute inset-[-4px] border border-[#137fec]/30 rounded-full animate-[spin_4s_linear_infinite]"></div>
+                                                    <div className="absolute inset-[-8px] border border-[#137fec]/10 rounded-full animate-[spin_8s_linear_infinite_reverse]"></div>
+
+                                                    {/* Icon */}
+                                                    <div className="relative z-20 flex flex-col items-center gap-1">
+                                                        <span className="material-symbols-outlined text-[#137fec] text-2xl">settings_suggest</span>
+                                                        <span className="text-[9px] font-mono text-[#137fec] font-bold tracking-wider">PROCESS</span>
+                                                    </div>
+
+                                                    {/* Pulse effect */}
+                                                    <div className="absolute inset-0 bg-[#137fec]/20 rounded-full blur-xl animate-pulse z-0"></div>
                                                 </div>
                                             </div>
 
@@ -635,6 +669,18 @@ export default function Home() {
         @keyframes widthGrow {
           0% { width: 0; }
           100% { width: 100%; }
+        }
+        @keyframes moveRight {
+          0% { left: 0; opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { left: 100%; opacity: 0; }
+        }
+        @keyframes moveDown {
+          0% { top: 0; opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
         }
       `}</style>
         </div>

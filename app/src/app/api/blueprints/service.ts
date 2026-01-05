@@ -18,6 +18,7 @@ export interface Project {
     id: string
     userId: string
     projectName: string
+    description?: string
     chatHistory: ChatMessage[]
     createdAt: string
     updatedAt: string
@@ -40,6 +41,7 @@ export interface Blueprint {
 export interface CreateProjectInput {
     userId: string
     projectName: string
+    description?: string
 }
 
 // =============================================================================
@@ -53,30 +55,39 @@ export async function getUserProjects(userId: string): Promise<Project[]> {
     const snapshot = await getAdminDb()
         .collection("projects")
         .where("userId", "==", userId)
-        .orderBy("createdAt", "desc")
         .get()
 
-    return snapshot.docs.map((doc) => ({
+    const projects = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
     })) as Project[]
+
+    // Sort in JavaScript to avoid needing composite index
+    return projects.sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
 }
 
 /**
  * Creates a new project for a user with an initial draft blueprint
  */
 export async function createProject(input: CreateProjectInput): Promise<{ project: Project; blueprint: Blueprint }> {
-    const { userId, projectName } = input
+    const { userId, projectName, description } = input
     const now = new Date().toISOString()
     const db = getAdminDb()
 
-    // Create the project document
-    const projectData = {
+    // Create the project document - only include description if provided
+    const projectData: Record<string, unknown> = {
         userId,
         projectName,
         chatHistory: [],
         createdAt: now,
         updatedAt: now,
+    }
+
+    // Only add description if it's provided (Firestore doesn't accept undefined)
+    if (description) {
+        projectData.description = description
     }
 
     const projectRef = await db.collection("projects").add(projectData)
@@ -95,8 +106,13 @@ export async function createProject(input: CreateProjectInput): Promise<{ projec
     return {
         project: {
             id: projectRef.id,
-            ...projectData,
-        },
+            userId,
+            projectName,
+            description,
+            chatHistory: [],
+            createdAt: now,
+            updatedAt: now,
+        } as Project,
         blueprint: {
             id: blueprintRef.id,
             ...blueprintData,
@@ -118,6 +134,47 @@ export async function getProjectById(projectId: string): Promise<Project | null>
         id: doc.id,
         ...doc.data(),
     } as Project
+}
+
+/**
+ * Verifies that a user owns a specific project
+ * @param projectId - The project ID to check
+ * @param userId - The user ID to verify ownership for
+ * @returns True if the user owns the project
+ * @throws Error if project not found or user doesn't own it
+ */
+export async function verifyProjectOwnership(projectId: string, userId: string): Promise<boolean> {
+    const project = await getProjectById(projectId)
+
+    if (!project) {
+        throw new Error("Project not found")
+    }
+
+    if (project.userId !== userId) {
+        throw new Error("Access denied: You don't have permission to access this project")
+    }
+
+    return true
+}
+
+/**
+ * Verifies that a user owns a blueprint (via its parent project)
+ * @param blueprintId - The blueprint ID to check
+ * @param userId - The user ID to verify ownership for
+ * @returns The blueprint if ownership is verified
+ * @throws Error if blueprint not found or user doesn't own it
+ */
+export async function verifyBlueprintOwnership(blueprintId: string, userId: string): Promise<Blueprint> {
+    const blueprint = await getBlueprintById(blueprintId)
+
+    if (!blueprint) {
+        throw new Error("Blueprint not found")
+    }
+
+    // Verify ownership through the parent project
+    await verifyProjectOwnership(blueprint.projectId, userId)
+
+    return blueprint
 }
 
 /**
@@ -153,13 +210,17 @@ export async function getProjectBlueprints(projectId: string): Promise<Blueprint
     const snapshot = await getAdminDb()
         .collection("blueprints")
         .where("projectId", "==", projectId)
-        .orderBy("createdAt", "desc")
         .get()
 
-    return snapshot.docs.map((doc) => ({
+    const blueprints = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
     })) as Blueprint[]
+
+    // Sort in JavaScript to avoid needing composite index
+    return blueprints.sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
 }
 
 /**
@@ -251,17 +312,21 @@ export async function getLatestBlueprint(projectId: string): Promise<Blueprint |
     const snapshot = await getAdminDb()
         .collection("blueprints")
         .where("projectId", "==", projectId)
-        .orderBy("createdAt", "desc")
-        .limit(1)
         .get()
 
     if (snapshot.empty) {
         return null
     }
 
-    const doc = snapshot.docs[0]
-    return {
+    // Sort in JavaScript to find the latest (avoid composite index requirement)
+    const blueprints = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-    } as Blueprint
+    })) as Blueprint[]
+
+    blueprints.sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+
+    return blueprints[0]
 }

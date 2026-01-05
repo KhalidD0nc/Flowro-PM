@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState, useMemo } from "react"
 import { signOut } from "firebase/auth"
 import { auth } from "@/lib/firebase"
+import CreateProjectModal from "@/components/CreateProjectModal"
 
 interface Project {
     id: string
@@ -25,6 +26,8 @@ export default function DashboardPage() {
     const [projects, setProjects] = useState<Project[]>([])
     const [loadingProjects, setLoadingProjects] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
+    const [showCreateModal, setShowCreateModal] = useState(false)
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
     // Redirect if not logged in
     useEffect(() => {
@@ -78,24 +81,34 @@ export default function DashboardPage() {
         router.push("/auth")
     }
 
-    const handleCreateProject = async () => {
+    const handleOpenCreateModal = () => {
+        setShowCreateModal(true)
+    }
+
+    const handleCloseCreateModal = () => {
+        setShowCreateModal(false)
+    }
+
+    const handleCreateProject = async (projectName: string, description?: string) => {
         if (!user) return
 
-        try {
-            const token = await user.getIdToken()
-            const res = await fetch("/api/projects", {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ projectName: "New Project" }),
-            })
-            const newProject = await res.json()
-            router.push(`/chat/${newProject.id}`)
-        } catch (error) {
-            console.error("Error creating project:", error)
+        const token = await user.getIdToken()
+        const res = await fetch("/api/projects", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ projectName, description }),
+        })
+
+        if (!res.ok) {
+            const errorData = await res.json()
+            throw new Error(errorData.error || "Failed to create project")
         }
+
+        const newProject = await res.json()
+        router.push(`/chat/${newProject.id}`)
     }
 
     const getStatusColor = (status?: string) => {
@@ -131,7 +144,7 @@ export default function DashboardPage() {
             <div className="min-h-screen bg-[#101922] flex items-center justify-center">
                 <div className="flex items-center gap-3">
                     <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_empty</span>
-                    <span className="text-white">Loading...</span>
+                    {/* <span className="text-white">Loading...</span> */}
                 </div>
             </div>
         )
@@ -143,33 +156,65 @@ export default function DashboardPage() {
 
     return (
         <div className="flex h-screen w-full flex-row bg-[#101922] text-white overflow-hidden">
+            {/* Mobile Menu Backdrop */}
+            {isMobileMenuOpen && (
+                <div
+                    className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                />
+            )}
+
             {/* Sidebar Navigation */}
-            <aside className="flex w-72 flex-col justify-between border-r border-[#283039] bg-[#0d141c] p-4 shrink-0 overflow-y-auto">
+            <aside className={`
+                fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between border-r border-[#283039] bg-[#0d141c] p-4 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0
+                ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}
+            `}>
                 <div className="flex flex-col gap-8">
                     {/* Branding */}
-                    <div className="flex items-center gap-3 px-2">
-                        <div className="flex items-center justify-center rounded-lg bg-[#137fec]/10 p-2">
-                            <div className="size-8 rounded bg-gradient-to-br from-blue-400 to-[#137fec] flex items-center justify-center">
-                                <span className="material-symbols-outlined text-white text-[20px]">hourglass_top</span>
+                    <div className="flex items-center justify-between px-2">
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center rounded-lg bg-[#137fec]/10 p-2">
+                                <div className="size-8 rounded bg-gradient-to-br from-blue-400 to-[#137fec] flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-white text-[20px]">hourglass_top</span>
+                                </div>
+                            </div>
+                            <div className="flex flex-col">
+                                <h1 className="text-lg font-bold leading-tight tracking-tight text-white">Flowro AI</h1>
+                                <p className="text-xs font-medium text-[#9dabb9]">Unified Blueprints</p>
                             </div>
                         </div>
-                        <div className="flex flex-col">
-                            <h1 className="text-lg font-bold leading-tight tracking-tight text-white">Flowro AI</h1>
-                            <p className="text-xs font-medium text-[#9dabb9]">Unified Blueprints</p>
-                        </div>
+                        {/* Mobile Close Button */}
+                        <button
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="lg:hidden text-[#9dabb9] hover:text-white"
+                        >
+                            <span className="material-symbols-outlined">close</span>
+                        </button>
                     </div>
 
                     {/* Navigation Links */}
                     <nav className="flex flex-col gap-2">
-                        <a className="flex items-center gap-3 rounded-lg bg-[#137fec] px-3 py-2.5 transition-colors" href="#">
+                        <a
+                            className="flex items-center gap-3 rounded-lg bg-[#137fec] px-3 py-2.5 transition-colors"
+                            href="#"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                        >
                             <span className="material-symbols-outlined text-white">dashboard</span>
                             <p className="text-sm font-medium leading-normal text-white">Dashboard</p>
                         </a>
-                        <a className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[#9dabb9] transition-colors hover:bg-white/5 group" href="#">
+                        <a
+                            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[#9dabb9] transition-colors hover:bg-white/5 group"
+                            href="#"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                        >
                             <span className="material-symbols-outlined text-slate-400 transition-colors group-hover:text-white">folder_open</span>
                             <p className="text-sm font-medium leading-normal transition-colors group-hover:text-white">My UBPs</p>
                         </a>
-                        <a className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[#9dabb9] transition-colors hover:bg-white/5 group" href="#">
+                        <a
+                            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[#9dabb9] transition-colors hover:bg-white/5 group"
+                            href="#"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                        >
                             <span className="material-symbols-outlined text-slate-400 transition-colors group-hover:text-white">settings</span>
                             <p className="text-sm font-medium leading-normal transition-colors group-hover:text-white">Settings</p>
                         </a>
@@ -179,7 +224,7 @@ export default function DashboardPage() {
                 {/* Bottom Actions */}
                 <div className="flex flex-col gap-2 border-t border-[#283039] pt-4">
                     <div className="flex items-center gap-3 px-3 py-2 text-[#9dabb9]">
-                        <div className="size-8 rounded-full bg-gradient-to-br from-blue-400 to-[#137fec] flex items-center justify-center text-white text-sm font-bold">
+                        <div className="size-8 rounded-full bg-gradient-to-br from-blue-400 to-[#137fec] flex items-center justify-center text-white text-sm font-bold shrink-0">
                             {displayName.charAt(0).toUpperCase()}
                         </div>
                         <span className="text-sm truncate">{user.email}</span>
@@ -196,18 +241,29 @@ export default function DashboardPage() {
 
             {/* Main Content Area */}
             <main className="flex flex-1 flex-col overflow-y-auto bg-[#101922]">
-                <div className="mx-auto flex w-full max-w-7xl flex-col p-6 lg:px-10">
+                <div className="mx-auto flex w-full max-w-7xl flex-col p-4 md:p-6 lg:px-10">
                     {/* Page Heading & CTA */}
-                    <header className="flex flex-wrap items-end justify-between gap-4 py-6">
-                        <div className="flex flex-col gap-1">
-                            <h1 className="text-3xl font-black leading-tight tracking-tight text-white lg:text-4xl">
-                                Welcome back, {displayName}
-                            </h1>
-                            <p className="text-base text-[#9dabb9]">Let's build a unified blueprint today.</p>
+                    <header className="flex flex-col gap-6 py-6 lg:flex-row lg:items-end lg:justify-between">
+                        <div className="flex items-center gap-4">
+                            {/* Mobile Hamburger */}
+                            <button
+                                onClick={() => setIsMobileMenuOpen(true)}
+                                className="flex size-10 items-center justify-center rounded-lg border border-[#283039] bg-[#18212b] text-[#9dabb9] lg:hidden hover:text-white transition-colors"
+                            >
+                                <span className="material-symbols-outlined">menu</span>
+                            </button>
+
+                            <div className="flex flex-col gap-1">
+                                <h1 className="text-2xl font-black leading-tight tracking-tight text-white lg:text-4xl">
+                                    Welcome back, {displayName}
+                                </h1>
+                                <p className="text-sm lg:text-base text-[#9dabb9]">Let's build a unified blueprint today.</p>
+                            </div>
                         </div>
+
                         <button
-                            onClick={handleCreateProject}
-                            className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#137fec] px-6 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#101922]"
+                            onClick={handleOpenCreateModal}
+                            className="flex h-12 w-full lg:w-auto cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#137fec] px-6 text-sm font-bold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#101922]"
                         >
                             <span className="material-symbols-outlined text-[20px]">add</span>
                             <span>Create New Project</span>
@@ -281,7 +337,7 @@ export default function DashboardPage() {
                         {loadingProjects ? (
                             <div className="flex items-center justify-center py-12">
                                 <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_empty</span>
-                                <span className="ml-3 text-[#9dabb9]">Loading projects...</span>
+                                {/* <span className="ml-3 text-[#9dabb9]">Loading projects...</span> */}
                             </div>
                         ) : filteredProjects.length === 0 ? (
                             <div className="bg-[#18212b] border border-[#283039] rounded-xl p-12 text-center">
@@ -291,7 +347,7 @@ export default function DashboardPage() {
                                 </p>
                                 {!searchQuery && (
                                     <button
-                                        onClick={handleCreateProject}
+                                        onClick={handleOpenCreateModal}
                                         className="bg-[#137fec] hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-colors shadow-lg shadow-blue-500/20"
                                     >
                                         Create Your First Project
@@ -350,6 +406,13 @@ export default function DashboardPage() {
                     </section>
                 </div>
             </main>
+
+            {/* Create Project Modal */}
+            <CreateProjectModal
+                isOpen={showCreateModal}
+                onClose={handleCloseCreateModal}
+                onCreateProject={handleCreateProject}
+            />
         </div>
     )
 }
