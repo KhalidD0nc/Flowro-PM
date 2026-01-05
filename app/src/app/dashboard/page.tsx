@@ -173,10 +173,8 @@ export default function DashboardPage() {
                     {/* Branding */}
                     <div className="flex items-center justify-between px-2">
                         <div className="flex items-center gap-3">
-                            <div className="flex items-center justify-center rounded-lg bg-[#137fec]/10 p-2">
-                                <div className="size-8 rounded bg-gradient-to-br from-blue-400 to-[#137fec] flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-white text-[20px]">hourglass_top</span>
-                                </div>
+                            <div className="size-8 text-[#137fec]">
+                                <span className="material-symbols-outlined text-[32px]">hourglass_top</span>
                             </div>
                             <div className="flex flex-col">
                                 <h1 className="text-lg font-bold leading-tight tracking-tight text-white">Flowro AI</h1>
