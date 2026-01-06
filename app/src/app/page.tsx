@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link";
+import PricingSection from "@/components/PricingSection";
 
 export default function Home() {
     return (
@@ -18,7 +19,7 @@ export default function Home() {
                         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[#9dabb9]">
                             <a className="hover:text-[#137fec] transition-colors" href="#how-it-works">How it Works</a>
                             <a className="hover:text-[#137fec] transition-colors" href="#features">Features</a>
-                            <a className="hover:text-[#137fec] transition-colors" href="#">Pricing</a>
+                            <a className="hover:text-[#137fec] transition-colors" href="#pricing">Pricing</a>
                         </nav>
                         <Link
                             href="/auth"
@@ -617,8 +618,11 @@ export default function Home() {
                 </div>
             </section>
 
+            {/* Pricing Section */}
+            <PricingSection />
+
             {/* CTA Section */}
-            <section className="py-4 px-6 lg:px-40 relative overflow-hidden">
+            <section className="py-24 px-6 lg:px-40 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#137fec]/5 pointer-events-none"></div>
                 <div className="layout-content-container max-w-[720px] mx-auto flex flex-col items-center text-center gap-8 relative z-10">
                     <span className="material-symbols-outlined text-[#137fec] text-[40px] scale-180">
