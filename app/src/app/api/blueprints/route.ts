@@ -5,6 +5,7 @@ import {
     updateBlueprintContent,
     lockBlueprint,
     createBlueprintVersion,
+    saveVersion,
     verifyProjectOwnership,
     verifyBlueprintOwnership
 } from "./service"
@@ -92,6 +93,17 @@ export async function PATCH(request: NextRequest) {
         if (action === "lock") {
             await lockBlueprint(blueprintId)
             return NextResponse.json({ success: true, message: "Blueprint locked" })
+        }
+
+        // Save Version action - lock current and create new draft
+        if (action === "save-version") {
+            const result = await saveVersion(blueprintId)
+            return NextResponse.json({
+                success: true,
+                message: "Version saved as milestone",
+                lockedBlueprint: result.lockedBlueprint,
+                newDraft: result.newDraft
+            })
         }
 
         // Update content

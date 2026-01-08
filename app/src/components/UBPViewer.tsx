@@ -79,6 +79,8 @@ interface UBPViewerProps {
     version?: string
     status?: "draft" | "locked" | "approved"
     lastUpdated?: string
+    onSaveVersion?: () => void
+    isSaving?: boolean
 }
 
 // Section navigation items
@@ -102,6 +104,8 @@ export default function UBPViewer({
     version = "0.1",
     status = "draft",
     lastUpdated,
+    onSaveVersion,
+    isSaving = false,
 }: UBPViewerProps) {
     const mermaidRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -198,6 +202,30 @@ export default function UBPViewer({
                             </div>
                         </div>
                     </div>
+
+                    {/* Save Version Button - only shown for draft status */}
+                    {status === "draft" && onSaveVersion && (
+                        <div className="flex flex-col items-end">
+                            <button
+                                onClick={onSaveVersion}
+                                disabled={isSaving}
+                                className="flex items-center gap-2 bg-[#137fec] hover:bg-blue-600 disabled:bg-[#137fec]/50 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                            >
+                                {isSaving ? (
+                                    <>
+                                        <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                                        Saving...
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="material-symbols-outlined text-[18px]">save</span>
+                                        Save Version
+                                    </>
+                                )}
+                            </button>
+                            <span className="text-[#9dabb9] text-xs mt-1">Save as milestone, continue editing</span>
+                        </div>
+                    )}
                 </header>
 
                 <div className="flex flex-1 overflow-hidden">

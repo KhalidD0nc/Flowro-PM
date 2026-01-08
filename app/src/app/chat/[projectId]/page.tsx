@@ -219,6 +219,7 @@ export default function ChatPage() {
     const [error, setError] = useState<string | null>(null)
     const [isUBPViewerOpen, setIsUBPViewerOpen] = useState(false)
     const [currentUBP, setCurrentUBP] = useState<UBPContent | null>(null)
+    const [isSaving, setIsSaving] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     // Redirect if not logged in
@@ -357,6 +358,47 @@ export default function ChatPage() {
 
     const handleOpenUBP = () => {
         setIsUBPViewerOpen(true)
+    }
+
+    const handleSaveVersion = async () => {
+        if (!user || !project?.latestBlueprint?.id) return
+
+        setIsSaving(true)
+        try {
+            const token = await user.getIdToken()
+            const res = await fetch("/api/blueprints", {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    blueprintId: project.latestBlueprint.id,
+                    action: "save-version",
+                }),
+            })
+
+            if (!res.ok) {
+                throw new Error("Failed to save version")
+            }
+
+            const data = await res.json()
+
+            // Update project with new draft blueprint
+            setProject((prev) =>
+                prev
+                    ? {
+                        ...prev,
+                        latestBlueprint: data.newDraft,
+                    }
+                    : prev
+            )
+        } catch (err) {
+            console.error("Error saving version:", err)
+            setError("Failed to save version. Please try again.")
+        } finally {
+            setIsSaving(false)
+        }
     }
 
     if (loading || loadingProject) {
@@ -537,6 +579,8 @@ export default function ChatPage() {
                     ? new Date(project.latestBlueprint.createdAt).toLocaleDateString()
                     : undefined
                 }
+                onSaveVersion={handleSaveVersion}
+                isSaving={isSaving}
             />
         </div>
     )

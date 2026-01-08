@@ -26,7 +26,7 @@ export async function generateCompletion(options: GenerateOptions) {
       "X-Title": "Flowro-PM",
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free",
+      model: process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free",
       messages,
       stream,
       ...(reasoning && { reasoning: { enabled: true } }),
@@ -35,7 +35,7 @@ export async function generateCompletion(options: GenerateOptions) {
 
   if (!response.ok) {
     const errorBody = await response.text()
-    const model = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free"
+    const model = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free"
     console.error(`OpenRouter error - Model: ${model}, Status: ${response.status}, Body: ${errorBody}`)
     throw new Error(`OpenRouter error: ${response.status} - ${errorBody}`)
   }

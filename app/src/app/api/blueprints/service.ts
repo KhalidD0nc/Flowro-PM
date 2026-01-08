@@ -330,3 +330,76 @@ export async function getLatestBlueprint(projectId: string): Promise<Blueprint |
 
     return blueprints[0]
 }
+
+/**
+ * Helper to increment version number (e.g., "0.1" -> "0.2", "1.0" -> "1.1")
+ */
+function incrementVersion(version: string): string {
+    const parts = version.split(".")
+    if (parts.length === 2) {
+        const minor = parseInt(parts[1], 10) + 1
+        return `${parts[0]}.${minor}`
+    }
+    // Fallback: append .1
+    return `${version}.1`
+}
+
+/**
+ * Saves the current blueprint as a locked version (milestone) and creates a new draft
+ * to continue editing. The new draft inherits the content from the locked version.
+ */
+export async function saveVersion(blueprintId: string): Promise<{
+    lockedBlueprint: Blueprint
+    newDraft: Blueprint
+}> {
+    const db = getAdminDb()
+    const blueprintRef = db.collection("blueprints").doc(blueprintId)
+    const blueprint = await blueprintRef.get()
+
+    if (!blueprint.exists) {
+        throw new Error("Blueprint not found")
+    }
+
+    const blueprintData = blueprint.data()
+    if (blueprintData?.status === "locked" || blueprintData?.status === "approved") {
+        throw new Error("Blueprint is already locked")
+    }
+
+    const now = new Date().toISOString()
+
+    // Lock the current blueprint
+    await blueprintRef.update({
+        status: "locked",
+        lockedAt: now,
+    })
+
+    const lockedBlueprint: Blueprint = {
+        id: blueprintId,
+        projectId: blueprintData?.projectId,
+        version: blueprintData?.version || "0.1",
+        status: "locked",
+        content: blueprintData?.content || null,
+        createdAt: blueprintData?.createdAt,
+        lockedAt: now,
+    }
+
+    // Create a new draft with incremented version and same content
+    const newVersion = incrementVersion(lockedBlueprint.version)
+    const newDraftData = {
+        projectId: lockedBlueprint.projectId,
+        version: newVersion,
+        status: "draft" as const,
+        content: lockedBlueprint.content, // Copy content from locked version
+        createdAt: now,
+    }
+
+    const newDraftRef = await db.collection("blueprints").add(newDraftData)
+
+    const newDraft: Blueprint = {
+        id: newDraftRef.id,
+        ...newDraftData,
+    }
+
+    return { lockedBlueprint, newDraft }
+}
+
