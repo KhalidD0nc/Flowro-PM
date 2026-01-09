@@ -347,6 +347,9 @@ function incrementVersion(version: string): string {
 /**
  * Saves the current blueprint as a locked version (milestone) and creates a new draft
  * to continue editing. The new draft inherits the content from the locked version.
+ * 
+ * Uses a Firestore transaction to ensure atomicity - both the status update and
+ * new draft creation succeed or fail together, preventing inconsistent state.
  */
 export async function saveVersion(blueprintId: string): Promise<{
     lockedBlueprint: Blueprint
@@ -354,52 +357,65 @@ export async function saveVersion(blueprintId: string): Promise<{
 }> {
     const db = getAdminDb()
     const blueprintRef = db.collection("blueprints").doc(blueprintId)
-    const blueprint = await blueprintRef.get()
 
-    if (!blueprint.exists) {
-        throw new Error("Blueprint not found")
-    }
+    // Use a transaction to ensure atomicity of both operations
+    const result = await db.runTransaction(async (transaction) => {
+        // Read the blueprint inside the transaction
+        const blueprintSnapshot = await transaction.get(blueprintRef)
 
-    const blueprintData = blueprint.data()
-    if (blueprintData?.status === "locked" || blueprintData?.status === "approved") {
-        throw new Error("Blueprint is already locked")
-    }
+        if (!blueprintSnapshot.exists) {
+            throw new Error("Blueprint not found")
+        }
 
-    const now = new Date().toISOString()
+        const blueprintData = blueprintSnapshot.data()
+        if (blueprintData?.status === "locked" || blueprintData?.status === "approved") {
+            throw new Error("Blueprint is already locked")
+        }
 
-    // Lock the current blueprint
-    await blueprintRef.update({
-        status: "locked",
-        lockedAt: now,
+        const now = new Date().toISOString()
+
+        // Prepare the locked blueprint data
+        const lockedBlueprint: Blueprint = {
+            id: blueprintId,
+            projectId: blueprintData?.projectId,
+            version: blueprintData?.version || "0.1",
+            status: "locked",
+            content: blueprintData?.content || null,
+            createdAt: blueprintData?.createdAt,
+            lockedAt: now,
+        }
+
+        // Prepare the new draft data with incremented version
+        const newVersion = incrementVersion(lockedBlueprint.version)
+        const newDraftData = {
+            projectId: lockedBlueprint.projectId,
+            version: newVersion,
+            status: "draft" as const,
+            content: lockedBlueprint.content, // Copy content from locked version
+            createdAt: now,
+        }
+
+        // Create a new document reference for the draft (instead of using add())
+        const newDraftRef = db.collection("blueprints").doc()
+        const newDraftId = newDraftRef.id
+
+        // Perform both writes within the transaction
+        transaction.update(blueprintRef, {
+            status: "locked",
+            lockedAt: now,
+        })
+
+        transaction.set(newDraftRef, newDraftData)
+
+        // Return the constructed objects with their IDs
+        const newDraft: Blueprint = {
+            id: newDraftId,
+            ...newDraftData,
+        }
+
+        return { lockedBlueprint, newDraft }
     })
 
-    const lockedBlueprint: Blueprint = {
-        id: blueprintId,
-        projectId: blueprintData?.projectId,
-        version: blueprintData?.version || "0.1",
-        status: "locked",
-        content: blueprintData?.content || null,
-        createdAt: blueprintData?.createdAt,
-        lockedAt: now,
-    }
-
-    // Create a new draft with incremented version and same content
-    const newVersion = incrementVersion(lockedBlueprint.version)
-    const newDraftData = {
-        projectId: lockedBlueprint.projectId,
-        version: newVersion,
-        status: "draft" as const,
-        content: lockedBlueprint.content, // Copy content from locked version
-        createdAt: now,
-    }
-
-    const newDraftRef = await db.collection("blueprints").add(newDraftData)
-
-    const newDraft: Blueprint = {
-        id: newDraftRef.id,
-        ...newDraftData,
-    }
-
-    return { lockedBlueprint, newDraft }
+    return result
 }
 

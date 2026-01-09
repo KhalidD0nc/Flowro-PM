@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import mermaid from "mermaid"
 
 // Initialize mermaid
@@ -71,6 +71,15 @@ export interface UBPContent {
     }[]
 }
 
+// Blueprint type for version list
+export interface BlueprintVersion {
+    id: string
+    version: string
+    status: "draft" | "locked" | "approved"
+    createdAt: string
+    lockedAt?: string
+}
+
 interface UBPViewerProps {
     isOpen: boolean
     onClose: () => void
@@ -81,6 +90,9 @@ interface UBPViewerProps {
     lastUpdated?: string
     onSaveVersion?: () => void
     isSaving?: boolean
+    allVersions?: BlueprintVersion[]
+    onVersionSelect?: (blueprintId: string) => void
+    currentBlueprintId?: string
 }
 
 // Section navigation items
@@ -106,9 +118,13 @@ export default function UBPViewer({
     lastUpdated,
     onSaveVersion,
     isSaving = false,
+    allVersions = [],
+    onVersionSelect,
+    currentBlueprintId,
 }: UBPViewerProps) {
     const mermaidRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
+    const [isVersionDropdownOpen, setIsVersionDropdownOpen] = useState(false)
 
     // Re-render mermaid diagrams when UBP changes
     useEffect(() => {
@@ -187,7 +203,49 @@ export default function UBPViewer({
                         <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                                 <h1 className="text-lg font-bold text-white">{projectName}</h1>
-                                <span className="text-[#9dabb9] text-sm">v{version}</span>
+
+                                {/* Version Dropdown */}
+                                {allVersions.length > 1 && onVersionSelect ? (
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setIsVersionDropdownOpen(!isVersionDropdownOpen)}
+                                            className="flex items-center gap-1 text-[#9dabb9] text-sm hover:text-white hover:bg-white/10 px-2 py-1 rounded transition-colors"
+                                        >
+                                            v{version}
+                                            <span className="material-symbols-outlined text-[16px]">
+                                                {isVersionDropdownOpen ? "expand_less" : "expand_more"}
+                                            </span>
+                                        </button>
+
+                                        {isVersionDropdownOpen && (
+                                            <div className="absolute top-full left-0 mt-1 bg-[#1f2937] border border-[#283039] rounded-lg shadow-xl z-10 min-w-[180px] py-1">
+                                                {allVersions.map((v) => (
+                                                    <button
+                                                        key={v.id}
+                                                        onClick={() => {
+                                                            onVersionSelect(v.id)
+                                                            setIsVersionDropdownOpen(false)
+                                                        }}
+                                                        className={`w-full flex items-center justify-between px-3 py-2 text-sm transition-colors ${v.id === currentBlueprintId
+                                                            ? "bg-[#137fec]/20 text-white"
+                                                            : "text-[#9dabb9] hover:bg-white/5 hover:text-white"
+                                                            }`}
+                                                    >
+                                                        <span>v{v.version}</span>
+                                                        <span className={`text-xs px-1.5 py-0.5 rounded ${v.status === "draft"
+                                                            ? "bg-yellow-500/20 text-yellow-400"
+                                                            : "bg-blue-500/20 text-blue-400"
+                                                            }`}>
+                                                            {v.status === "draft" ? "Draft" : "Locked"}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <span className="text-[#9dabb9] text-sm">v{version}</span>
+                                )}
                             </div>
                             <div className="flex items-center gap-3">
                                 <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-bold uppercase tracking-wide ${statusColors[status]}`}>
