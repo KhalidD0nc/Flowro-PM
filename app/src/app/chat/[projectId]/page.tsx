@@ -219,6 +219,9 @@ export default function ChatPage() {
     const [error, setError] = useState<string | null>(null)
     const [isUBPViewerOpen, setIsUBPViewerOpen] = useState(false)
     const [currentUBP, setCurrentUBP] = useState<UBPContent | null>(null)
+    const [isSaving, setIsSaving] = useState(false)
+    const [allVersions, setAllVersions] = useState<Blueprint[]>([])
+    const [selectedBlueprint, setSelectedBlueprint] = useState<Blueprint | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     // Redirect if not logged in
@@ -249,6 +252,16 @@ export default function ChatPage() {
                 // Extract UBP from latest blueprint if available
                 if (data.latestBlueprint?.content) {
                     setCurrentUBP(transformApiToUBP(data.latestBlueprint.content))
+                    setSelectedBlueprint(data.latestBlueprint)
+                }
+
+                // Fetch all versions
+                const versionsRes = await fetch(`/api/blueprints?projectId=${projectId}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                })
+                if (versionsRes.ok) {
+                    const versionsData = await versionsRes.json()
+                    setAllVersions(versionsData.blueprints || [])
                 }
             } catch (err) {
                 console.error("Error fetching project:", err)
@@ -357,6 +370,89 @@ export default function ChatPage() {
 
     const handleOpenUBP = () => {
         setIsUBPViewerOpen(true)
+    }
+
+    const handleSaveVersion = async () => {
+        if (!user || !project?.latestBlueprint?.id) return
+
+        setIsSaving(true)
+        try {
+            const token = await user.getIdToken()
+            const res = await fetch("/api/blueprints", {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    blueprintId: project.latestBlueprint.id,
+                    action: "save-version",
+                }),
+            })
+
+            if (!res.ok) {
+                throw new Error("Failed to save version")
+            }
+
+            const data = await res.json()
+
+            // Update project with new draft blueprint
+            setProject((prev) =>
+                prev
+                    ? {
+                        ...prev,
+                        latestBlueprint: data.newDraft,
+                    }
+                    : prev
+            )
+
+            // Update selected blueprint to the new draft
+            setSelectedBlueprint(data.newDraft)
+
+            // Refresh versions list to include the newly locked version
+            const token2 = await user.getIdToken()
+            const versionsRes = await fetch(`/api/blueprints?projectId=${projectId}`, {
+                headers: { Authorization: `Bearer ${token2}` },
+            })
+            if (versionsRes.ok) {
+                const versionsData = await versionsRes.json()
+                setAllVersions(versionsData.blueprints || [])
+            }
+        } catch (err) {
+            console.error("Error saving version:", err)
+            setError("Failed to save version. Please try again.")
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    const handleVersionSelect = async (blueprintId: string) => {
+        if (!user) return
+
+        // Find the selected version from allVersions
+        const selected = allVersions.find((v) => v.id === blueprintId)
+        if (!selected) return
+
+        // If it's the latest draft, use the project's latestBlueprint data
+        if (blueprintId === project?.latestBlueprint?.id) {
+            setSelectedBlueprint(project.latestBlueprint)
+            if (project.latestBlueprint.content) {
+                setCurrentUBP(transformApiToUBP(project.latestBlueprint.content))
+            }
+            return
+        }
+
+        // For other versions, use content from allVersions (API returns full blueprints)
+        const fullBlueprint = allVersions.find((v) => v.id === blueprintId)
+
+        if (fullBlueprint) {
+            setSelectedBlueprint(fullBlueprint)
+            if (fullBlueprint.content) {
+                setCurrentUBP(transformApiToUBP(fullBlueprint.content))
+            } else {
+                setCurrentUBP(null)
+            }
+        }
     }
 
     if (loading || loadingProject) {
@@ -531,12 +627,19 @@ export default function ChatPage() {
                 onClose={() => setIsUBPViewerOpen(false)}
                 ubp={currentUBP}
                 projectName={project.projectName}
-                version={project.latestBlueprint?.version || "0.1"}
-                status={project.latestBlueprint?.status || "draft"}
-                lastUpdated={project.latestBlueprint?.createdAt
-                    ? new Date(project.latestBlueprint.createdAt).toLocaleDateString()
-                    : undefined
+                version={selectedBlueprint?.version || project.latestBlueprint?.version || "0.1"}
+                status={selectedBlueprint?.status || project.latestBlueprint?.status || "draft"}
+                lastUpdated={selectedBlueprint?.createdAt
+                    ? new Date(selectedBlueprint.createdAt).toLocaleDateString()
+                    : project.latestBlueprint?.createdAt
+                        ? new Date(project.latestBlueprint.createdAt).toLocaleDateString()
+                        : undefined
                 }
+                onSaveVersion={selectedBlueprint?.status === "draft" ? handleSaveVersion : undefined}
+                isSaving={isSaving}
+                allVersions={allVersions}
+                onVersionSelect={handleVersionSelect}
+                currentBlueprintId={selectedBlueprint?.id || project.latestBlueprint?.id}
             />
         </div>
     )
