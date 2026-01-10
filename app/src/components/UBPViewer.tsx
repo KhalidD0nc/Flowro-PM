@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState } from "react"
 import mermaid from "mermaid"
+import {
+    exportBlueprint,
+    downloadBlueprint,
+    generateFilename,
+    type ExportFormat,
+} from "@/lib/exportBlueprint"
 
 // Initialize mermaid
 mermaid.initialize({
@@ -85,9 +91,12 @@ interface UBPViewerProps {
     onClose: () => void
     ubp: UBPContent | null
     projectName?: string
+    projectDescription?: string
     version?: string
     status?: "draft" | "locked" | "approved"
     lastUpdated?: string
+    createdAt?: string
+    lockedAt?: string
     onSaveVersion?: () => void
     isSaving?: boolean
     allVersions?: BlueprintVersion[]
@@ -113,9 +122,12 @@ export default function UBPViewer({
     onClose,
     ubp,
     projectName = "Project",
+    projectDescription,
     version = "0.1",
     status = "draft",
     lastUpdated,
+    createdAt,
+    lockedAt,
     onSaveVersion,
     isSaving = false,
     allVersions = [],
@@ -125,6 +137,26 @@ export default function UBPViewer({
     const mermaidRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
     const [isVersionDropdownOpen, setIsVersionDropdownOpen] = useState(false)
+    const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false)
+
+    // Handle export
+    const handleExport = (format: ExportFormat) => {
+        if (!currentBlueprintId) return
+
+        const content = exportBlueprint(ubp, {
+            projectName,
+            projectDescription,
+            blueprintId: currentBlueprintId,
+            version,
+            status,
+            createdAt: createdAt || new Date().toISOString(),
+            lockedAt,
+        }, format)
+
+        const filename = generateFilename(projectName, version)
+        downloadBlueprint(content, filename, format)
+        setIsExportDropdownOpen(false)
+    }
 
     // Re-render mermaid diagrams when UBP changes
     useEffect(() => {
@@ -261,29 +293,65 @@ export default function UBPViewer({
                         </div>
                     </div>
 
-                    {/* Save Version Button - only shown for draft status */}
-                    {status === "draft" && onSaveVersion && (
-                        <div className="flex flex-col items-end">
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-3">
+                        {/* Export Dropdown */}
+                        <div className="relative">
                             <button
-                                onClick={onSaveVersion}
-                                disabled={isSaving}
-                                className="flex items-center gap-2 bg-[#137fec] hover:bg-blue-600 disabled:bg-[#137fec]/50 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                                onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+                                className="flex items-center gap-2 bg-[#283039] hover:bg-[#3d4a56] text-white font-medium py-2 px-4 rounded-lg transition-colors"
                             >
-                                {isSaving ? (
-                                    <>
-                                        <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
-                                        Saving...
-                                    </>
-                                ) : (
-                                    <>
-                                        <span className="material-symbols-outlined text-[18px]">save</span>
-                                        Save Version
-                                    </>
-                                )}
+                                <span className="material-symbols-outlined text-[18px]">download</span>
+                                Export
+                                <span className="material-symbols-outlined text-[16px]">
+                                    {isExportDropdownOpen ? "expand_less" : "expand_more"}
+                                </span>
                             </button>
-                            <span className="text-[#9dabb9] text-xs mt-1">Save as milestone, continue editing</span>
+
+                            {isExportDropdownOpen && (
+                                <div className="absolute top-full right-0 mt-1 bg-[#1f2937] border border-[#283039] rounded-lg shadow-xl z-10 min-w-[180px] py-1">
+                                    <button
+                                        onClick={() => handleExport("json")}
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">data_object</span>
+                                        Export as JSON
+                                    </button>
+                                    <button
+                                        onClick={() => handleExport("markdown")}
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">description</span>
+                                        Export as Markdown
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                    )}
+
+                        {/* Save Version Button - only shown for draft status */}
+                        {status === "draft" && onSaveVersion && (
+                            <div className="flex flex-col items-end">
+                                <button
+                                    onClick={onSaveVersion}
+                                    disabled={isSaving}
+                                    className="flex items-center gap-2 bg-[#137fec] hover:bg-blue-600 disabled:bg-[#137fec]/50 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                                >
+                                    {isSaving ? (
+                                        <>
+                                            <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="material-symbols-outlined text-[18px]">save</span>
+                                            Save Version
+                                        </>
+                                    )}
+                                </button>
+                                <span className="text-[#9dabb9] text-xs mt-1">Save as milestone, continue editing</span>
+                            </div>
+                        )}
+                    </div>
                 </header>
 
                 <div className="flex flex-1 overflow-hidden">

@@ -627,8 +627,11 @@ export default function ChatPage() {
                 onClose={() => setIsUBPViewerOpen(false)}
                 ubp={currentUBP}
                 projectName={project.projectName}
+                projectDescription={project.description}
                 version={selectedBlueprint?.version || project.latestBlueprint?.version || "0.1"}
                 status={selectedBlueprint?.status || project.latestBlueprint?.status || "draft"}
+                createdAt={selectedBlueprint?.createdAt || project.latestBlueprint?.createdAt}
+                lockedAt={selectedBlueprint?.lockedAt || project.latestBlueprint?.lockedAt}
                 lastUpdated={selectedBlueprint?.createdAt
                     ? new Date(selectedBlueprint.createdAt).toLocaleDateString()
                     : project.latestBlueprint?.createdAt
