@@ -1,35 +1,68 @@
 import { generateCompletion, UBP_SYSTEM_PROMPT, Message } from "@/lib/openrouter"
 
 // Types
+interface ChatMessage {
+    role: string
+    content: string
+    timestamp?: string
+}
+
+export type Intent = 'initial' | 'discussion' | 'proposal'
+
+export interface ProposedChanges {
+    action: 'add' | 'update' | 'remove'
+    summary: string
+    sections: string[]
+    changes: Record<string, unknown>
+}
+
 export interface GenerateInput {
     message: string
-    context?: unknown
+    context?: ChatMessage[]  // Chat history array
+    currentBlueprint?: unknown  // Current blueprint content if exists
 }
 
 export interface GenerateResult {
-    content: unknown
-    reasoningDetails?: unknown
+    intent: Intent
+    message: string
+    content: unknown  // Full UBP content for initial, null for discussion/proposal
+    proposedChanges?: ProposedChanges
     rawContent: string
 }
 
 /**
  * Builds the messages array for the LLM request
+ * Includes full conversation history for context
  */
 export function buildMessages(input: GenerateInput): Message[] {
-    const { message, context } = input
+    const { message, context, currentBlueprint } = input
 
     const messages: Message[] = [
         { role: "system", content: UBP_SYSTEM_PROMPT },
     ]
 
-    // Add context if refining existing UBP
-    if (context) {
+    // If we have a current blueprint, add it as context
+    if (currentBlueprint) {
         messages.push({
-            role: "assistant",
-            content: JSON.stringify(context, null, 2),
+            role: "system",
+            content: `### CURRENT BLUEPRINT STATE\nThe user already has an existing blueprint. When they send follow-up messages, update only the relevant sections.\n\nCurrent Blueprint:\n${JSON.stringify(currentBlueprint, null, 2)}`
         })
     }
 
+    // Add full conversation history (last 10 messages for context window management)
+    if (context && Array.isArray(context)) {
+        const recentHistory = context.slice(-10)
+        for (const msg of recentHistory) {
+            if (msg.role === "user" || msg.role === "assistant") {
+                messages.push({
+                    role: msg.role as "user" | "assistant",
+                    content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+                })
+            }
+        }
+    }
+
+    // Add the current user message
     messages.push({
         role: "user",
         content: message,
@@ -39,30 +72,154 @@ export function buildMessages(input: GenerateInput): Message[] {
 }
 
 /**
- * Calls the LLM and returns the parsed response
+ * Extracts JSON from markdown code blocks if present
+ * Handles responses like "Here's the blueprint: ```json {...} ```"
+ */
+function extractJSONFromMarkdown(content: string): { json: unknown; textParts: string[] } | null {
+    // Match ```json ... ``` or ``` ... ``` code blocks
+    const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/g
+    const matches = [...content.matchAll(jsonBlockRegex)]
+
+    for (const match of matches) {
+        try {
+            const json = JSON.parse(match[1].trim())
+            // Check if this looks like a UBP (has key fields)
+            if (json.productVision || json.scope || json.behaviors || json.message) {
+                // Get text before and after the JSON block
+                const beforeBlock = content.substring(0, match.index).trim()
+                const afterBlock = content.substring((match.index || 0) + match[0].length).trim()
+                return {
+                    json,
+                    textParts: [beforeBlock, afterBlock].filter(Boolean)
+                }
+            }
+        } catch {
+            // Not valid JSON, continue searching
+        }
+    }
+    return null
+}
+
+/**
+ * Calls the LLM and returns the parsed response with intent detection
  */
 export async function callLLM(messages: Message[]): Promise<GenerateResult> {
     const response = await generateCompletion({ messages, stream: false })
     const data = await response.json()
 
+    // DEBUG: Log key response info
+    console.log("=== LLM Response Debug ===")
+    console.log("Model used:", process.env.OPENROUTER_MODEL || "xiaomi/mimo-v2-flash:free")
+
     const choice = data.choices?.[0]?.message
     if (!choice) {
+        console.error("No choice in response:", data)
         throw new Error("No response from LLM")
     }
 
-    let content: unknown
-    try {
-        content = JSON.parse(choice.content)
-    } catch {
-        content = { raw: choice.content }
+    // Some models (like xiaomi/mimo-v2-flash) put content in the reasoning field
+    // Check for content in this order: content -> reasoning -> reasoning_details[0].text
+    let rawContent = choice.content || ""
+
+    if (!rawContent && choice.reasoning) {
+        console.log("📥 Content was empty, using reasoning field instead")
+        rawContent = choice.reasoning
     }
 
+    if (!rawContent && choice.reasoning_details?.[0]?.text) {
+        console.log("📥 Content was empty, using reasoning_details[0].text instead")
+        rawContent = choice.reasoning_details[0].text
+    }
+
+    console.log("Raw content length:", rawContent.length)
+    console.log("Raw content preview:", rawContent.substring(0, 300))
+
+    let parsed: Record<string, unknown> = {}
+
+    // First, try to parse as pure JSON
+    try {
+        parsed = JSON.parse(rawContent)
+        console.log("✅ Parsed as pure JSON")
+    } catch {
+        console.log("❌ Not pure JSON, checking for embedded JSON...")
+        // Not pure JSON - check if JSON is embedded in markdown
+        const extracted = extractJSONFromMarkdown(rawContent)
+
+        if (extracted) {
+            console.log("✅ Found embedded JSON in markdown")
+            parsed = extracted.json as Record<string, unknown>
+
+            // Combine surrounding text into the message if needed
+            const surroundingText = extracted.textParts.join('\n\n').trim()
+            if (surroundingText && !parsed.message) {
+                parsed.message = surroundingText
+            }
+        } else {
+            console.log("⚠️ Falling back to discussion mode (plain text)")
+            // Plain text response - treat as discussion
+            parsed = {
+                intent: 'discussion',
+                message: rawContent
+            }
+        }
+    }
+
+    // Extract intent with fallback logic
+    let intent: Intent = 'initial'
+    if (parsed.intent === 'discussion' || parsed.intent === 'proposal' || parsed.intent === 'initial') {
+        intent = parsed.intent as Intent
+    } else {
+        // Legacy response without intent field - detect based on content
+        if (parsed.productVision || parsed.scope || parsed.behaviors) {
+            intent = 'initial'  // Has UBP content = initial
+        } else if (parsed.proposedChanges) {
+            intent = 'proposal'  // Has proposed changes = proposal
+        } else {
+            intent = 'discussion'  // Just a message = discussion
+        }
+    }
+
+    // Extract message
+    const message = typeof parsed.message === 'string'
+        ? parsed.message
+        : '🎯 Check out your Blueprint for the details!'
+
+    // Extract proposedChanges if present
+    let proposedChanges: ProposedChanges | undefined
+    if (parsed.proposedChanges && typeof parsed.proposedChanges === 'object') {
+        const pc = parsed.proposedChanges as Record<string, unknown>
+        proposedChanges = {
+            action: (pc.action as 'add' | 'update' | 'remove') || 'update',
+            summary: (pc.summary as string) || 'Blueprint update',
+            sections: (pc.sections as string[]) || [],
+            changes: (pc.changes as Record<string, unknown>) || {}
+        }
+    }
+
+    // For initial intent, content is the full UBP (everything except message/intent/proposedChanges)
+    let content: unknown = null
+    if (intent === 'initial') {
+        // Remove meta fields, keep UBP content
+        const { intent: _i, message: _m, proposedChanges: _pc, ...ubpContent } = parsed
+        content = ubpContent
+    }
+
+    console.log("=== Parsed Response ===")
+    console.log("Intent:", intent)
+    console.log("Message preview:", message.substring(0, 100))
+    console.log("Has proposedChanges:", !!proposedChanges)
+    console.log("Has UBP content:", !!content)
+    console.log("=== End LLM Debug ===")
+
     return {
+        intent,
+        message,
         content,
-        reasoningDetails: choice.reasoning_details,
-        rawContent: choice.content,
+        proposedChanges,
+        rawContent,
     }
 }
+
 
 /**
  * Generates a completion from the LLM

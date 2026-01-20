@@ -143,7 +143,7 @@ export default function DashboardPage() {
         return (
             <div className="min-h-screen bg-[#101922] flex items-center justify-center">
                 <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_empty</span>
+                    <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_top</span>
                     {/* <span className="text-white">Loading...</span> */}
                 </div>
             </div>
