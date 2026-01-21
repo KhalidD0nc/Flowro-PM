@@ -42,6 +42,7 @@ export interface CreateProjectInput {
     userId: string
     projectName: string
     description?: string
+    initialPrompt?: string
 }
 
 // =============================================================================
@@ -72,7 +73,7 @@ export async function getUserProjects(userId: string): Promise<Project[]> {
  * Creates a new project for a user with an initial draft blueprint
  */
 export async function createProject(input: CreateProjectInput): Promise<{ project: Project; blueprint: Blueprint }> {
-    const { userId, projectName, description } = input
+    const { userId, projectName, description, initialPrompt } = input
     const now = new Date().toISOString()
     const db = getAdminDb()
 
@@ -80,7 +81,11 @@ export async function createProject(input: CreateProjectInput): Promise<{ projec
     const projectData: Record<string, unknown> = {
         userId,
         projectName,
-        chatHistory: [],
+        chatHistory: initialPrompt ? [{
+            role: "user",
+            content: initialPrompt,
+            timestamp: now
+        }] : [],
         createdAt: now,
         updatedAt: now,
     }
@@ -195,6 +200,26 @@ export async function updateProjectChatHistory(
 
     await projectRef.update({
         chatHistory: [...existingHistory, ...newMessages],
+        updatedAt: new Date().toISOString(),
+    })
+}
+
+/**
+ * Updates a project's name
+ */
+export async function updateProjectName(
+    projectId: string,
+    newName: string
+): Promise<void> {
+    const projectRef = getAdminDb().collection("projects").doc(projectId)
+    const project = await projectRef.get()
+
+    if (!project.exists) {
+        throw new Error("Project not found")
+    }
+
+    await projectRef.update({
+        projectName: newName,
         updatedAt: new Date().toISOString(),
     })
 }

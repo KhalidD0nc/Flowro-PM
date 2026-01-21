@@ -28,6 +28,8 @@ export default function DashboardPage() {
     const [searchQuery, setSearchQuery] = useState("")
     const [showCreateModal, setShowCreateModal] = useState(false)
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+    const [showSuccess, setShowSuccess] = useState(false)
+    const [successProjectName, setSuccessProjectName] = useState("")
 
     // Redirect if not logged in
     useEffect(() => {
@@ -89,7 +91,7 @@ export default function DashboardPage() {
         setShowCreateModal(false)
     }
 
-    const handleCreateProject = async (projectName: string, description?: string) => {
+    const handleCreateProject = async (initialPrompt: string) => {
         if (!user) return
 
         const token = await user.getIdToken()
@@ -99,7 +101,7 @@ export default function DashboardPage() {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ projectName, description }),
+            body: JSON.stringify({ initialPrompt }),
         })
 
         if (!res.ok) {
@@ -108,6 +110,14 @@ export default function DashboardPage() {
         }
 
         const newProject = await res.json()
+
+        // Show success animation before redirect
+        setShowCreateModal(false)
+        setSuccessProjectName(newProject.projectName || "Your project")
+        setShowSuccess(true)
+
+        // Brief celebration moment, then redirect
+        await new Promise(resolve => setTimeout(resolve, 1200))
         router.push(`/chat/${newProject.id}`)
     }
 
@@ -411,6 +421,22 @@ export default function DashboardPage() {
                 onClose={handleCloseCreateModal}
                 onCreateProject={handleCreateProject}
             />
+
+            {/* Success Animation Overlay */}
+            {showSuccess && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
+                        <div className="flex size-20 items-center justify-center rounded-full bg-green-500/20">
+                            <span className="material-symbols-outlined text-green-400 text-5xl animate-pulse">check_circle</span>
+                        </div>
+                        <div className="text-center">
+                            <h3 className="text-xl font-bold text-white mb-1">Project Created!</h3>
+                            <p className="text-[#9dabb9]">{successProjectName}</p>
+                        </div>
+                        <p className="text-sm text-[#9dabb9] animate-pulse">Building your blueprint...</p>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

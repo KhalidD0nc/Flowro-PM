@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../blueprints/auth"
-import { getProjectById, updateProjectChatHistory, getLatestBlueprint, updateBlueprintContent, ChatMessage } from "../blueprints/service"
+import { getProjectById, updateProjectChatHistory, getLatestBlueprint, updateBlueprintContent, ChatMessage, updateProjectName } from "../blueprints/service"
 import { generateFromMessage } from "./service"
 import { OpenRouterError } from "@/lib/openrouter"
 
@@ -121,18 +121,30 @@ export async function POST(request: NextRequest) {
             const project = await getProjectById(projectId)
 
             if (project && project.userId === authResult.userId) {
-                const newMessages: ChatMessage[] = [
-                    {
+                // Check if this user message is already the last message in history
+                // This happens when project is created with an initial prompt
+                const lastMessage = project.chatHistory[project.chatHistory.length - 1]
+                const isMessageAlreadySaved = lastMessage &&
+                    lastMessage.role === "user" &&
+                    lastMessage.content === message
+
+                const newMessages: ChatMessage[] = []
+
+                // Only add user message if it's not already saved
+                if (!isMessageAlreadySaved) {
+                    newMessages.push({
                         role: "user",
                         content: message,
                         timestamp: new Date().toISOString(),
-                    },
-                    {
-                        role: "assistant",
-                        content: result.rawContent,
-                        timestamp: new Date().toISOString(),
-                    },
-                ]
+                    })
+                }
+
+                // Always add the assistant response
+                newMessages.push({
+                    role: "assistant",
+                    content: result.rawContent,
+                    timestamp: new Date().toISOString(),
+                })
 
                 // Save chat history to project (continues even when blueprints are locked)
                 await updateProjectChatHistory(projectId, newMessages)
@@ -151,6 +163,16 @@ export async function POST(request: NextRequest) {
                     }
                 }
             }
+
+            // Update project name if AI suggested one (and it's an initial generation)
+            if (result.intent === 'initial' && result.productName) {
+                try {
+                    await updateProjectName(projectId, result.productName)
+                    console.log(`Updated project name to: ${result.productName}`)
+                } catch (err) {
+                    console.error("Failed to update project name:", err)
+                }
+            }
         }
 
         // 7. Return the full response with intent for frontend handling
@@ -159,6 +181,7 @@ export async function POST(request: NextRequest) {
             message: result.message,
             content: result.content,
             proposedChanges: result.proposedChanges,
+            productName: result.productName, // Include product name so frontend can update UI
         })
 
     } catch (error) {

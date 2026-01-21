@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../blueprints/auth"
-import { getUserProjects, createProject, getProjectById } from "../blueprints/service"
+import { createProject, getUserProjects } from "../blueprints/service"
 
 // GET /api/projects - List user's projects
 export async function GET(request: NextRequest) {
@@ -30,17 +30,21 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { projectName, description } = body
+        let { projectName, description, initialPrompt } = body
 
         if (!projectName) {
-            return NextResponse.json({ error: "Project name required" }, { status: 400 })
+            // Generate a default name if none provided
+            projectName = `Project ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`
         }
 
         const { project, blueprint } = await createProject({
             userId: authResult.userId,
             projectName,
             description,
+            initialPrompt,
         })
+
+
 
         // Return both project and its initial blueprint
         return NextResponse.json({

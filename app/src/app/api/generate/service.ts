@@ -28,6 +28,7 @@ export interface GenerateResult {
     content: unknown  // Full UBP content for initial, null for discussion/proposal
     proposedChanges?: ProposedChanges
     rawContent: string
+    productName?: string // New field for extracted project name
 }
 
 /**
@@ -155,11 +156,39 @@ export async function callLLM(messages: Message[]): Promise<GenerateResult> {
                 parsed.message = surroundingText
             }
         } else {
-            console.log("⚠️ Falling back to discussion mode (plain text)")
-            // Plain text response - treat as discussion
-            parsed = {
-                intent: 'discussion',
-                message: rawContent
+            // Fallback: Try to find { ... } block blindly
+            const firstOpen = rawContent.indexOf('{')
+            const lastClose = rawContent.lastIndexOf('}')
+
+            let foundJson = false
+            if (firstOpen !== -1 && lastClose > firstOpen) {
+                const candidate = rawContent.substring(firstOpen, lastClose + 1)
+                try {
+                    parsed = JSON.parse(candidate)
+                    console.log("✅ Found JSON block via brute force extraction")
+                    foundJson = true
+
+                    // Keep text outside if message is missing
+                    if (!parsed.message) {
+                        const before = rawContent.substring(0, firstOpen).trim()
+                        const after = rawContent.substring(lastClose + 1).trim()
+                        const surrounding = [before, after].filter(Boolean).join('\n\n')
+                        if (surrounding) {
+                            parsed.message = surrounding
+                        }
+                    }
+                } catch {
+                    console.log("❌ Brute force extraction failed")
+                }
+            }
+
+            if (!foundJson) {
+                console.log("⚠️ Falling back to discussion mode (plain text)")
+                // Plain text response - treat as discussion
+                parsed = {
+                    intent: 'discussion',
+                    message: rawContent
+                }
             }
         }
     }
@@ -204,11 +233,18 @@ export async function callLLM(messages: Message[]): Promise<GenerateResult> {
         content = ubpContent
     }
 
+    // Extract productName from UBP content if available
+    let extractedProductName: string | undefined
+    if (parsed.metadata && typeof parsed.metadata === 'object') {
+        extractedProductName = (parsed.metadata as Record<string, string>).productName
+    }
+
     console.log("=== Parsed Response ===")
     console.log("Intent:", intent)
     console.log("Message preview:", message.substring(0, 100))
     console.log("Has proposedChanges:", !!proposedChanges)
     console.log("Has UBP content:", !!content)
+    console.log("Extracted Name:", extractedProductName)
     console.log("=== End LLM Debug ===")
 
     return {
@@ -217,6 +253,7 @@ export async function callLLM(messages: Message[]): Promise<GenerateResult> {
         content,
         proposedChanges,
         rawContent,
+        productName: extractedProductName,
     }
 }
 
