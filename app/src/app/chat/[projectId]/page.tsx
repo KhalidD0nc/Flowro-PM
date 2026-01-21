@@ -355,30 +355,12 @@ export default function ChatPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [project?.chatHistory])
 
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!message.trim() || isGenerating || !user) return
+    // Helper to generate response from AI
+    const generateResponse = async (currentHistory: ChatMessage[], usersMessage: string) => {
+        if (!user) return
 
-        const userMessage = message.trim()
-        setMessage("")
         setIsGenerating(true)
         setError(null)
-
-        // Optimistically add user message to UI
-        const tempUserMessage: ChatMessage = {
-            role: "user",
-            content: userMessage,
-            timestamp: new Date().toISOString(),
-        }
-
-        setProject((prev) =>
-            prev
-                ? {
-                    ...prev,
-                    chatHistory: [...prev.chatHistory, tempUserMessage],
-                }
-                : prev
-        )
 
         try {
             const token = await user.getIdToken()
@@ -389,9 +371,9 @@ export default function ChatPage() {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    message: userMessage,
+                    message: usersMessage,
                     projectId,
-                    context: project?.chatHistory || [],
+                    context: currentHistory,
                 }),
             })
 
@@ -403,13 +385,19 @@ export default function ChatPage() {
 
                 if (res.status === 429) {
                     // Rate limited - show retry time
-                    const retryAfter = data.retryAfter || 60
                     throw new Error(`⏳ ${errorMessage}`)
                 } else if (data.retryable) {
                     throw new Error(`${errorMessage} Please try again.`)
                 } else {
                     throw new Error(errorMessage)
                 }
+            }
+
+            // Build user message (matches what backend saved)
+            const userMessage: ChatMessage = {
+                role: "user",
+                content: usersMessage,
+                timestamp: new Date().toISOString(),
             }
 
             // Build assistant message with intent data
@@ -421,18 +409,32 @@ export default function ChatPage() {
                 proposedChanges: data.proposedChanges as ProposedChanges | undefined,
             }
 
-            setProject((prev) =>
-                prev
-                    ? {
-                        ...prev,
-                        chatHistory: [...prev.chatHistory, assistantMessage],
-                    }
-                    : prev
-            )
+            // Check if user message is already in history (happens with dangling user message from project creation)
+            // If so, only add the assistant message
+            setProject((prev) => {
+                if (!prev) return prev
+
+                const lastMsg = prev.chatHistory[prev.chatHistory.length - 1]
+                const userMessageAlreadyExists = lastMsg &&
+                    lastMsg.role === "user" &&
+                    lastMsg.content === usersMessage
+
+                return {
+                    ...prev,
+                    chatHistory: userMessageAlreadyExists
+                        ? [...prev.chatHistory, assistantMessage]
+                        : [...prev.chatHistory, userMessage, assistantMessage],
+                }
+            })
 
             // Only update current UBP on initial intent (new project)
             if (data.intent === 'initial' && data.content && typeof data.content === "object" && isUBPContent(data.content)) {
                 setCurrentUBP(transformApiToUBP(data.content))
+            }
+
+            // Update project name if AI suggested one
+            if (data.productName) {
+                setProject((prev) => prev ? { ...prev, projectName: data.productName } : prev)
             }
         } catch (err) {
             console.error("Error generating response:", err)
@@ -442,6 +444,81 @@ export default function ChatPage() {
         } finally {
             setIsGenerating(false)
         }
+    }
+
+    const [isEditingName, setIsEditingName] = useState(false)
+    const [tempName, setTempName] = useState("")
+
+    useEffect(() => {
+        if (project) {
+            setTempName(project.projectName)
+        }
+    }, [project])
+
+    const handleSaveName = async () => {
+        if (!project || !tempName.trim() || tempName === project.projectName) {
+            setIsEditingName(false)
+            return
+        }
+
+        try {
+            const token = await user?.getIdToken()
+            const res = await fetch(`/api/projects/${projectId}`, {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ projectName: tempName }),
+            })
+
+            if (res.ok) {
+                setProject({ ...project, projectName: tempName })
+            }
+        } catch (err) {
+            console.error("Failed to update name", err)
+            // Revert
+            setTempName(project.projectName)
+        } finally {
+            setIsEditingName(false)
+        }
+    }
+
+    // Handle enter key in input
+    const handleNameKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") {
+            handleSaveName()
+        } else if (e.key === "Escape") {
+            setTempName(project?.projectName || "")
+            setIsEditingName(false)
+        }
+    }
+
+    // Effect: Check for dangling user message on project load (e.g. initial prompt from creation)
+    useEffect(() => {
+        if (!loadingProject && project && project.chatHistory.length > 0) {
+            const lastMsg = project.chatHistory[project.chatHistory.length - 1]
+            if (lastMsg.role === 'user' && !isGenerating) {
+                generateResponse(project.chatHistory.slice(0, -1), lastMsg.content)
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loadingProject, project?.id]) // Run when project loads
+
+    // Handle sending a message from form submission
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!message.trim() || isGenerating || !user) return
+
+        const userMessage = message.trim()
+        setMessage("")
+        // Set generating TRUE immediately to block effect (and UI)
+        setIsGenerating(true)
+        setError(null)
+
+        // Call generation - messages will be added after successful API call
+        // This prevents duplicate messages between optimistic UI and backend persistence
+        await generateResponse(project?.chatHistory || [], userMessage)
     }
 
     const handleBackToDashboard = () => {
