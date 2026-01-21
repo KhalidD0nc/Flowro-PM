@@ -46,13 +46,13 @@ export function buildMessages(input: GenerateInput): Message[] {
     if (currentBlueprint) {
         messages.push({
             role: "system",
-            content: `### CURRENT BLUEPRINT STATE\nThe user already has an existing blueprint. When they send follow-up messages, update only the relevant sections.\n\nCurrent Blueprint:\n${JSON.stringify(currentBlueprint, null, 2)}`
+            content: `### CURRENT BLUEPRINT\n${JSON.stringify(currentBlueprint)}`
         })
     }
 
-    // Add full conversation history (last 10 messages for context window management)
+    // Add conversation history (last 5 messages - optimized for cost)
     if (context && Array.isArray(context)) {
-        const recentHistory = context.slice(-10)
+        const recentHistory = context.slice(-5)
         for (const msg of recentHistory) {
             if (msg.role === "user" || msg.role === "assistant") {
                 messages.push({
