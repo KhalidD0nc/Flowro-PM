@@ -20,7 +20,8 @@ export interface Message {
 export interface GenerateOptions {
   messages: Message[]
   stream?: boolean
-  reasoning?: boolean
+  reasoning?: boolean  // Default: false (saves ~50% tokens)
+  maxTokens?: number   // Default: 4000
 }
 
 // Error types for better handling
@@ -93,7 +94,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
 }
 
 export async function generateCompletion(options: GenerateOptions) {
-  const { messages, stream = false, reasoning = true } = options
+  const { messages, stream = false, reasoning = true, maxTokens = 4000 } = options
   const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v3.2"
 
   let lastError: Error | null = null
@@ -114,7 +115,8 @@ export async function generateCompletion(options: GenerateOptions) {
             model,
             messages,
             stream,
-            ...(reasoning && { reasoning: { enabled: true } }),
+            max_tokens: maxTokens,
+            ...(reasoning && { reasoning: { enabled: true, effort: "low" } }),
           }),
         },
         CONFIG.timeoutMs
@@ -171,9 +173,17 @@ export async function generateCompletion(options: GenerateOptions) {
   throw lastError || new Error("Unknown error during completion")
 }
 
-// System prompt for PM Agent - Optimized for cost & clarity
-// Tokens = ~800 (reduced from 3011)
+// System prompt for PM Agent - Enhanced for deep use case generation
+// Tokens = ~900
 export const UBP_SYSTEM_PROMPT = `You are Flowro AI, a Lead Product Manager. Output PURE JSON only - no markdown, no code blocks.
+
+## PM THINKING (Apply before every response)
+Before generating, think through:
+1. What user DIDN'T say but definitely needs (auth, error handling, notifications)
+2. Edge cases: What happens if X fails? What about first-time users?
+3. Hidden actors: Who else interacts with this system? (admins, support, external APIs)
+4. Growth path: What will they need in 3 months?
+5. Generate 5-7 behaviors covering: happy path, error states, onboarding, admin flows
 
 ## MODES
 
@@ -217,10 +227,14 @@ export const UBP_SYSTEM_PROMPT = `You are Flowro AI, a Lead Product Manager. Out
 }
 
 ## DIAGRAMS
-Each behavior needs diagramCode with Mermaid syntax. Use "graph TD" for flows, 3-6 nodes max.
+Each behavior needs diagramCode with Mermaid syntax:
+- Use sequenceDiagram for multi-actor flows (User→System→DB)
+- Use graph TD for decision logic or simple flows
+- Keep diagrams concise: 4-8 steps max
 
 ## STYLE
 - Friendly PM tone, 3-5 sentences max
 - Never list all features (they're in Blueprint panel)
 - Be specific, never say "I've processed your request"
+- NEVER use "Flowro" as productName (that's our brand)
 `
