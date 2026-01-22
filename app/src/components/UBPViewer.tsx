@@ -8,6 +8,7 @@ import {
     generateFilename,
     type ExportFormat,
 } from "@/lib/exportBlueprint"
+import ShareModal from "./ShareModal"
 
 // Initialize mermaid
 mermaid.initialize({
@@ -102,6 +103,8 @@ interface UBPViewerProps {
     allVersions?: BlueprintVersion[]
     onVersionSelect?: (blueprintId: string) => void
     currentBlueprintId?: string
+    projectId?: string // For share functionality
+    readOnly?: boolean // Public view mode (no editing, shows viral CTA)
 }
 
 // Section navigation items
@@ -133,11 +136,14 @@ export default function UBPViewer({
     allVersions = [],
     onVersionSelect,
     currentBlueprintId,
+    projectId,
+    readOnly = false,
 }: UBPViewerProps) {
     const mermaidRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
     const [isVersionDropdownOpen, setIsVersionDropdownOpen] = useState(false)
     const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false)
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false)
 
     // Handle export
     const handleExport = (format: ExportFormat) => {
@@ -295,41 +301,54 @@ export default function UBPViewer({
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-3">
-                        {/* Export Dropdown */}
-                        <div className="relative">
+                        {/* Share Button - only shown if not readOnly and has required data */}
+                        {!readOnly && currentBlueprintId && projectId && (
                             <button
-                                onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+                                onClick={() => setIsShareModalOpen(true)}
                                 className="flex items-center gap-2 bg-[#283039] hover:bg-[#3d4a56] text-white font-medium py-2 px-4 rounded-lg transition-colors"
                             >
-                                <span className="material-symbols-outlined text-[18px]">download</span>
-                                Export
-                                <span className="material-symbols-outlined text-[16px]">
-                                    {isExportDropdownOpen ? "expand_less" : "expand_more"}
-                                </span>
+                                <span className="material-symbols-outlined text-[18px]">share</span>
+                                Share
                             </button>
+                        )}
 
-                            {isExportDropdownOpen && (
-                                <div className="absolute top-full right-0 mt-1 bg-[#1f2937] border border-[#283039] rounded-lg shadow-xl z-10 min-w-[180px] py-1">
-                                    <button
-                                        onClick={() => handleExport("json")}
-                                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
-                                    >
-                                        <span className="material-symbols-outlined text-[18px]">data_object</span>
-                                        Export as JSON
-                                    </button>
-                                    <button
-                                        onClick={() => handleExport("markdown")}
-                                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
-                                    >
-                                        <span className="material-symbols-outlined text-[18px]">description</span>
-                                        Export as Markdown
-                                    </button>
-                                </div>
-                            )}
-                        </div>
+                        {/* Export Dropdown - only shown if not readOnly */}
+                        {!readOnly && (
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+                                    className="flex items-center gap-2 bg-[#283039] hover:bg-[#3d4a56] text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">download</span>
+                                    Export
+                                    <span className="material-symbols-outlined text-[16px]">
+                                        {isExportDropdownOpen ? "expand_less" : "expand_more"}
+                                    </span>
+                                </button>
 
-                        {/* Save Version Button - only shown for draft status */}
-                        {status === "draft" && onSaveVersion && (
+                                {isExportDropdownOpen && (
+                                    <div className="absolute top-full right-0 mt-1 bg-[#1f2937] border border-[#283039] rounded-lg shadow-xl z-10 min-w-[180px] py-1">
+                                        <button
+                                            onClick={() => handleExport("json")}
+                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-[18px]">data_object</span>
+                                            Export as JSON
+                                        </button>
+                                        <button
+                                            onClick={() => handleExport("markdown")}
+                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined text-[18px]">description</span>
+                                            Export as Markdown
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Save Version Button - only shown for draft status and not readOnly */}
+                        {!readOnly && status === "draft" && onSaveVersion && (
                             <div className="flex flex-col items-end">
                                 <button
                                     onClick={onSaveVersion}
@@ -350,6 +369,14 @@ export default function UBPViewer({
                                 </button>
                                 <span className="text-[#9dabb9] text-xs mt-1">Save as milestone, continue editing</span>
                             </div>
+                        )}
+
+                        {/* Public View Badge - shown in readOnly mode */}
+                        {readOnly && (
+                            <span className="flex items-center gap-2 bg-blue-500/20 text-blue-400 px-3 py-2 rounded-lg text-sm font-medium border border-blue-500/30">
+                                <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                Public View
+                            </span>
                         )}
                     </div>
                 </header>
@@ -631,6 +658,33 @@ export default function UBPViewer({
                     </main>
                 </div>
             </div>
+
+            {/* Viral CTA Footer - shown in readOnly mode */}
+            {readOnly && (
+                <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-[#137fec] to-blue-600 text-white p-4 text-center border-t border-blue-500/30 z-[60]">
+                    <p className="text-sm mb-2">
+                        🤖 This blueprint was created with <strong>Flowro AI</strong>
+                    </p>
+                    <a
+                        href="/auth"
+                        className="inline-flex items-center gap-2 bg-white text-[#137fec] hover:bg-gray-100 font-bold py-2 px-6 rounded-lg transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
+                        Create Your Own Blueprint (Free)
+                    </a>
+                </div>
+            )}
+
+            {/* Share Modal */}
+            {currentBlueprintId && projectId && (
+                <ShareModal
+                    isOpen={isShareModalOpen}
+                    onClose={() => setIsShareModalOpen(false)}
+                    blueprintId={currentBlueprintId}
+                    projectId={projectId}
+                    projectName={projectName}
+                />
+            )}
 
             {/* Styles */}
             <style jsx global>{`
