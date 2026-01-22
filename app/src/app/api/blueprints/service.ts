@@ -50,23 +50,90 @@ export interface CreateProjectInput {
 // =============================================================================
 
 /**
- * Fetches all projects for a specific user, ordered by creation date (newest first)
+ * Project with latestBlueprint for dashboard display
  */
-export async function getUserProjects(userId: string): Promise<Project[]> {
-    const snapshot = await getAdminDb()
+export interface ProjectWithBlueprint extends Project {
+    latestBlueprint?: {
+        id: string
+        version: string
+        status: string
+    }
+}
+
+/**
+ * Response type for getUserProjects with aggregate stats
+ */
+export interface UserProjectsResponse {
+    projects: ProjectWithBlueprint[]
+    totalSavedVersions: number // Count of all locked/approved blueprints
+}
+
+/**
+ * Fetches all projects for a specific user, ordered by creation date (newest first)
+ * Includes latestBlueprint data for each project to support dashboard stats
+ */
+export async function getUserProjects(userId: string): Promise<UserProjectsResponse> {
+    const db = getAdminDb()
+
+    // Fetch all projects for the user
+    const projectsSnapshot = await db
         .collection("projects")
         .where("userId", "==", userId)
         .get()
 
-    const projects = snapshot.docs.map((doc) => ({
+    const projects = projectsSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
     })) as Project[]
 
+    if (projects.length === 0) {
+        return { projects: [], totalSavedVersions: 0 }
+    }
+
+    // Fetch all blueprints for these projects in bulk
+    const projectIds = projects.map(p => p.id)
+    const blueprintsSnapshot = await db
+        .collection("blueprints")
+        .where("projectId", "in", projectIds)
+        .get()
+
+    const blueprints = blueprintsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+    })) as Blueprint[]
+
+    // Count saved versions (locked or approved blueprints)
+    const totalSavedVersions = blueprints.filter(
+        b => b.status === "locked" || b.status === "approved"
+    ).length
+
+    // Group blueprints by projectId and find the latest for each
+    const latestBlueprintByProject = new Map<string, Blueprint>()
+    for (const blueprint of blueprints) {
+        const existing = latestBlueprintByProject.get(blueprint.projectId)
+        if (!existing || new Date(blueprint.createdAt) > new Date(existing.createdAt)) {
+            latestBlueprintByProject.set(blueprint.projectId, blueprint)
+        }
+    }
+
+    // Combine projects with their latest blueprints
+    const projectsWithBlueprints: ProjectWithBlueprint[] = projects.map(project => ({
+        ...project,
+        latestBlueprint: latestBlueprintByProject.has(project.id)
+            ? {
+                id: latestBlueprintByProject.get(project.id)!.id,
+                version: latestBlueprintByProject.get(project.id)!.version,
+                status: latestBlueprintByProject.get(project.id)!.status,
+            }
+            : undefined
+    }))
+
     // Sort in JavaScript to avoid needing composite index
-    return projects.sort((a, b) =>
+    const sortedProjects = projectsWithBlueprints.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
+
+    return { projects: sortedProjects, totalSavedVersions }
 }
 
 /**

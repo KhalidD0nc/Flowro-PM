@@ -28,6 +28,7 @@ export default function DashboardPage() {
     const [searchQuery, setSearchQuery] = useState("")
     const [showCreateModal, setShowCreateModal] = useState(false)
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+    const [totalSavedVersions, setTotalSavedVersions] = useState(0)
 
 
     // Redirect if not logged in
@@ -49,6 +50,7 @@ export default function DashboardPage() {
                 })
                 const data = await res.json()
                 setProjects(data.projects || [])
+                setTotalSavedVersions(data.totalSavedVersions || 0)
             } catch (error) {
                 console.error("Error fetching projects:", error)
             } finally {
@@ -65,9 +67,8 @@ export default function DashboardPage() {
     const stats = useMemo(() => {
         const total = projects.length
         const processing = projects.filter(p => p.latestBlueprint?.status === "draft").length
-        const completed = projects.filter(p => p.latestBlueprint?.status === "locked" || p.latestBlueprint?.status === "approved").length
-        return { total, processing, completed }
-    }, [projects])
+        return { total, processing, savedVersions: totalSavedVersions }
+    }, [projects, totalSavedVersions])
 
     // Filter projects by search
     const filteredProjects = useMemo(() => {
@@ -317,11 +318,11 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex flex-col gap-2 rounded-xl border border-[#283039] bg-[#18212b] p-6 shadow-sm">
                             <div className="flex items-center justify-between">
-                                <p className="text-sm font-medium text-[#9dabb9]">Completed</p>
-                                <span className="material-symbols-outlined text-green-500">check_circle</span>
+                                <p className="text-sm font-medium text-[#9dabb9]">Saved Versions</p>
+                                <span className="material-symbols-outlined text-purple-400">save</span>
                             </div>
                             <div className="flex items-baseline gap-2">
-                                <p className="text-3xl font-bold text-white">{stats.completed}</p>
+                                <p className="text-3xl font-bold text-white">{stats.savedVersions}</p>
                             </div>
                         </div>
                     </section>

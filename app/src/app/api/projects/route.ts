@@ -11,9 +11,9 @@ export async function GET(request: NextRequest) {
             return unauthorizedResponse(authResult)
         }
 
-        const projects = await getUserProjects(authResult.userId)
+        const { projects, totalSavedVersions } = await getUserProjects(authResult.userId)
 
-        return NextResponse.json({ projects })
+        return NextResponse.json({ projects, totalSavedVersions })
     } catch (error) {
         console.error("List projects error:", error)
         return NextResponse.json({ error: "Failed to list projects" }, { status: 500 })
