@@ -1017,6 +1017,7 @@ export default function ChatPage() {
                 allVersions={allVersions}
                 onVersionSelect={handleVersionSelect}
                 currentBlueprintId={selectedBlueprint?.id || project.latestBlueprint?.id}
+                projectId={projectId}
             />
         </div>
     )
