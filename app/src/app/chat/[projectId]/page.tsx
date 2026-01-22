@@ -722,32 +722,50 @@ export default function ChatPage() {
     return (
         <div className="flex h-screen w-full flex-col bg-[#101922] text-white overflow-hidden">
             {/* Header */}
-            <header className="flex items-center justify-between border-b border-[#283039] bg-[#0d141c] px-6 py-4 shrink-0">
-                <div className="flex items-center gap-4">
+            <header className="relative flex items-center justify-between px-6 py-4 shrink-0">
+                {/* Glassmorphism background */}
+                <div className="absolute inset-0 bg-gradient-to-r from-[#0d141c]/95 via-[#101922]/95 to-[#0d141c]/95 backdrop-blur-xl" />
+                {/* Bottom gradient border */}
+                <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#137fec]/30 to-transparent" />
+
+                <div className="relative flex items-center gap-4">
                     <button
                         onClick={handleBackToDashboard}
-                        className="flex items-center justify-center rounded-lg p-2 text-[#9dabb9] transition-colors hover:bg-white/10 hover:text-white"
+                        className="flex items-center justify-center rounded-xl p-2.5 text-[#9dabb9] transition-all hover:bg-white/5 hover:text-white hover:scale-105"
                         title="Back to Dashboard"
                     >
                         <span className="material-symbols-outlined">arrow_back</span>
                     </button>
-                    <div className="flex flex-col">
-                        <h1 className="text-lg font-bold text-white">{project.projectName}</h1>
-                        {project.description && (
-                            <p className="text-sm text-[#9dabb9] truncate max-w-md">{project.description}</p>
-                        )}
+                    <div className="flex items-center gap-3">
+                        {/* Project avatar */}
+                        <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#137fec]/20 to-[#137fec]/5 border border-[#137fec]/20">
+                            <span className="material-symbols-outlined text-[#137fec] text-lg">folder</span>
+                        </div>
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-lg font-semibold text-white">{project.projectName}</h1>
+                                {/* Online status indicator */}
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                                    <span className="text-xs text-emerald-400 font-medium">Ready</span>
+                                </div>
+                            </div>
+                            {project.description && (
+                                <p className="text-sm text-[#9dabb9] truncate max-w-md">{project.description}</p>
+                            )}
+                        </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    {/* Blueprint button */}
+                <div className="relative flex items-center gap-3">
+                    {/* Blueprint button - Premium style */}
                     <button
                         onClick={handleOpenUBP}
-                        className="flex items-center gap-2 bg-[#1f2937] hover:bg-[#283039] border border-[#283039] text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                        className="group flex items-center gap-2.5 bg-gradient-to-r from-[#137fec]/10 to-[#137fec]/5 hover:from-[#137fec]/20 hover:to-[#137fec]/10 border border-[#137fec]/20 hover:border-[#137fec]/40 text-white font-medium py-2.5 px-4 rounded-xl transition-all hover:shadow-lg hover:shadow-[#137fec]/10"
                     >
-                        <span className="material-symbols-outlined text-[18px] text-[#137fec]">description</span>
+                        <span className="material-symbols-outlined text-[18px] text-[#137fec] group-hover:scale-110 transition-transform">description</span>
                         <span className="hidden sm:inline">Blueprint</span>
                         {project.latestBlueprint && (
-                            <span className="text-xs bg-[#137fec]/20 text-[#137fec] px-1.5 py-0.5 rounded">
+                            <span className="text-xs bg-[#137fec]/30 text-[#137fec] px-2 py-0.5 rounded-lg font-semibold">
                                 v{project.latestBlueprint.version}
                             </span>
                         )}
@@ -759,14 +777,54 @@ export default function ChatPage() {
             <main className="flex-1 overflow-y-auto p-6">
                 <div className="mx-auto max-w-4xl flex flex-col gap-4">
                     {project.chatHistory.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-center">
-                            <div className="flex size-16 items-center justify-center rounded-2xl bg-[#137fec]/10 mb-4">
-                                <span className="material-symbols-outlined text-[#137fec] text-3xl">chat</span>
+                        <div className="flex flex-col items-center justify-center py-16 text-center">
+                            {/* Animated AI Avatar */}
+                            <div className="relative mb-6">
+                                <div className="flex size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-[#137fec]/20 to-[#137fec]/5 ai-avatar-glow animate-subtle-pulse">
+                                    <img src="/logo.png" alt="Flowro" className="w-12 h-12" />
+                                </div>
+                                <div className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full bg-emerald-500 border-2 border-[#101922]">
+                                    <span className="material-symbols-outlined text-white text-xs">check</span>
+                                </div>
                             </div>
-                            <h2 className="text-xl font-bold text-white mb-2">Start Your Blueprint</h2>
-                            <p className="text-[#9dabb9] max-w-md">
-                                Tell me about your project idea. I&apos;ll help you create a structured Unified Blueprint.
+
+                            {/* Gradient Welcome Text */}
+                            <h2 className="text-3xl font-bold gradient-text mb-3">Hello, Product Manager</h2>
+                            <p className="text-[#9dabb9] max-w-lg mb-8 text-lg">
+                                I&apos;m Flowro, your AI partner. Ready to bring your product vision to life? Choose an action below or describe your idea.
                             </p>
+
+                            {/* Quick Action Chips */}
+                            <div className="flex flex-wrap justify-center gap-3 max-w-2xl">
+                                <button
+                                    onClick={() => setMessage("I want to create a PRD for a new product idea")}
+                                    className="action-chip flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium"
+                                >
+                                    <span className="material-symbols-outlined text-[#137fec] text-lg">description</span>
+                                    Draft a PRD
+                                </button>
+                                <button
+                                    onClick={() => setMessage("Help me brainstorm features for my product")}
+                                    className="action-chip flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium"
+                                >
+                                    <span className="material-symbols-outlined text-[#137fec] text-lg">lightbulb</span>
+                                    Brainstorm Features
+                                </button>
+                                <button
+                                    onClick={() => setMessage("I need help creating a product roadmap")}
+                                    className="action-chip flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium"
+                                >
+                                    <span className="material-symbols-outlined text-[#137fec] text-lg">timeline</span>
+                                    Roadmap Help
+                                </button>
+                                <button
+                                    onClick={() => setMessage("Analyze competitors in my market")}
+                                    className="action-chip flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium"
+                                >
+                                    <span className="material-symbols-outlined text-[#137fec] text-lg">analytics</span>
+                                    Market Research
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         project.chatHistory.map((msg, index) => {
@@ -778,15 +836,23 @@ export default function ChatPage() {
                             return (
                                 <div
                                     key={index}
-                                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                                    className={`flex ${isUser ? "justify-end" : "justify-start"} ${isUser ? "animate-slide-in-right" : "animate-slide-in-left"}`}
                                 >
+                                    {/* AI Avatar */}
+                                    {!isUser && (
+                                        <div className="flex-shrink-0 mr-3 mt-1">
+                                            <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#137fec]/30 to-[#137fec]/10">
+                                                <img src="/logo.png" alt="Flowro" className="w-5 h-5" />
+                                            </div>
+                                        </div>
+                                    )}
                                     <div
-                                        className={`max-w-[80%] rounded-2xl px-4 py-3 ${isUser
-                                            ? "bg-[#137fec] text-white"
-                                            : "bg-[#18212b] border border-[#283039] text-white"
+                                        className={`max-w-[75%] rounded-2xl px-4 py-3 ${isUser
+                                            ? "user-message-gradient text-white"
+                                            : "glass-message text-white"
                                             }`}
                                     >
-                                        <p className="whitespace-pre-wrap">{displayInfo.text}</p>
+                                        <p className="whitespace-pre-wrap leading-relaxed">{displayInfo.text}</p>
 
                                         {/* Proposal preview - show what will be changed */}
                                         {displayInfo.intent === 'proposal' && displayInfo.proposedChanges && (
@@ -835,19 +901,22 @@ export default function ChatPage() {
                     )}
 
                     {isGenerating && (
-                        <div className="flex justify-start">
-                            <div className="bg-[#18212b] border border-[#283039] rounded-2xl px-4 py-3">
+                        <div className="flex justify-start animate-slide-in-left">
+                            {/* AI Avatar */}
+                            <div className="flex-shrink-0 mr-3 mt-1">
+                                <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#137fec]/30 to-[#137fec]/10">
+                                    <img src="/logo.png" alt="Flowro" className="w-5 h-5" />
+                                </div>
+                            </div>
+                            <div className="glass-message rounded-2xl px-5 py-4">
                                 <div className="flex items-center gap-3">
-                                    {/* Flipping hourglass logo */}
-                                    <img
-                                        src="/logo.png"
-                                        alt="Flowro"
-                                        className="w-6 h-6"
-                                        style={{
-                                            animation: 'hourglass-flip 2s ease-in-out infinite',
-                                        }}
-                                    />
-                                    <span className="text-[#9dabb9] transition-opacity duration-300">
+                                    {/* Typing indicator dots */}
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="typing-dot w-2 h-2 bg-[#137fec] rounded-full"></div>
+                                        <div className="typing-dot w-2 h-2 bg-[#137fec] rounded-full"></div>
+                                        <div className="typing-dot w-2 h-2 bg-[#137fec] rounded-full"></div>
+                                    </div>
+                                    <span className="text-[#9dabb9] text-sm ml-1">
                                         {thinkingMessages[thinkingPhase]}
                                     </span>
                                 </div>
@@ -867,34 +936,62 @@ export default function ChatPage() {
                 </div>
             </main>
 
-            {/* Message Input */}
-            <footer className="border-t border-[#283039] bg-[#0d141c] p-4 shrink-0">
+            {/* Message Input - Premium Floating Card */}
+            <footer className="relative px-4 pb-4 pt-2 shrink-0">
+                {/* Top gradient fade */}
+                <div className="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-[#101922] to-transparent pointer-events-none" />
+
                 <form onSubmit={handleSendMessage} className="mx-auto max-w-4xl">
-                    <div className="flex items-end gap-3">
-                        <div className="flex-1 relative">
-                            <textarea
-                                value={message}
-                                onChange={(e) => setMessage(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter" && !e.shiftKey) {
-                                        e.preventDefault()
-                                        handleSendMessage(e)
-                                    }
-                                }}
-                                placeholder="Describe your project idea..."
-                                rows={1}
-                                className="w-full rounded-xl border border-[#283039] bg-[#18212b] px-4 py-3 text-base text-white placeholder-[#9dabb9]/60 transition-colors focus:border-[#137fec] focus:ring-1 focus:ring-[#137fec] focus:outline-none resize-none min-h-[48px] max-h-[200px]"
-                                disabled={isGenerating}
-                            />
+                    {/* Floating card container */}
+                    <div className="relative rounded-2xl bg-gradient-to-r from-[#18212b] via-[#1a252f] to-[#18212b] border border-[#283039]/50 shadow-2xl shadow-black/30 p-1.5">
+                        {/* Inner glow border */}
+                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-[#137fec]/0 via-[#137fec]/5 to-[#137fec]/0 pointer-events-none" />
+
+                        <div className="relative flex items-end gap-2">
+                            <div className="flex-1 relative">
+                                <textarea
+                                    value={message}
+                                    onChange={(e) => setMessage(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && !e.shiftKey) {
+                                            e.preventDefault()
+                                            handleSendMessage(e)
+                                        }
+                                    }}
+                                    placeholder={project.chatHistory.length > 0 ? "Ask me anything..." : "Describe your product idea or ask me anything..."}
+                                    rows={1}
+                                    className="w-full rounded-xl bg-transparent px-4 py-3 text-base text-white placeholder-[#9dabb9]/50 focus:outline-none resize-none min-h-[48px] max-h-[200px]"
+                                    disabled={isGenerating}
+                                />
+                            </div>
+
+                            {/* Action buttons */}
+                            <div className="flex items-center gap-1.5 pb-1.5 pr-1">
+                                {/* Attachment button */}
+                                <button
+                                    type="button"
+                                    className="flex h-10 w-10 items-center justify-center rounded-xl text-[#9dabb9] hover:text-white hover:bg-white/5 transition-all"
+                                    title="Attach file"
+                                >
+                                    <span className="material-symbols-outlined text-xl">attach_file</span>
+                                </button>
+
+                                {/* Send button */}
+                                <button
+                                    type="submit"
+                                    disabled={!message.trim() || isGenerating}
+                                    className="send-button-gradient flex h-10 w-10 items-center justify-center rounded-xl text-white disabled:opacity-30 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none disabled:bg-[#283039]"
+                                >
+                                    <span className="material-symbols-outlined text-xl">send</span>
+                                </button>
+                            </div>
                         </div>
-                        <button
-                            type="submit"
-                            disabled={!message.trim() || isGenerating}
-                            className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#137fec] text-white transition-all hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#137fec]"
-                        >
-                            <span className="material-symbols-outlined">send</span>
-                        </button>
                     </div>
+
+                    {/* Helper text */}
+                    <p className="text-center text-xs text-[#9dabb9]/50 mt-2">
+                        Press Enter to send • Shift + Enter for new line
+                    </p>
                 </form>
             </footer>
 
