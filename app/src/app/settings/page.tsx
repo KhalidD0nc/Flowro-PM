@@ -49,7 +49,7 @@ export default function SettingsPage() {
 
             {/* Sidebar Navigation */}
             <aside className={`
-                fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between border-r border-[#283039] bg-[#0d141c] p-4 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0
+                fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between border-r border-[#283039] bg-[#0d141c] p-4 transition-transform duration-300 ease-in-out
                 ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}
             `}>
                 <div className="flex flex-col gap-8">
@@ -64,10 +64,10 @@ export default function SettingsPage() {
                                 <p className="text-xs font-medium text-[#9dabb9]">Unified Blueprints</p>
                             </div>
                         </div>
-                        {/* Mobile Close Button */}
+                        {/* Close Button */}
                         <button
                             onClick={() => setIsMobileMenuOpen(false)}
-                            className="lg:hidden text-[#9dabb9] hover:text-white"
+                            className="text-[#9dabb9] hover:text-white"
                         >
                             <span className="material-symbols-outlined">close</span>
                         </button>
@@ -82,14 +82,6 @@ export default function SettingsPage() {
                         >
                             <span className="material-symbols-outlined text-slate-400 transition-colors group-hover:text-white">dashboard</span>
                             <p className="text-sm font-medium leading-normal transition-colors group-hover:text-white">Dashboard</p>
-                        </a>
-                        <a
-                            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[#9dabb9] transition-colors hover:bg-white/5 group"
-                            href="#"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                            <span className="material-symbols-outlined text-slate-400 transition-colors group-hover:text-white">folder_open</span>
-                            <p className="text-sm font-medium leading-normal transition-colors group-hover:text-white">My UBPs</p>
                         </a>
                         <a
                             className="flex items-center gap-3 rounded-lg bg-[#137fec] px-3 py-2.5 transition-colors"
@@ -109,13 +101,16 @@ export default function SettingsPage() {
                     {/* Page Heading */}
                     <header className="flex flex-col gap-6 py-6">
                         <div className="flex items-center gap-4">
-                            {/* Mobile Hamburger */}
+                            {/* Hamburger Menu */}
                             <button
                                 onClick={() => setIsMobileMenuOpen(true)}
-                                className="flex size-10 items-center justify-center rounded-lg border border-[#283039] bg-[#18212b] text-[#9dabb9] lg:hidden hover:text-white transition-colors"
+                                className="flex size-10 items-center justify-center rounded-lg border border-[#283039] bg-[#18212b] text-[#9dabb9] hover:text-white transition-colors"
                             >
                                 <span className="material-symbols-outlined">menu</span>
                             </button>
+
+                            {/* Logo */}
+                            <img src="/logo.png" alt="Flowro" className="h-8 w-auto" />
 
                             <div className="flex flex-col gap-1">
                                 <h1 className="text-2xl font-black leading-tight tracking-tight text-white lg:text-4xl">
