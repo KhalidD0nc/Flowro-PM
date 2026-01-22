@@ -3,8 +3,6 @@
 import { useAuth } from "@/components/Providers"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, useMemo } from "react"
-import { signOut } from "firebase/auth"
-import { auth } from "@/lib/firebase"
 import CreateProjectModal from "@/components/CreateProjectModal"
 
 interface Project {
@@ -77,11 +75,6 @@ export default function DashboardPage() {
             p.projectName.toLowerCase().includes(searchQuery.toLowerCase())
         )
     }, [projects, searchQuery])
-
-    const handleSignOut = async () => {
-        await signOut(auth)
-        router.push("/auth")
-    }
 
     const handleOpenCreateModal = () => {
         setShowCreateModal(true)
@@ -215,30 +208,13 @@ export default function DashboardPage() {
                         </a>
                         <a
                             className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[#9dabb9] transition-colors hover:bg-white/5 group"
-                            href="#"
+                            href="/settings"
                             onClick={() => setIsMobileMenuOpen(false)}
                         >
                             <span className="material-symbols-outlined text-slate-400 transition-colors group-hover:text-white">settings</span>
                             <p className="text-sm font-medium leading-normal transition-colors group-hover:text-white">Settings</p>
                         </a>
                     </nav>
-                </div>
-
-                {/* Bottom Actions */}
-                <div className="flex flex-col gap-2 border-t border-[#283039] pt-4">
-                    <div className="flex items-center gap-3 px-3 py-2 text-[#9dabb9]">
-                        <div className="size-8 rounded-full bg-gradient-to-br from-blue-400 to-[#137fec] flex items-center justify-center text-white text-sm font-bold shrink-0">
-                            {displayName.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-sm truncate">{user.email}</span>
-                    </div>
-                    <button
-                        onClick={handleSignOut}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[#9dabb9] transition-colors hover:bg-white/5 group"
-                    >
-                        <span className="material-symbols-outlined text-slate-400 transition-colors group-hover:text-red-400">logout</span>
-                        <p className="text-sm font-medium leading-normal transition-colors group-hover:text-red-400">Logout</p>
-                    </button>
                 </div>
             </aside>
 
