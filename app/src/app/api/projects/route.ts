@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
         let { projectName, description, initialPrompt } = body
 
         if (!projectName) {
-            // Generate a default name if none provided
-            projectName = `Project ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`
+            // Generate a clean default name - AI will suggest a proper name in its first response
+            projectName = "Untitled Project"
         }
 
         const { project, blueprint } = await createProject({
