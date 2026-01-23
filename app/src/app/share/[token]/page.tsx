@@ -112,33 +112,123 @@ export default function SharedBlueprintPage() {
     }
 
     // Transform blueprint content if needed (handle both API and UBP formats)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const transformContent = (content: unknown): UBPContent => {
         if (!content) return {} as UBPContent
 
-        const contentObj = content as Record<string, unknown>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const apiData = content as any
 
-        // If actors is not an array, transform it
-        if (contentObj.actors && !Array.isArray(contentObj.actors)) {
-            const actors: { name: string; description: string; icon?: string }[] = []
-            const actorsObj = contentObj.actors as { primary?: string; secondary?: string[]; systems?: string[] }
+        // Transform productVision
+        const productVision = apiData.productVision ? {
+            description: apiData.productVision.problem || apiData.productVision.description,
+            primaryGoal: apiData.productVision.successSignal || apiData.productVision.primaryGoal,
+            targetAudience: apiData.productVision.targetActor || apiData.productVision.targetAudience
+        } : undefined
 
-            if (actorsObj.primary) {
-                actors.push({ name: actorsObj.primary, description: "Primary user", icon: "person" })
+        // Transform actors from API format to array format
+        let actors: { name: string; description: string; icon?: string }[] | undefined
+        if (apiData.actors) {
+            if (Array.isArray(apiData.actors)) {
+                actors = apiData.actors
+            } else {
+                // Convert object format to array
+                actors = []
+                if (apiData.actors.primary) {
+                    actors.push({ name: apiData.actors.primary, description: "Primary user", icon: "person" })
+                }
+                if (apiData.actors.secondary && Array.isArray(apiData.actors.secondary)) {
+                    apiData.actors.secondary.forEach((s: string) => {
+                        actors!.push({ name: s, description: "Support role", icon: "group" })
+                    })
+                }
+                if (apiData.actors.systems && Array.isArray(apiData.actors.systems)) {
+                    apiData.actors.systems.forEach((s: string) => {
+                        actors!.push({ name: s, description: "External system", icon: "smart_toy" })
+                    })
+                }
             }
-            if (actorsObj.secondary && Array.isArray(actorsObj.secondary)) {
-                actorsObj.secondary.forEach((s: string) => {
-                    actors.push({ name: s, description: "Support role", icon: "group" })
-                })
-            }
-            if (actorsObj.systems && Array.isArray(actorsObj.systems)) {
-                actorsObj.systems.forEach((s: string) => {
-                    actors.push({ name: s, description: "External system", icon: "smart_toy" })
-                })
-            }
-            contentObj.actors = actors
         }
 
-        return contentObj as UBPContent
+        // Transform behaviors
+        const behaviors = apiData.behaviors?.map((b: { id?: string; trigger?: string; systemResponse?: string; title?: string; given?: string; when?: string; then?: string; diagramCode?: string; diagram?: string; priority?: string }) => ({
+            id: b.id || "BH-01",
+            title: b.title || b.systemResponse || "Behavior",
+            priority: b.priority,
+            given: b.given || (b.trigger ? `User triggers: ${b.trigger}` : undefined),
+            when: b.when || b.trigger,
+            then: b.then || b.systemResponse,
+            diagram: b.diagram || b.diagramCode
+        }))
+
+        // Transform constraints from constraintsRisks
+        let constraints: { type: "warning" | "risk"; title: string; description: string }[] | undefined
+        if (apiData.constraints && Array.isArray(apiData.constraints)) {
+            constraints = apiData.constraints
+        } else if (apiData.constraintsRisks) {
+            constraints = []
+            if (apiData.constraintsRisks.constraints) {
+                apiData.constraintsRisks.constraints.forEach((c: string) => {
+                    constraints!.push({ type: "warning", title: "Constraint", description: c })
+                })
+            }
+            if (apiData.constraintsRisks.risks) {
+                apiData.constraintsRisks.risks.forEach((r: string) => {
+                    constraints!.push({ type: "risk", title: "Risk", description: r })
+                })
+            }
+        }
+
+        // Transform techStack to techDecisions
+        let techDecisions: { category: string; choice: string }[] | undefined
+        if (apiData.techDecisions && Array.isArray(apiData.techDecisions)) {
+            techDecisions = apiData.techDecisions
+        } else if (apiData.techStack) {
+            techDecisions = Object.entries(apiData.techStack).map(([category, choice]) => ({
+                category: category.charAt(0).toUpperCase() + category.slice(1),
+                choice: String(choice)
+            }))
+        }
+
+        // Transform phases
+        const phases = apiData.phases?.map((p: { phase?: string; name?: string; goal?: string; description?: string; outputs?: string[]; timeline?: string; status?: string }, i: number) => ({
+            name: p.name || p.phase || `Phase ${i + 1}`,
+            timeline: p.timeline,
+            description: p.description || p.goal || (p.outputs ? p.outputs.join(", ") : ""),
+            status: p.status || (i === 0 ? "current" : "upcoming") as "completed" | "current" | "upcoming"
+        }))
+
+        // Transform integrations
+        const integrations = apiData.integrations?.map((i: { service?: string; system?: string; purpose?: string; dataFlow?: string; method?: string }) => ({
+            system: i.system || i.service || "External Service",
+            method: i.method || i.dataFlow || "API",
+            purpose: i.purpose || ""
+        }))
+
+        // Transform changelog
+        let changelog: { version: string; title: string; description: string; timestamp?: string }[] | undefined
+        if (apiData.changelog && Array.isArray(apiData.changelog)) {
+            changelog = apiData.changelog
+        } else if (apiData.changeLog && Array.isArray(apiData.changeLog)) {
+            changelog = apiData.changeLog.map((c: { version?: string; summary?: string; reason?: string; title?: string; description?: string; timestamp?: string }) => ({
+                version: c.version || "0.1",
+                title: c.title || c.summary || "Update",
+                description: c.description || c.reason || "",
+                timestamp: c.timestamp || "Just now"
+            }))
+        }
+
+        return {
+            productVision,
+            scope: apiData.scope,
+            actors,
+            behaviors,
+            constraints,
+            techDecisions,
+            phases,
+            integrations,
+            changelog
+        }
     }
 
     const transformedContent = transformContent(data.blueprint.content)
@@ -149,7 +239,7 @@ export default function SharedBlueprintPage() {
             {/* Render UBPViewer in read-only mode, always open */}
             <UBPViewer
                 isOpen={true}
-                onClose={() => {}} // Disable close in public view
+                onClose={() => { }} // Disable close in public view
                 ubp={transformedContent}
                 projectName={data.project.projectName}
                 projectDescription={data.project.description}

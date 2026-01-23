@@ -231,13 +231,21 @@ export default function UBPViewer({
                 {/* Header */}
                 <header className="flex items-center justify-between px-6 py-4 border-b border-[#283039] bg-[#0d141c] shrink-0">
                     <div className="flex items-center gap-4">
-                        <button
-                            onClick={onClose}
-                            className="flex items-center justify-center rounded-lg p-2 text-[#9dabb9] transition-colors hover:bg-white/10 hover:text-white"
-                            title="Close"
-                        >
-                            <span className="material-symbols-outlined">close</span>
-                        </button>
+                        {/* Show close button only in non-readOnly mode, otherwise show Flowro branding */}
+                        {readOnly ? (
+                            <a href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                                <img src="/logo.png" alt="Flowro" className="size-7" />
+                                <span className="text-white font-bold">Flowro</span>
+                            </a>
+                        ) : (
+                            <button
+                                onClick={onClose}
+                                className="flex items-center justify-center rounded-lg p-2 text-[#9dabb9] transition-colors hover:bg-white/10 hover:text-white"
+                                title="Close"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        )}
                         <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                                 <h1 className="text-lg font-bold text-white">{projectName}</h1>
@@ -661,17 +669,34 @@ export default function UBPViewer({
 
             {/* Viral CTA Footer - shown in readOnly mode */}
             {readOnly && (
-                <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-[#137fec] to-blue-600 text-white p-4 text-center border-t border-blue-500/30 z-[60]">
-                    <p className="text-sm mb-2">
-                        🤖 This blueprint was created with <strong>Flowro AI</strong>
-                    </p>
-                    <a
-                        href="/auth"
-                        className="inline-flex items-center gap-2 bg-white text-[#137fec] hover:bg-gray-100 font-bold py-2 px-6 rounded-lg transition-colors"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
-                        Create Your Own Blueprint (Free)
-                    </a>
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60]">
+                    <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#137fec]/10 to-[#0d5fbc]/10 backdrop-blur-2xl border border-[#137fec]/20 shadow-2xl shadow-[#137fec]/10 transition-all duration-300 hover:shadow-[#137fec]/20 hover:border-[#137fec]/40">
+                        {/* Subtle glow effect */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-[#137fec]/5 via-transparent to-[#137fec]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                        <div className="relative flex items-center gap-4 px-5 py-3">
+                            {/* Logo and branding */}
+                            <div className="flex items-center gap-2.5">
+                                <img src="/logo.png" alt="Flowro" className="size-8" />
+                                <div className="flex flex-col">
+                                    <span className="text-[#9dabb9] text-xs leading-tight">Built with</span>
+                                    <span className="text-white font-bold text-sm leading-tight">Flowro AI</span>
+                                </div>
+                            </div>
+
+                            {/* Divider */}
+                            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[#283039] to-transparent" />
+
+                            {/* CTA Button */}
+                            <a
+                                href="/auth"
+                                className="flex items-center gap-2 bg-[#137fec] hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-[#137fec]/30"
+                            >
+                                <span>Create yours free</span>
+                                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                            </a>
+                        </div>
+                    </div>
                 </div>
             )}
 
