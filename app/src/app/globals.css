@@ -107,3 +107,158 @@ body {
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
+
+/* ========================================
+   MODERN CHAT UI STYLES
+   ======================================== */
+
+/* Glassmorphism effect for AI message bubbles */
+.glass-message {
+  background: linear-gradient(135deg, rgba(24, 33, 43, 0.9) 0%, rgba(24, 33, 43, 0.7) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* User message gradient with glow */
+.user-message-gradient {
+  background: linear-gradient(135deg, #137fec 0%, #0d5fbc 100%);
+  box-shadow:
+    0 4px 20px rgba(19, 127, 236, 0.4),
+    0 0 40px rgba(19, 127, 236, 0.15);
+}
+
+/* Gradient text for welcome message */
+.gradient-text {
+  background: linear-gradient(135deg, #ffffff 0%, #9dabb9 50%, #137fec 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Message slide-in animations */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out forwards;
+}
+
+/* Typing indicator dots */
+@keyframes typingDot {
+
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+.typing-dot {
+  animation: typingDot 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Input field glow effect */
+.input-glow {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.input-glow:focus {
+  box-shadow:
+    0 0 0 3px rgba(19, 127, 236, 0.15),
+    0 0 20px rgba(19, 127, 236, 0.2);
+}
+
+/* Quick action chip styling */
+.action-chip {
+  background: linear-gradient(135deg, rgba(19, 127, 236, 0.1) 0%, rgba(19, 127, 236, 0.05) 100%);
+  border: 1px solid rgba(19, 127, 236, 0.2);
+  transition: all 0.2s ease;
+}
+
+.action-chip:hover {
+  background: linear-gradient(135deg, rgba(19, 127, 236, 0.2) 0%, rgba(19, 127, 236, 0.1) 100%);
+  border-color: rgba(19, 127, 236, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(19, 127, 236, 0.2);
+}
+
+/* Send button gradient */
+.send-button-gradient {
+  background: linear-gradient(135deg, #137fec 0%, #0d5fbc 100%);
+  transition: all 0.2s ease;
+}
+
+.send-button-gradient:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1a8fff 0%, #137fec 100%);
+  box-shadow: 0 4px 16px rgba(19, 127, 236, 0.4);
+  transform: translateY(-1px);
+}
+
+/* Avatar glow for AI */
+.ai-avatar-glow {
+  box-shadow:
+    0 0 20px rgba(19, 127, 236, 0.3),
+    0 0 40px rgba(19, 127, 236, 0.1);
+}
+
+/* Subtle pulse animation for welcome icon */
+@keyframes subtlePulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+.animate-subtle-pulse {
+  animation: subtlePulse 3s ease-in-out infinite;
+}

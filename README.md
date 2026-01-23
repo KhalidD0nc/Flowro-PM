@@ -79,6 +79,12 @@ Export blueprints in formats optimized for AI coding agents:
 - JSON for programmatic consumption
 - Visual Mermaid diagrams included
 
+### 🌐 Shareable Links
+Share your blueprints with stakeholders via public URLs:
+- Generate shareable links for any blueprint
+- Read-only view with Flowro branding
+- Perfect for sharing with clients, team members, or investors
+
 ---
 
 ## 🏗️ Architecture
