@@ -65,7 +65,7 @@ export interface MoveTaskInput {
 
 // Default Launch Plan columns
 export const DEFAULT_LAUNCH_COLUMNS: KanbanColumn[] = [
-    { id: "planning", name: "Planning", color: "#9dabb9", order: 0 },
+    { id: "backlog", name: "Backlog", color: "#9dabb9", order: 0 },
     { id: "in_progress", name: "In Progress", color: "#137fec", order: 1 },
     { id: "launched", name: "Launched", color: "#10b981", order: 2 },
 ]

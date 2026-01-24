@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation"
 import { useEffect, useState, useRef } from "react"
 import UBPViewer, { UBPContent } from "@/components/UBPViewer"
 import ShareProjectModal from "@/components/ShareProjectModal"
+import LaunchPlanViewer from "@/components/LaunchPlanViewer"
 
 interface Blueprint {
     id: string
@@ -286,6 +287,7 @@ export default function ChatPage() {
     const [isGenerating, setIsGenerating] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isUBPViewerOpen, setIsUBPViewerOpen] = useState(false)
+    const [isLaunchPlanOpen, setIsLaunchPlanOpen] = useState(false)
     const [isShareModalOpen, setIsShareModalOpen] = useState(false)
     const [currentUBP, setCurrentUBP] = useState<UBPContent | null>(null)
     const [isSaving, setIsSaving] = useState(false)
@@ -539,6 +541,10 @@ export default function ChatPage() {
 
     const handleOpenUBP = () => {
         setIsUBPViewerOpen(true)
+    }
+
+    const handleOpenLaunchPlan = () => {
+        setIsLaunchPlanOpen(true)
     }
 
     // Apply proposed changes from a proposal message
@@ -937,7 +943,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
                 <div className="relative flex items-center gap-3">
                     {/* Launch Plan button */}
                     <button
-                        onClick={() => router.push(`/chat/${projectId}/board`)}
+                        onClick={handleOpenLaunchPlan}
                         className="group flex items-center gap-2.5 bg-gradient-to-r from-[#10b981]/10 to-[#10b981]/5 hover:from-[#10b981]/20 hover:to-[#10b981]/10 border border-[#10b981]/20 hover:border-[#10b981]/40 text-white font-medium py-2.5 px-4 rounded-xl transition-all hover:shadow-lg hover:shadow-[#10b981]/10"
                     >
                         <span className="material-symbols-outlined text-[18px] text-[#10b981] group-hover:scale-110 transition-transform">rocket_launch</span>
@@ -1240,6 +1246,13 @@ Return the updated blueprint JSON with the changes applied to that section.`
                 projectId={projectId}
                 onUpdate={handleUBPUpdate}
                 onEnhance={handleEnhanceWithFlowro}
+            />
+
+            <LaunchPlanViewer
+                isOpen={isLaunchPlanOpen}
+                onClose={() => setIsLaunchPlanOpen(false)}
+                projectId={projectId}
+                projectName={project?.projectName || "Project"}
             />
 
             {/* Share Modal */}

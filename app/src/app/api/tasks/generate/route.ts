@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
                 projectId,
                 title: task.title,
                 description: task.description,
-                status: categoryToStatus[task.category] || "planning",
+                status: "backlog", // Force all newly generated tasks to backlog
                 priority: task.priority,
                 createdBy: auth.userId,
                 source: {
