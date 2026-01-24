@@ -328,42 +328,42 @@ export default function UBPViewer({
             {/* Panel */}
             <div className="fixed top-0 right-0 h-full w-full max-w-[1200px] bg-[#101922] border-l border-[#283039] z-50 flex flex-col overflow-hidden animate-slide-in-right">
                 {/* Header */}
-                <header className="flex items-center justify-between px-6 py-4 border-b border-[#283039] bg-[#0d141c] shrink-0">
-                    <div className="flex items-center gap-4">
+                <header className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-[#283039] bg-[#0d141c] shrink-0 gap-2">
+                    <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
                         {/* Show close button only in non-readOnly mode, otherwise show Flowro branding */}
                         {readOnly ? (
-                            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                                <img src="/logo.png" alt="Flowro" className="size-7" />
-                                <span className="text-white font-bold">Flowro</span>
+                            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
+                                <img src="/logo.png" alt="Flowro" className="size-6 sm:size-7" />
+                                <span className="text-white font-bold text-sm sm:text-base hidden xs:inline">Flowro</span>
                             </Link>
                         ) : (
                             <button
                                 onClick={onClose}
-                                className="flex items-center justify-center rounded-lg p-2 text-[#9dabb9] transition-colors hover:bg-white/10 hover:text-white"
+                                className="flex items-center justify-center rounded-lg p-1.5 sm:p-2 text-[#9dabb9] transition-colors hover:bg-white/10 hover:text-white shrink-0"
                                 title="Close"
                             >
-                                <span className="material-symbols-outlined">close</span>
+                                <span className="material-symbols-outlined text-xl sm:text-2xl">close</span>
                             </button>
                         )}
-                        <div className="flex flex-col">
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-lg font-bold text-white">{projectName}</h1>
+                        <div className="flex flex-col min-w-0">
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                <h1 className="text-sm sm:text-lg font-bold text-white truncate max-w-[100px] xs:max-w-[150px] sm:max-w-none">{projectName}</h1>
 
                                 {/* Version Dropdown */}
                                 {allVersions.length > 1 && onVersionSelect ? (
-                                    <div className="relative">
+                                    <div className="relative shrink-0">
                                         <button
                                             onClick={() => setIsVersionDropdownOpen(!isVersionDropdownOpen)}
-                                            className="flex items-center gap-1 text-[#9dabb9] text-sm hover:text-white hover:bg-white/10 px-2 py-1 rounded transition-colors"
+                                            className="flex items-center gap-0.5 sm:gap-1 text-[#9dabb9] text-xs sm:text-sm hover:text-white hover:bg-white/10 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded transition-colors"
                                         >
                                             v{version}
-                                            <span className="material-symbols-outlined text-[16px]">
+                                            <span className="material-symbols-outlined text-[14px] sm:text-[16px]">
                                                 {isVersionDropdownOpen ? "expand_less" : "expand_more"}
                                             </span>
                                         </button>
 
                                         {isVersionDropdownOpen && (
-                                            <div className="absolute top-full left-0 mt-1 bg-[#1f2937] border border-[#283039] rounded-lg shadow-xl z-10 min-w-[180px] py-1">
+                                            <div className="absolute top-full left-0 mt-1 bg-[#1f2937] border border-[#283039] rounded-lg shadow-xl z-10 min-w-[160px] sm:min-w-[180px] py-1">
                                                 {allVersions.map((v) => (
                                                     <button
                                                         key={v.id}
@@ -371,13 +371,13 @@ export default function UBPViewer({
                                                             onVersionSelect(v.id)
                                                             setIsVersionDropdownOpen(false)
                                                         }}
-                                                        className={`w-full flex items-center justify-between px-3 py-2 text-sm transition-colors ${v.id === currentBlueprintId
+                                                        className={`w-full flex items-center justify-between px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors ${v.id === currentBlueprintId
                                                             ? "bg-[#137fec]/20 text-white"
                                                             : "text-[#9dabb9] hover:bg-white/5 hover:text-white"
                                                             }`}
                                                     >
                                                         <span>v{v.version}</span>
-                                                        <span className={`text-xs px-1.5 py-0.5 rounded ${v.status === "draft"
+                                                        <span className={`text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded ${v.status === "draft"
                                                             ? "bg-yellow-500/20 text-yellow-400"
                                                             : "bg-blue-500/20 text-blue-400"
                                                             }`}>
@@ -389,16 +389,16 @@ export default function UBPViewer({
                                         )}
                                     </div>
                                 ) : (
-                                    <span className="text-[#9dabb9] text-sm">v{version}</span>
+                                    <span className="text-[#9dabb9] text-xs sm:text-sm shrink-0">v{version}</span>
                                 )}
                             </div>
-                            <div className="flex items-center gap-3">
-                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-bold uppercase tracking-wide ${statusColors[status]}`}>
-                                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                                <span className={`inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 rounded-full border text-[10px] sm:text-xs font-bold uppercase tracking-wide ${statusColors[status]}`}>
+                                    <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-current" />
                                     {statusLabels[status]}
                                 </span>
                                 {lastUpdated && (
-                                    <span className="text-[#9dabb9] text-xs">
+                                    <span className="hidden sm:inline text-[#9dabb9] text-xs">
                                         Last updated {lastUpdated}
                                     </span>
                                 )}
@@ -407,15 +407,16 @@ export default function UBPViewer({
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                         {/* Share Button - only shown if not readOnly and has required data */}
                         {!readOnly && currentBlueprintId && projectId && (
                             <button
                                 onClick={() => setIsShareModalOpen(true)}
-                                className="flex items-center gap-2 bg-[#283039] hover:bg-[#3d4a56] text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                                className="flex items-center justify-center gap-1.5 sm:gap-2 bg-[#283039] hover:bg-[#3d4a56] text-white font-medium p-2 sm:py-2 sm:px-4 rounded-lg transition-colors"
+                                title="Share"
                             >
-                                <span className="material-symbols-outlined text-[18px]">share</span>
-                                Share
+                                <span className="material-symbols-outlined text-lg sm:text-[18px]">share</span>
+                                <span className="hidden sm:inline">Share</span>
                             </button>
                         )}
 
@@ -424,29 +425,30 @@ export default function UBPViewer({
                             <div className="relative">
                                 <button
                                     onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
-                                    className="flex items-center gap-2 bg-[#283039] hover:bg-[#3d4a56] text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 bg-[#283039] hover:bg-[#3d4a56] text-white font-medium p-2 sm:py-2 sm:px-4 rounded-lg transition-colors"
+                                    title="Export"
                                 >
-                                    <span className="material-symbols-outlined text-[18px]">download</span>
-                                    Export
-                                    <span className="material-symbols-outlined text-[16px]">
+                                    <span className="material-symbols-outlined text-lg sm:text-[18px]">download</span>
+                                    <span className="hidden sm:inline">Export</span>
+                                    <span className="material-symbols-outlined text-[14px] sm:text-[16px] hidden sm:inline">
                                         {isExportDropdownOpen ? "expand_less" : "expand_more"}
                                     </span>
                                 </button>
 
                                 {isExportDropdownOpen && (
-                                    <div className="absolute top-full right-0 mt-1 bg-[#1f2937] border border-[#283039] rounded-lg shadow-xl z-10 min-w-[180px] py-1">
+                                    <div className="absolute top-full right-0 mt-1 bg-[#1f2937] border border-[#283039] rounded-lg shadow-xl z-10 min-w-[160px] sm:min-w-[180px] py-1">
                                         <button
                                             onClick={() => handleExport("json")}
-                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
+                                            className="w-full flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
                                         >
-                                            <span className="material-symbols-outlined text-[18px]">data_object</span>
+                                            <span className="material-symbols-outlined text-[16px] sm:text-[18px]">data_object</span>
                                             Export as JSON
                                         </button>
                                         <button
                                             onClick={() => handleExport("markdown")}
-                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
+                                            className="w-full flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
                                         >
-                                            <span className="material-symbols-outlined text-[18px]">description</span>
+                                            <span className="material-symbols-outlined text-[16px] sm:text-[18px]">description</span>
                                             Export as Markdown
                                         </button>
                                     </div>
@@ -460,59 +462,79 @@ export default function UBPViewer({
                                 <button
                                     onClick={onSaveVersion}
                                     disabled={isSaving}
-                                    className="flex items-center gap-2 bg-[#137fec] hover:bg-blue-600 disabled:bg-[#137fec]/50 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 bg-[#137fec] hover:bg-blue-600 disabled:bg-[#137fec]/50 disabled:cursor-not-allowed text-white font-medium p-2 sm:py-2 sm:px-4 rounded-lg transition-colors"
+                                    title="Save Version"
                                 >
                                     {isSaving ? (
                                         <>
-                                            <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
-                                            Saving...
+                                            <span className="material-symbols-outlined text-lg sm:text-[18px] animate-spin">progress_activity</span>
+                                            <span className="hidden sm:inline">Saving...</span>
                                         </>
                                     ) : (
                                         <>
-                                            <span className="material-symbols-outlined text-[18px]">save</span>
-                                            Save Version
+                                            <span className="material-symbols-outlined text-lg sm:text-[18px]">save</span>
+                                            <span className="hidden sm:inline">Save Version</span>
                                         </>
                                     )}
                                 </button>
-                                <span className="text-[#9dabb9] text-xs mt-1">Save as milestone, continue editing</span>
+                                <span className="hidden lg:block text-[#9dabb9] text-xs mt-1">Save as milestone, continue editing</span>
                             </div>
                         )}
 
                         {/* Public View Badge - shown in readOnly mode */}
                         {readOnly && (
-                            <span className="flex items-center gap-2 bg-blue-500/20 text-blue-400 px-3 py-2 rounded-lg text-sm font-medium border border-blue-500/30">
-                                <span className="material-symbols-outlined text-[18px]">visibility</span>
-                                Public View
+                            <span className="flex items-center gap-1.5 sm:gap-2 bg-blue-500/20 text-blue-400 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium border border-blue-500/30">
+                                <span className="material-symbols-outlined text-[16px] sm:text-[18px]">visibility</span>
+                                <span className="hidden xs:inline">Public View</span>
                             </span>
                         )}
                     </div>
                 </header>
 
-                <div className="flex flex-1 overflow-hidden">
-                    {/* Sidebar Navigation */}
-                    <aside className="w-56 flex-none bg-[#0d141c] border-r border-[#283039] hidden md:flex flex-col overflow-y-auto custom-scrollbar p-4">
-                        <p className="px-3 text-[#9dabb9] text-xs font-semibold uppercase tracking-wider mb-3">
-                            Sections
-                        </p>
-                        <div className="flex flex-col gap-1">
+                <div className="flex flex-col flex-1 overflow-hidden">
+                    {/* Mobile Section Navigation - horizontal scroll */}
+                    <nav className="md:hidden flex-none border-b border-[#283039] bg-[#0d141c] overflow-x-auto custom-scrollbar">
+                        <div className="flex gap-1 p-2 min-w-max">
                             {sections.map((section) => (
                                 <button
                                     key={section.id}
                                     onClick={() => scrollToSection(section.id)}
-                                    className="flex items-center gap-3 px-3 py-2 rounded-lg text-[#9dabb9] hover:text-white hover:bg-[#283039] transition-colors text-left"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[#9dabb9] hover:text-white hover:bg-[#283039] transition-colors whitespace-nowrap text-xs font-medium"
                                 >
-                                    <span className="material-symbols-outlined text-[20px]">
+                                    <span className="material-symbols-outlined text-[16px]">
                                         {section.icon}
                                     </span>
-                                    <span className="text-sm font-medium">{section.label}</span>
+                                    {section.label.split('. ')[1]}
                                 </button>
                             ))}
                         </div>
-                    </aside>
+                    </nav>
 
-                    {/* Main Content */}
-                    <main ref={contentRef} className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
-                        <div className="p-6 pb-20 space-y-6">
+                    <div className="flex flex-1 overflow-hidden">
+                        {/* Sidebar Navigation - Desktop only */}
+                        <aside className="w-56 flex-none bg-[#0d141c] border-r border-[#283039] hidden md:flex flex-col overflow-y-auto custom-scrollbar p-4">
+                            <p className="px-3 text-[#9dabb9] text-xs font-semibold uppercase tracking-wider mb-3">
+                                Sections
+                            </p>
+                            <div className="flex flex-col gap-1">
+                                {sections.map((section) => (
+                                    <button
+                                        key={section.id}
+                                        onClick={() => scrollToSection(section.id)}
+                                        className="flex items-center gap-3 px-3 py-2 rounded-lg text-[#9dabb9] hover:text-white hover:bg-[#283039] transition-colors text-left"
+                                    >
+                                        <span className="material-symbols-outlined text-[20px]">
+                                            {section.icon}
+                                        </span>
+                                        <span className="text-sm font-medium">{section.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </aside>
+
+                        {/* Main Content */}
+                        <main ref={contentRef} className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
+                            <div className="p-3 sm:p-6 pb-20 space-y-4 sm:space-y-6">
                             {/* No UBP Content */}
                             {!ubp && (
                                 <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -763,6 +785,7 @@ export default function UBPViewer({
                             )}
                         </div>
                     </main>
+                </div>
                 </div>
             </div>
 
