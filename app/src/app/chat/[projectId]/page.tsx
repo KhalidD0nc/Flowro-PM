@@ -43,6 +43,15 @@ interface ProposedChanges {
     changes: Record<string, unknown>
 }
 
+interface GenerateResult {
+    intent: Intent
+    message: string
+    content: unknown
+    proposedChanges?: ProposedChanges
+    rawContent: string
+    productName?: string
+}
+
 // Helper to detect if content is UBP JSON
 function isUBPContent(content: unknown): boolean {
     if (!content || typeof content !== "object") return false
@@ -100,7 +109,7 @@ function transformApiToUBP(apiData: any): UBPContent {
         id: b.id || "BH-01",
         title: b.title || b.systemResponse || "Behavior",
         priority: b.priority,
-        given: b.given || (b.trigger ? `User triggers: ${b.trigger}` : undefined),
+        given: b.given || (b.trigger ? `User triggers: ${b.trigger} ` : undefined),
         when: b.when || b.trigger,
         then: b.then || b.systemResponse,
         diagram: b.diagram || b.diagramCode
@@ -137,7 +146,7 @@ function transformApiToUBP(apiData: any): UBPContent {
 
     // Transform phases
     const phases = apiData.phases?.map((p: { phase?: string; name?: string; goal?: string; description?: string; outputs?: string[]; timeline?: string; status?: string }, i: number) => ({
-        name: p.name || p.phase || `Phase ${i + 1}`,
+        name: p.name || p.phase || `Phase ${i + 1} `,
         timeline: p.timeline,
         description: p.description || p.goal || (p.outputs ? p.outputs.join(", ") : ""),
         status: p.status || (i === 0 ? "current" : "upcoming") as "completed" | "current" | "upcoming"
@@ -385,7 +394,7 @@ export default function ChatPage() {
 
                 if (res.status === 429) {
                     // Rate limited - show retry time
-                    throw new Error(`⏳ ${errorMessage}`)
+                    throw new Error(`⏳ ${errorMessage} `)
                 } else if (data.retryable) {
                     throw new Error(`${errorMessage} Please try again.`)
                 } else {
@@ -690,6 +699,173 @@ export default function ChatPage() {
         }
     }
 
+    // Generic update function to save UBP to backend
+    const updateBlueprint = async (newContent: UBPContent) => {
+        if (!user || !project?.latestBlueprint?.id) return
+
+        setIsSaving(true)
+        try {
+            const token = await user.getIdToken()
+            const res = await fetch("/api/blueprints", {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    blueprintId: project.latestBlueprint.id,
+                    content: newContent,
+                }),
+            })
+
+            if (!res.ok) {
+                throw new Error("Failed to update blueprint")
+            }
+
+            // Update local state
+            setCurrentUBP(newContent)
+
+            // Update project's latest blueprint content in cache
+            setProject((prev) =>
+                prev && prev.latestBlueprint
+                    ? {
+                        ...prev,
+                        latestBlueprint: {
+                            ...prev.latestBlueprint,
+                            content: newContent as any
+                        }
+                    }
+                    : prev
+            )
+        } catch (err) {
+            console.error("Error updating blueprint:", err)
+            setError("Failed to save changes. Please try again.")
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    // Handle manual updates from UBPViewer
+    const handleUBPUpdate = async (newUBP: UBPContent) => {
+        await updateBlueprint(newUBP)
+    }
+
+    // Handle AI-assisted edits from UBPViewer
+    const handleAIEdit = async (section: string, instruction: string, selection: string) => {
+        if (!user || !project) return
+
+        setIsSaving(true)
+
+        // Construct a focused prompt for the AI
+        const prompt = `I am editing the "${section}" section of the blueprint.
+        
+Current context(selected text): "${selection}"
+
+Instruction: ${instruction}
+
+Please update the "${section}" section of the blueprint accordingly.
+Return the updated blueprint JSON with the changes applied to that section.`
+
+        try {
+            // Re-use generateResponse essentially, but we want to auto-apply the result
+            // We'll call the API directly to get the response, then apply it
+            const token = await user.getIdToken()
+
+            // Add user message to UI optimistically
+            const tempUserMsg = {
+                role: "user" as const,
+                content: `Edit ${section}: ${instruction} `,
+                timestamp: new Date().toISOString()
+            }
+
+            setProject(prev => prev ? {
+                ...prev,
+                chatHistory: [...prev.chatHistory, tempUserMsg]
+            } : prev)
+
+            const res = await fetch("/api/generate", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    message: prompt,
+                    projectId: project.id,
+                    // We send context so it knows what it's editing
+                    context: project.chatHistory,
+                }),
+            })
+
+            if (!res.ok) {
+                throw new Error("AI generation failed")
+            }
+
+            const data: GenerateResult = await res.json()
+
+            // Update chat history with assistant response
+            const assistantMsg = {
+                role: "assistant" as const,
+                content: data.message,
+                intent: data.intent,
+                proposedChanges: data.proposedChanges,
+                timestamp: new Date().toISOString()
+            }
+
+            setProject(prev => prev ? {
+                ...prev,
+                chatHistory: [...prev.chatHistory, assistantMsg]
+            } : prev)
+
+            // Auto-apply logic
+            if (data.intent === 'initial' && data.content) {
+                // It returned a full UBP, use it
+                // We need to transform it first just in case
+                const newUBP = transformApiToUBP(data.content)
+                await updateBlueprint(newUBP)
+            } else if (data.intent === 'proposal' && data.proposedChanges) {
+                // It returned proposed changes, let's treat it as a "Apply" immediately for this flow
+                // Re-use logic from handleApplyProposedChanges but adapting it since we don't have msg index yet really, 
+                // but actually we can just manually apply the changes to currentUBP
+
+                if (!currentUBP) return
+
+                const updatedUBP = { ...currentUBP }
+                if (data.proposedChanges.changes) {
+                    Object.entries(data.proposedChanges.changes).forEach(([key, value]) => {
+                        if (key in updatedUBP) {
+                            if (Array.isArray(value) && Array.isArray((updatedUBP as Record<string, unknown>)[key])) {
+                                (updatedUBP as Record<string, unknown>)[key] = value
+                            } else if (typeof value === 'object' && value !== null) {
+                                (updatedUBP as Record<string, unknown>)[key] = {
+                                    ...((updatedUBP as Record<string, unknown>)[key] as object),
+                                    ...(value as object)
+                                }
+                            } else {
+                                (updatedUBP as Record<string, unknown>)[key] = value
+                            }
+                        } else {
+                            (updatedUBP as Record<string, unknown>)[key] = value
+                        }
+                    })
+                }
+
+                await updateBlueprint(updatedUBP)
+            }
+
+            // Scroll to bottom of chat
+            setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+            }, 100)
+
+        } catch (err) {
+            console.error("Error in AI edit:", err)
+            setError("Failed to perform AI edit. Please try again.")
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
     if (loading || loadingProject) {
         return (
             <div className="min-h-screen bg-[#101922] flex items-center justify-center">
@@ -836,20 +1012,12 @@ export default function ChatPage() {
                             return (
                                 <div
                                     key={index}
-                                    className={`flex ${isUser ? "justify-end" : "justify-start"} ${isUser ? "animate-slide-in-right" : "animate-slide-in-left"}`}
+                                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                                 >
-                                    {/* AI Avatar */}
-                                    {!isUser && (
-                                        <div className="flex-shrink-0 mr-3 mt-1">
-                                            <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#137fec]/30 to-[#137fec]/10">
-                                                <img src="/logo.png" alt="Flowro" className="w-5 h-5" />
-                                            </div>
-                                        </div>
-                                    )}
                                     <div
                                         className={`max-w-[75%] rounded-2xl px-4 py-3 ${isUser
-                                            ? "user-message-gradient text-white"
-                                            : "glass-message text-white"
+                                            ? "bg-[#137fec] text-white"
+                                            : "bg-[#18212b] border border-[#283039] text-white"
                                             }`}
                                     >
                                         <p className="whitespace-pre-wrap leading-relaxed">{displayInfo.text}</p>
@@ -891,9 +1059,6 @@ export default function ChatPage() {
                                             </button>
                                         )}
 
-                                        <p className={`text-xs mt-2 ${isUser ? "text-blue-200" : "text-[#9dabb9]"}`}>
-                                            {new Date(msg.timestamp).toLocaleTimeString()}
-                                        </p>
                                     </div>
                                 </div>
                             )
@@ -901,22 +1066,11 @@ export default function ChatPage() {
                     )}
 
                     {isGenerating && (
-                        <div className="flex justify-start animate-slide-in-left">
-                            {/* AI Avatar */}
-                            <div className="flex-shrink-0 mr-3 mt-1">
-                                <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#137fec]/30 to-[#137fec]/10">
-                                    <img src="/logo.png" alt="Flowro" className="w-5 h-5" />
-                                </div>
-                            </div>
-                            <div className="glass-message rounded-2xl px-5 py-4">
+                        <div className="flex justify-start">
+                            <div className="bg-[#18212b] border border-[#283039] rounded-2xl px-4 py-3">
                                 <div className="flex items-center gap-3">
-                                    {/* Typing indicator dots */}
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="typing-dot w-2 h-2 bg-[#137fec] rounded-full"></div>
-                                        <div className="typing-dot w-2 h-2 bg-[#137fec] rounded-full"></div>
-                                        <div className="typing-dot w-2 h-2 bg-[#137fec] rounded-full"></div>
-                                    </div>
-                                    <span className="text-[#9dabb9] text-sm ml-1">
+                                    <span className="material-symbols-outlined text-[#137fec] animate-spin">hourglass_top</span>
+                                    <span className="text-[#9dabb9] text-sm">
                                         {thinkingMessages[thinkingPhase]}
                                     </span>
                                 </div>
@@ -926,11 +1080,11 @@ export default function ChatPage() {
 
                     {/* Hourglass flip animation */}
                     <style jsx>{`
-                        @keyframes hourglass-flip {
-                            0%, 100% { transform: rotate(0deg); }
-                            50% { transform: rotate(180deg); }
-                        }
-                    `}</style>
+@keyframes hourglass - flip {
+    0 %, 100 % { transform: rotate(0deg); }
+    50 % { transform: rotate(180deg); }
+}
+`}</style>
 
                     <div ref={messagesEndRef} />
                 </div>
@@ -1018,6 +1172,8 @@ export default function ChatPage() {
                 onVersionSelect={handleVersionSelect}
                 currentBlueprintId={selectedBlueprint?.id || project.latestBlueprint?.id}
                 projectId={projectId}
+                onUpdate={handleUBPUpdate}
+                onAIEdit={handleAIEdit}
             />
         </div>
     )
