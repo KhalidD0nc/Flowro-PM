@@ -279,7 +279,7 @@ export default function Home() {
                                     4. <span className="text-green-400">If valid:</span> Create session<br />
                                     5. Return 200 OK
                                 </div>
-                                <div className="mt-8 text-gray-600 italic">// This structured text generates the visual on the right automatically.</div>
+                                <div className="mt-8 text-gray-600 italic">{"// This structured text generates the visual on the right automatically."}</div>
                             </div>
                         </div>
 

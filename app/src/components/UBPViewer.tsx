@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import mermaid from "mermaid"
 import {
     exportBlueprint,
@@ -9,6 +10,8 @@ import {
     type ExportFormat,
 } from "@/lib/exportBlueprint"
 import ShareModal from "./ShareModal"
+import UBPEditModal from "./UBPEditModals"
+import AIFloatingMenu from "./AIFloatingMenu"
 
 // Initialize mermaid
 mermaid.initialize({
@@ -105,6 +108,9 @@ interface UBPViewerProps {
     currentBlueprintId?: string
     projectId?: string // For share functionality
     readOnly?: boolean // Public view mode (no editing, shows viral CTA)
+    onUpdate?: (newUBP: UBPContent) => Promise<void>
+    onEnhance?: (section: string, selection: string) => void
+    onAIEdit?: (section: string, instruction: string, selection: string) => Promise<void>
 }
 
 // Section navigation items
@@ -138,12 +144,105 @@ export default function UBPViewer({
     currentBlueprintId,
     projectId,
     readOnly = false,
+    onUpdate,
+    onEnhance,
+    onAIEdit,
 }: UBPViewerProps) {
-    const mermaidRef = useRef<HTMLDivElement>(null)
+    // const mermaidRef = useRef<HTMLDivElement>(null) // Unused
     const contentRef = useRef<HTMLDivElement>(null)
     const [isVersionDropdownOpen, setIsVersionDropdownOpen] = useState(false)
     const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false)
     const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+
+    // Editing State
+    const [editSection, setEditSection] = useState<string | null>(null)
+
+    // AI Floating Menu State
+    const [selectionInfo, setSelectionInfo] = useState<{
+        text: string
+        section: string
+        position: { x: number; y: number }
+    } | null>(null)
+
+    // Handle text selection
+    useEffect(() => {
+        if (readOnly) return
+
+        const handleSelectionChange = () => {
+            const selection = window.getSelection()
+
+            if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+                // Delay clearing to allow clicking the menu
+                if (selectionInfo) {
+                    // Only clear if we really moved away, logic handled by menu's outside click usually
+                    // But here we rely on mouseup mostly
+                }
+                return
+            }
+
+            // We only care if the selection is inside a UBP section
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0)
+                const container = range.commonAncestorContainer.parentElement
+                const sectionEl = container?.closest('section')
+
+                if (sectionEl && sectionEl.id.startsWith('ubp-')) {
+                    const sectionId = sectionEl.id.replace('ubp-', '')
+                    const rect = range.getBoundingClientRect()
+
+                    // Simple debounce/check to update menu
+                    setSelectionInfo({
+                        text: selection.toString(),
+                        section: sectionId,
+                        position: {
+                            x: rect.left + rect.width / 2,
+                            y: rect.top - 10
+                        }
+                    })
+                } else {
+                    setSelectionInfo(null)
+                }
+            }
+        }
+
+        const handleMouseUp = () => {
+            // We use mouseup to finalize selection position
+            handleSelectionChange()
+        }
+
+        document.addEventListener('mouseup', handleMouseUp)
+        document.addEventListener('keyup', handleSelectionChange) // For keyboard selection
+
+        return () => {
+            document.removeEventListener('mouseup', handleMouseUp)
+            document.removeEventListener('keyup', handleSelectionChange)
+        }
+    }, [readOnly, selectionInfo])
+
+    // Clear selection when menu is closed or submitted
+    const clearSelection = () => {
+        setSelectionInfo(null)
+        window.getSelection()?.removeAllRanges()
+    }
+
+    const handleManualSave = (section: string, newData: unknown) => {
+        if (!ubp || !onUpdate) return
+
+        const newUBP = { ...ubp }
+        // Map section ID to property name if different
+        const propName = section === "integration" ? "integrations" :
+            section === "tech" ? "techDecisions" :
+                section === "vision" ? "productVision" : section;
+
+        (newUBP as Record<string, unknown>)[propName] = newData
+        onUpdate(newUBP)
+    }
+
+    const handleEnhance = () => {
+        if (!selectionInfo || !onEnhance) return
+        onEnhance(selectionInfo.section, selectionInfo.text)
+        clearSelection()
+    }
 
     // Handle export
     const handleExport = (format: ExportFormat) => {
@@ -233,10 +332,10 @@ export default function UBPViewer({
                     <div className="flex items-center gap-4">
                         {/* Show close button only in non-readOnly mode, otherwise show Flowro branding */}
                         {readOnly ? (
-                            <a href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                                 <img src="/logo.png" alt="Flowro" className="size-7" />
                                 <span className="text-white font-bold">Flowro</span>
-                            </a>
+                            </Link>
                         ) : (
                             <button
                                 onClick={onClose}
@@ -432,7 +531,7 @@ export default function UBPViewer({
                             {ubp && (
                                 <>
                                     {/* Product Vision */}
-                                    <Section id="vision" icon="visibility" title="1. Product Vision">
+                                    <Section id="vision" icon="visibility" title="1. Product Vision" onEdit={!readOnly && onUpdate ? () => setEditSection("vision") : undefined}>
                                         {ubp.productVision?.description && (
                                             <p className="text-[#d0d6dc] text-base leading-relaxed mb-6">
                                                 {ubp.productVision.description}
@@ -449,7 +548,7 @@ export default function UBPViewer({
                                     </Section>
 
                                     {/* Scope */}
-                                    <Section id="scope" icon="my_location" title="2. Scope">
+                                    <Section id="scope" icon="my_location" title="2. Scope" onEdit={!readOnly && onUpdate ? () => setEditSection("scope") : undefined}>
                                         <div className="grid md:grid-cols-2 gap-6">
                                             {ubp.scope?.inScope && ubp.scope.inScope.length > 0 && (
                                                 <div>
@@ -487,7 +586,7 @@ export default function UBPViewer({
                                     </Section>
 
                                     {/* Actors */}
-                                    <Section id="actors" icon="group" title="3. Actors">
+                                    <Section id="actors" icon="group" title="3. Actors" onEdit={!readOnly && onUpdate ? () => setEditSection("actors") : undefined}>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {ubp.actors?.map((actor, i) => (
                                                 <div key={i} className="bg-[#283039]/40 p-4 rounded-lg border border-[#283039] flex flex-col gap-2">
@@ -504,7 +603,7 @@ export default function UBPViewer({
                                     </Section>
 
                                     {/* Behaviors */}
-                                    <Section id="behaviors" icon="bolt" title="4. Behaviors">
+                                    <Section id="behaviors" icon="bolt" title="4. Behaviors" onEdit={!readOnly && onUpdate ? () => setEditSection("behaviors") : undefined}>
                                         <div className="divide-y divide-[#283039]">
                                             {ubp.behaviors?.map((behavior, i) => (
                                                 <div key={i} className="py-6 first:pt-0 last:pb-0">
@@ -545,7 +644,7 @@ export default function UBPViewer({
                                     </Section>
 
                                     {/* Constraints & Risks */}
-                                    <Section id="constraints" icon="warning" title="5. Constraints & Risks">
+                                    <Section id="constraints" icon="warning" title="5. Constraints & Risks" onEdit={!readOnly && onUpdate ? () => setEditSection("constraints") : undefined}>
                                         <div className="grid gap-4">
                                             {ubp.constraints?.map((constraint, i) => (
                                                 <div
@@ -572,7 +671,7 @@ export default function UBPViewer({
                                     </Section>
 
                                     {/* Tech Decisions */}
-                                    <Section id="tech" icon="code" title="6. Technology Decisions">
+                                    <Section id="tech" icon="code" title="6. Technology Decisions" onEdit={!readOnly && onUpdate ? () => setEditSection("tech") : undefined}>
                                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                             {ubp.techDecisions?.map((tech, i) => (
                                                 <div key={i} className="p-4 bg-[#283039] rounded-lg border border-[#283039]">
@@ -584,7 +683,7 @@ export default function UBPViewer({
                                     </Section>
 
                                     {/* Implementation Phases */}
-                                    <Section id="phases" icon="stairs" title="7. Implementation Phases">
+                                    <Section id="phases" icon="stairs" title="7. Implementation Phases" onEdit={!readOnly && onUpdate ? () => setEditSection("phases") : undefined}>
                                         <div className="relative pl-6 border-l-2 border-[#283039] space-y-8">
                                             {ubp.phases?.map((phase, i) => (
                                                 <div key={i} className="relative">
@@ -612,7 +711,7 @@ export default function UBPViewer({
                                     </Section>
 
                                     {/* Integration Points */}
-                                    <Section id="integration" icon="cable" title="8. Integration Points">
+                                    <Section id="integration" icon="cable" title="8. Integration Points" onEdit={!readOnly && onUpdate ? () => setEditSection("integration") : undefined}>
                                         <div className="overflow-x-auto">
                                             <table className="w-full text-left text-sm text-[#d0d6dc]">
                                                 <thead className="text-xs uppercase bg-[#283039] text-[#9dabb9]">
@@ -640,7 +739,7 @@ export default function UBPViewer({
                                     </Section>
 
                                     {/* Change Log */}
-                                    <Section id="changelog" icon="history" title="9. Change Log">
+                                    <Section id="changelog" icon="history" title="9. Change Log" onEdit={!readOnly && onUpdate ? () => setEditSection("changelog") : undefined}>
                                         <div className="space-y-4">
                                             {ubp.changelog?.map((entry, i) => (
                                                 <div key={i} className="flex gap-4">
@@ -711,6 +810,42 @@ export default function UBPViewer({
                 />
             )}
 
+            {/* Manual Edit Modals */}
+            {editSection && ubp && (
+                <UBPEditModal
+                    isOpen={!!editSection}
+                    onClose={() => setEditSection(null)}
+                    section={editSection}
+                    data={
+                        // Map section to data prop
+                        editSection === "vision" ? ubp.productVision :
+                            editSection === "scope" ? ubp.scope :
+                                editSection === "actors" ? ubp.actors :
+                                    editSection === "behaviors" ? ubp.behaviors :
+                                        editSection === "constraints" ? ubp.constraints :
+                                            editSection === "tech" ? ubp.techDecisions :
+                                                editSection === "phases" ? ubp.phases :
+                                                    editSection === "integration" ? ubp.integrations :
+                                                        editSection === "changelog" ? ubp.changelog : {}
+                    }
+                    onSave={handleManualSave}
+                />
+            )}
+
+            {/* AI Floating Menu */}
+            {selectionInfo && (
+                <AIFloatingMenu
+                    position={selectionInfo.position}
+                    selectedText={selectionInfo.text}
+                    onClose={clearSelection}
+                    onEnhance={handleEnhance}
+                    onAIEdit={onAIEdit ? (instruction) => {
+                        onAIEdit(selectionInfo.section, instruction, selectionInfo.text)
+                        clearSelection()
+                    } : undefined}
+                />
+            )}
+
             {/* Styles */}
             <style jsx global>{`
                 @keyframes slide-in-right {
@@ -748,20 +883,31 @@ function Section({
     icon,
     title,
     children,
+    onEdit,
 }: {
     id: string
     icon: string
     title: string
     children: React.ReactNode
+    onEdit?: () => void
 }) {
     return (
-        <section id={`ubp-${id}`} className="scroll-mt-6">
-            <div className="bg-[#1f2937] border border-[#283039] rounded-xl overflow-hidden">
+        <section id={`ubp-${id}`} className="scroll-mt-6 group">
+            <div className="bg-[#1f2937] border border-[#283039] rounded-xl overflow-hidden shadow-sm transition-shadow hover:shadow-md hover:border-[#137fec]/30">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-[#283039] bg-[#111418]/50">
                     <h2 className="text-white text-lg font-bold flex items-center gap-2">
                         <span className="text-[#137fec] material-symbols-outlined">{icon}</span>
                         {title}
                     </h2>
+                    {onEdit && (
+                        <button
+                            onClick={onEdit}
+                            className="text-[#9dabb9] hover:text-white hover:bg-[#283039] p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                            title="Edit Section"
+                        >
+                            <span className="material-symbols-outlined text-[20px]">edit</span>
+                        </button>
+                    )}
                 </div>
                 <div className="p-6">{children}</div>
             </div>

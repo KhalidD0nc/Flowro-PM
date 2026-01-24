@@ -79,11 +79,20 @@ Export blueprints in formats optimized for AI coding agents:
 - JSON for programmatic consumption
 - Visual Mermaid diagrams included
 
+### ✨ AI-Enhanced Editing
+- **Smart Selection**: Highlight any text in your blueprint to reveal a premium AI floating menu.
+- **Auto-Enhance**: One-click professional refinement of your requirements using "Consultant Logic".
+- **Contextual Ask**: Instruct Flowro AI to rewrite specific parts of your blueprint while maintaining global consistency.
+
+### 🚀 Product Launch Plan & Task Management
+- **Automated Roadmap**: AI transforms your UBP into a granular, actionable implementation plan.
+- **Backlog Board**: Drag-and-drop task management (Backlog → In Progress → Launched) powered by `@dnd-kit`.
+- **Feature-Focused**: Focus on high-value user-facing milestones (MVP, Core Features) rather than generic setup tasks.
+
 ### 🌐 Shareable Links
-Share your blueprints with stakeholders via public URLs:
-- Generate shareable links for any blueprint
-- Read-only view with Flowro branding
-- Perfect for sharing with clients, team members, or investors
+- Generate secure public URLs with unique sharing IDs
+- Read-only view with premium Flowro branding
+- Perfect for sharing with stakeholders or including in pitch decks
 
 ---
 
@@ -123,13 +132,14 @@ flowchart LR
 
 | Layer | Technology | Justification |
 |-------|------------|---------------|
-| **Framework** | Next.js 16 (App Router) | Full-stack React with API routes, server components |
+| **Framework** | Next.js 16 (App Router) | Full-stack React with Turbopack, server components |
 | **Language** | TypeScript | Type safety, better DX, refactoring support |
 | **Auth** | Firebase Auth | Zero-friction Google OAuth, no password management |
 | **Database** | Firebase Firestore | NoSQL perfect for JSON-based UBPs, real-time sync |
-| **Styling** | Tailwind CSS 4 | Utility-first, rapid UI development |
-| **AI/LLM** | OpenRouter API | Multi-model support, easy model switching |
-| **Diagrams** | Mermaid.js | Inline diagrams from text, code-agent compatible |
+| **AI Orchestration** | LangChain & OpenRouter | Structured AI outputs and multi-model flexibility |
+| **Task Engine** | @dnd-kit | High-performance, accessible drag-and-drop toolkit |
+| **Styling** | Tailwind CSS 4 | Utility-first, rapid UI development with CSS variables |
+| **Diagrams** | Mermaid.js | Text-to-diagram for agent compatibility |
 | **Deployment** | Vercel | Zero-config Next.js deployment, edge functions |
 
 ---
@@ -255,8 +265,11 @@ Flowro-PM/
 │       │
 │       ├── components/
 │       │   ├── UBPViewer.tsx        # Blueprint viewer panel
-│       │   ├── UBPList.tsx          # Blueprint list component
-│       │   ├── CreateProjectModal.tsx  # New project modal
+│       │   ├── LaunchPlanViewer.tsx # AI Roadmap & Task viewer
+│       │   ├── BacklogBoard.tsx     # Kanban board with @dnd-kit
+│       │   ├── AIFloatingMenu.tsx   # Premium AI editing menu
+│       │   ├── UBPEditModals.tsx    # Manual section editors
+│       │   ├── CreateProjectModal.tsx # New project modal
 │       │   ├── PricingSection.tsx   # Pricing page component
 │       │   └── Providers.tsx        # Auth context provider
 │       │
@@ -320,10 +333,15 @@ The Unified Blueprint is built on four core principles:
 - Download blueprints in agent-ready formats
 - PDF export for stakeholders (planned)
 
-### Phase 4: Team Collaboration 🔮
-- Multi-user editing
-- Conflict resolution
-- Comments and suggestions
+### Phase 4: Execution Layer ✅
+- AI-generated Launch Plans from blueprints
+- Interactive Kanban board for task tracking
+- Feature-focused roadmap prioritization
+
+### Phase 5: Team Collaboration 🔮
+- Multi-user editing & conflict resolution
+- Shared project workspaces
+- Comments and suggestion mode
 
 ---
 

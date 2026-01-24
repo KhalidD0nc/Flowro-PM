@@ -4,6 +4,8 @@ import { useAuth } from "@/components/Providers"
 import { useRouter, useParams } from "next/navigation"
 import { useEffect, useState, useRef } from "react"
 import UBPViewer, { UBPContent } from "@/components/UBPViewer"
+import ShareProjectModal from "@/components/ShareProjectModal"
+import LaunchPlanViewer from "@/components/LaunchPlanViewer"
 
 interface Blueprint {
     id: string
@@ -41,6 +43,15 @@ interface ProposedChanges {
     summary: string
     sections: string[]
     changes: Record<string, unknown>
+}
+
+interface GenerateResult {
+    intent: Intent
+    message: string
+    content: unknown
+    proposedChanges?: ProposedChanges
+    rawContent: string
+    productName?: string
 }
 
 // Helper to detect if content is UBP JSON
@@ -100,7 +111,7 @@ function transformApiToUBP(apiData: any): UBPContent {
         id: b.id || "BH-01",
         title: b.title || b.systemResponse || "Behavior",
         priority: b.priority,
-        given: b.given || (b.trigger ? `User triggers: ${b.trigger}` : undefined),
+        given: b.given || (b.trigger ? `User triggers: ${b.trigger} ` : undefined),
         when: b.when || b.trigger,
         then: b.then || b.systemResponse,
         diagram: b.diagram || b.diagramCode
@@ -137,7 +148,7 @@ function transformApiToUBP(apiData: any): UBPContent {
 
     // Transform phases
     const phases = apiData.phases?.map((p: { phase?: string; name?: string; goal?: string; description?: string; outputs?: string[]; timeline?: string; status?: string }, i: number) => ({
-        name: p.name || p.phase || `Phase ${i + 1}`,
+        name: p.name || p.phase || `Phase ${i + 1} `,
         timeline: p.timeline,
         description: p.description || p.goal || (p.outputs ? p.outputs.join(", ") : ""),
         status: p.status || (i === 0 ? "current" : "upcoming") as "completed" | "current" | "upcoming"
@@ -276,10 +287,13 @@ export default function ChatPage() {
     const [isGenerating, setIsGenerating] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isUBPViewerOpen, setIsUBPViewerOpen] = useState(false)
+    const [isLaunchPlanOpen, setIsLaunchPlanOpen] = useState(false)
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false)
     const [currentUBP, setCurrentUBP] = useState<UBPContent | null>(null)
     const [isSaving, setIsSaving] = useState(false)
     const [allVersions, setAllVersions] = useState<Blueprint[]>([])
     const [selectedBlueprint, setSelectedBlueprint] = useState<Blueprint | null>(null)
+    const [selectionContext, setSelectionContext] = useState<{ section: string; text: string } | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     // Thinking states for animated loading indicator
@@ -385,7 +399,7 @@ export default function ChatPage() {
 
                 if (res.status === 429) {
                     // Rate limited - show retry time
-                    throw new Error(`⏳ ${errorMessage}`)
+                    throw new Error(`⏳ ${errorMessage} `)
                 } else if (data.retryable) {
                     throw new Error(`${errorMessage} Please try again.`)
                 } else {
@@ -527,6 +541,10 @@ export default function ChatPage() {
 
     const handleOpenUBP = () => {
         setIsUBPViewerOpen(true)
+    }
+
+    const handleOpenLaunchPlan = () => {
+        setIsLaunchPlanOpen(true)
     }
 
     // Apply proposed changes from a proposal message
@@ -690,6 +708,172 @@ export default function ChatPage() {
         }
     }
 
+    // Generic update function to save UBP to backend
+    const updateBlueprint = async (newContent: UBPContent) => {
+        if (!user || !project?.latestBlueprint?.id) return
+
+        setIsSaving(true)
+        try {
+            const token = await user.getIdToken()
+            const res = await fetch("/api/blueprints", {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    blueprintId: project.latestBlueprint.id,
+                    content: newContent,
+                }),
+            })
+
+            if (!res.ok) {
+                throw new Error("Failed to update blueprint")
+            }
+
+            // Update local state
+            setCurrentUBP(newContent)
+
+            // Update project's latest blueprint content in cache
+            setProject((prev) =>
+                prev && prev.latestBlueprint
+                    ? {
+                        ...prev,
+                        latestBlueprint: {
+                            ...prev.latestBlueprint,
+                            content: newContent
+                        }
+                    }
+                    : prev
+            )
+        } catch (err) {
+            console.error("Error updating blueprint:", err)
+            setError("Failed to save changes. Please try again.")
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    // Handle manual updates from UBPViewer
+    const handleUBPUpdate = async (newUBP: UBPContent) => {
+        await updateBlueprint(newUBP)
+    }
+
+    const handleEnhanceWithFlowro = (section: string, text: string) => {
+        setSelectionContext({ section, text })
+        setIsUBPViewerOpen(false)
+    }
+
+    const handleAIEdit = async (section: string, instruction: string, selection: string) => {
+        if (!user || !project) return
+
+        setIsGenerating(true)
+        setSelectionContext(null) // Clear context when starting
+
+        // Construct a focused prompt for the AI
+        const prompt = `I am editing the "${section}" section of the blueprint.
+        
+Current context(selected text): "${selection}"
+
+Instruction: ${instruction}
+
+Please update the "${section}" section of the blueprint accordingly.
+Return the updated blueprint JSON with the changes applied to that section.`
+
+        try {
+            const token = await user.getIdToken()
+
+            // Add user message to UI
+            const assistantMsgContent = `Edit ${section}: ${instruction} `
+            const userMessage: ChatMessage = {
+                role: "user",
+                content: assistantMsgContent,
+                timestamp: new Date().toISOString(),
+                // Keep context metadata for the bubble display
+                proposedChanges: {
+                    action: 'update',
+                    summary: selection, // We use summary to store the selected text for display
+                    sections: [section],
+                    changes: {}
+                }
+            }
+
+            setProject(prev => prev ? {
+                ...prev,
+                chatHistory: [...prev.chatHistory, userMessage]
+            } : prev)
+
+            const res = await fetch("/api/generate", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    message: prompt,
+                    projectId: project.id,
+                    context: project.chatHistory,
+                }),
+            })
+
+            if (!res.ok) {
+                throw new Error("AI generation failed")
+            }
+
+            const data: GenerateResult = await res.json()
+
+            // Update chat history with assistant response
+            const assistantMsg = {
+                role: "assistant" as const,
+                content: data.message,
+                // If it's a proposal and we auto-applied it, change intent to initial so the button disappears
+                intent: (data.intent === 'proposal') ? 'initial' as Intent : data.intent,
+                proposedChanges: data.proposedChanges,
+                timestamp: new Date().toISOString()
+            }
+
+            setProject(prev => prev ? {
+                ...prev,
+                chatHistory: [...prev.chatHistory, assistantMsg]
+            } : prev)
+
+            // Auto-apply logic
+            if (data.intent === 'proposal' && data.proposedChanges) {
+                if (!currentUBP) return
+                const updatedUBP = { ...currentUBP }
+                if (data.proposedChanges.changes) {
+                    Object.entries(data.proposedChanges.changes).forEach(([key, value]) => {
+                        if (key in updatedUBP) {
+                            if (Array.isArray(value) && Array.isArray((updatedUBP as Record<string, unknown>)[key])) {
+                                (updatedUBP as Record<string, unknown>)[key] = value
+                            } else if (typeof value === 'object' && value !== null) {
+                                (updatedUBP as Record<string, unknown>)[key] = {
+                                    ...((updatedUBP as Record<string, unknown>)[key] as object),
+                                    ...(value as object)
+                                }
+                            } else {
+                                (updatedUBP as Record<string, unknown>)[key] = value
+                            }
+                        } else {
+                            (updatedUBP as Record<string, unknown>)[key] = value
+                        }
+                    })
+                }
+                await updateBlueprint(updatedUBP)
+            }
+
+            setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+            }, 100)
+
+        } catch (err) {
+            console.error("Error in AI edit:", err)
+            setError("Failed to perform AI edit. Please try again.")
+        } finally {
+            setIsGenerating(false)
+        }
+    }
+
     if (loading || loadingProject) {
         return (
             <div className="min-h-screen bg-[#101922] flex items-center justify-center">
@@ -757,6 +941,14 @@ export default function ChatPage() {
                     </div>
                 </div>
                 <div className="relative flex items-center gap-3">
+                    {/* Launch Plan button */}
+                    <button
+                        onClick={handleOpenLaunchPlan}
+                        className="group flex items-center gap-2.5 bg-gradient-to-r from-[#10b981]/10 to-[#10b981]/5 hover:from-[#10b981]/20 hover:to-[#10b981]/10 border border-[#10b981]/20 hover:border-[#10b981]/40 text-white font-medium py-2.5 px-4 rounded-xl transition-all hover:shadow-lg hover:shadow-[#10b981]/10"
+                    >
+                        <span className="material-symbols-outlined text-[18px] text-[#10b981] group-hover:scale-110 transition-transform">rocket_launch</span>
+                        <span className="hidden sm:inline">Launch Plan</span>
+                    </button>
                     {/* Blueprint button - Premium style */}
                     <button
                         onClick={handleOpenUBP}
@@ -769,6 +961,14 @@ export default function ChatPage() {
                                 v{project.latestBlueprint.version}
                             </span>
                         )}
+                    </button>
+                    {/* Share button */}
+                    <button
+                        onClick={() => setIsShareModalOpen(true)}
+                        className="flex items-center justify-center rounded-xl p-2.5 text-[#9dabb9] transition-all hover:bg-white/5 hover:text-white hover:scale-105"
+                        title="Share Project"
+                    >
+                        <span className="material-symbols-outlined">share</span>
                     </button>
                 </div>
             </header>
@@ -836,22 +1036,28 @@ export default function ChatPage() {
                             return (
                                 <div
                                     key={index}
-                                    className={`flex ${isUser ? "justify-end" : "justify-start"} ${isUser ? "animate-slide-in-right" : "animate-slide-in-left"}`}
+                                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                                 >
-                                    {/* AI Avatar */}
-                                    {!isUser && (
-                                        <div className="flex-shrink-0 mr-3 mt-1">
-                                            <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#137fec]/30 to-[#137fec]/10">
-                                                <img src="/logo.png" alt="Flowro" className="w-5 h-5" />
-                                            </div>
-                                        </div>
-                                    )}
                                     <div
                                         className={`max-w-[75%] rounded-2xl px-4 py-3 ${isUser
-                                            ? "user-message-gradient text-white"
-                                            : "glass-message text-white"
+                                            ? "bg-[#137fec] text-white"
+                                            : "bg-[#18212b] border border-[#283039] text-white"
                                             }`}
                                     >
+                                        {/* Context Block for User Context Messages */}
+                                        {isUser && msg.proposedChanges && (
+                                            <div className="mb-2 p-2.5 bg-white/5 backdrop-blur-md border border-white/10 rounded-xl text-xs flex items-center gap-3">
+                                                <div className="flex size-6 items-center justify-center rounded-lg bg-[#137fec]/20 border border-[#137fec]/30 shadow-sm">
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#137fec]">
+                                                        <path d="M12 3V4M12 20V21M4 12H3M21 12H20M18.364 5.636L17.6569 6.34315M6.34315 17.6569L5.63604 18.364M18.364 18.364L17.6569 17.6569M6.34315 6.34315L5.63604 5.636M12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                    </svg>
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[#137fec]/80 font-bold uppercase tracking-[0.05em] text-[9px] leading-tight">AI Enhancement</span>
+                                                    <span className="text-white/90 font-medium">Applied to {msg.proposedChanges.sections[0]}</span>
+                                                </div>
+                                            </div>
+                                        )}
                                         <p className="whitespace-pre-wrap leading-relaxed">{displayInfo.text}</p>
 
                                         {/* Proposal preview - show what will be changed */}
@@ -891,9 +1097,6 @@ export default function ChatPage() {
                                             </button>
                                         )}
 
-                                        <p className={`text-xs mt-2 ${isUser ? "text-blue-200" : "text-[#9dabb9]"}`}>
-                                            {new Date(msg.timestamp).toLocaleTimeString()}
-                                        </p>
                                     </div>
                                 </div>
                             )
@@ -901,22 +1104,11 @@ export default function ChatPage() {
                     )}
 
                     {isGenerating && (
-                        <div className="flex justify-start animate-slide-in-left">
-                            {/* AI Avatar */}
-                            <div className="flex-shrink-0 mr-3 mt-1">
-                                <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#137fec]/30 to-[#137fec]/10">
-                                    <img src="/logo.png" alt="Flowro" className="w-5 h-5" />
-                                </div>
-                            </div>
-                            <div className="glass-message rounded-2xl px-5 py-4">
+                        <div className="flex justify-start">
+                            <div className="bg-[#18212b] border border-[#283039] rounded-2xl px-4 py-3">
                                 <div className="flex items-center gap-3">
-                                    {/* Typing indicator dots */}
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="typing-dot w-2 h-2 bg-[#137fec] rounded-full"></div>
-                                        <div className="typing-dot w-2 h-2 bg-[#137fec] rounded-full"></div>
-                                        <div className="typing-dot w-2 h-2 bg-[#137fec] rounded-full"></div>
-                                    </div>
-                                    <span className="text-[#9dabb9] text-sm ml-1">
+                                    <span className="material-symbols-outlined text-[#137fec] animate-spin">hourglass_top</span>
+                                    <span className="text-[#9dabb9] text-sm">
                                         {thinkingMessages[thinkingPhase]}
                                     </span>
                                 </div>
@@ -926,11 +1118,11 @@ export default function ChatPage() {
 
                     {/* Hourglass flip animation */}
                     <style jsx>{`
-                        @keyframes hourglass-flip {
-                            0%, 100% { transform: rotate(0deg); }
-                            50% { transform: rotate(180deg); }
-                        }
-                    `}</style>
+@keyframes hourglass - flip {
+    0 %, 100 % { transform: rotate(0deg); }
+    50 % { transform: rotate(180deg); }
+}
+`}</style>
 
                     <div ref={messagesEndRef} />
                 </div>
@@ -941,7 +1133,41 @@ export default function ChatPage() {
                 {/* Top gradient fade */}
                 <div className="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-[#101922] to-transparent pointer-events-none" />
 
-                <form onSubmit={handleSendMessage} className="mx-auto max-w-4xl">
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (selectionContext) {
+                        handleAIEdit(selectionContext.section, message, selectionContext.text);
+                        setMessage("");
+                    } else {
+                        handleSendMessage(e);
+                    }
+                }} className="mx-auto max-w-4xl">
+                    {/* Context Block above input */}
+                    {selectionContext && (
+                        <div className="mb-3 mx-1 p-3 bg-gradient-to-r from-[#137fec]/10 to-transparent border border-[#137fec]/20 rounded-2xl animate-in slide-in-from-bottom-2 fade-in duration-300 backdrop-blur-xl">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex size-8 items-center justify-center rounded-xl bg-[#137fec]/20 border border-[#137fec]/30 shadow-lg">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#137fec]">
+                                            <path d="M12 3V4M12 20V21M4 12H3M21 12H20M18.364 5.636L17.6569 6.34315M6.34315 17.6569L5.63604 18.364M18.364 18.364L17.6569 17.6569M6.34315 6.34315L5.63604 5.636M12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[#137fec] font-bold text-[10px] uppercase tracking-[0.15em] leading-none mb-1">Enhancement Mode</span>
+                                        <span className="text-white font-medium text-sm">Target: {selectionContext.section}</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setSelectionContext(null)}
+                                    className="flex size-8 items-center justify-center rounded-lg text-[#9dabb9] hover:text-white hover:bg-white/10 transition-all active:scale-90"
+                                    title="Cancel"
+                                >
+                                    <span className="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Floating card container */}
                     <div className="relative rounded-2xl bg-gradient-to-r from-[#18212b] via-[#1a252f] to-[#18212b] border border-[#283039]/50 shadow-2xl shadow-black/30 p-1.5">
                         {/* Inner glow border */}
@@ -958,7 +1184,7 @@ export default function ChatPage() {
                                             handleSendMessage(e)
                                         }
                                     }}
-                                    placeholder={project.chatHistory.length > 0 ? "Ask me anything..." : "Describe your product idea or ask me anything..."}
+                                    placeholder={selectionContext ? `Describe how to change this...` : (project.chatHistory.length > 0 ? "Ask me anything..." : "Describe your product idea or ask me anything...")}
                                     rows={1}
                                     className="w-full rounded-xl bg-transparent px-4 py-3 text-base text-white placeholder-[#9dabb9]/50 focus:outline-none resize-none min-h-[48px] max-h-[200px]"
                                     disabled={isGenerating}
@@ -1018,6 +1244,27 @@ export default function ChatPage() {
                 onVersionSelect={handleVersionSelect}
                 currentBlueprintId={selectedBlueprint?.id || project.latestBlueprint?.id}
                 projectId={projectId}
+                onUpdate={handleUBPUpdate}
+                onEnhance={handleEnhanceWithFlowro}
+            />
+
+            <LaunchPlanViewer
+                isOpen={isLaunchPlanOpen}
+                onClose={() => setIsLaunchPlanOpen(false)}
+                projectId={projectId}
+                projectName={project?.projectName || "Project"}
+            />
+
+            {/* Share Modal */}
+            <ShareProjectModal
+                isOpen={isShareModalOpen}
+                projectId={projectId}
+                projectName={project.projectName}
+                onClose={() => setIsShareModalOpen(false)}
+                getToken={async () => {
+                    if (!user) throw new Error("Not authenticated")
+                    return user.getIdToken()
+                }}
             />
         </div>
     )
