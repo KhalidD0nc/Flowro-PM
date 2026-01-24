@@ -127,7 +127,7 @@ export const LaunchPlanSchema = z.object({
 
 function createModel() {
     return new ChatOpenAI({
-        modelName: process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat",
+        modelName: process.env.OPENROUTER_MODEL || "deepseek/deepseek-v3.2",
         temperature: 0.7,
         maxTokens: 4000,
         configuration: {
@@ -182,14 +182,19 @@ The user has confirmed they want changes. Generate a proposal with:
 
 const LAUNCH_PLAN_SYSTEM_PROMPT = `You are Flowro AI generating a Product Launch Plan from a UBP.
 
-Analyze the UBP and create launch milestones covering:
-1. Planning phase tasks (research, planning, setup)
-2. Development milestones (aligned with UBP phases)
-3. Marketing tasks (positioning, content, outreach)
-4. Launch tasks (deployment, monitoring, announcements)
-5. Post-launch (feedback, iteration, metrics)
+Analyze the UBP and create a high-level Product Roadmap for the founder to track progress.
+The goal is to prevent confusion by focusing on user-facing features and milestones, NOT technical implementation details.
 
-Create 8-15 actionable milestones with clear priorities.`
+DO NOT create technical tasks like "Setup database", "Configure API", or "Install dependencies".
+CREATE feature-focused stories like "User Login Flow", "Credit Card Payments", "Dashboard Analytics View", "Email Notifications".
+
+Create 8-12 actionable product milestones covering:
+1. Core Features (MVP functionality)
+2. User Experience (Onboarding, settings, flows)
+3. Monetization (Billing, plans - if applicable)
+4. Launch Activities (Beta access, public release)
+
+Assign each task a priority and categorization.`
 
 // =============================================================================
 // Intent Detection

@@ -283,29 +283,36 @@ export interface LaunchPlanResult {
     tasks: LaunchPlanTask[]
 }
 
-const LAUNCH_PLAN_PROMPT = `You are a product launch planning assistant. Given a product blueprint (UBP), generate a comprehensive launch plan with actionable tasks.
+const LAUNCH_PLAN_PROMPT = `You are a product launch planning assistant. Given a product blueprint (UBP), generate a comprehensive, GRANULAR launch plan with high-value implementation tasks.
 
-Analyze the blueprint and create tasks organized by these categories:
-- planning: Strategy, research, and preparation tasks
-- development: Technical implementation tasks
-- marketing: Promotion, content, and outreach tasks
-- launch: Launch day activities
-- post-launch: Follow-up, monitoring, and iteration tasks
+Analyze the blueprint's scope, behaviors, and technical requirements. Create a list of specific, actionable tasks.
+Avoid generic tasks like "Plan launch" or "Develop features". Be specific, e.g., "Implement User Authentication using NextAuth" or "Design Landing Page Hero Section".
+
+Organize tasks into these categories:
+- planning: Detailed specs, schema design, and architecture decisions
+- development: Specific coding tasks, component implementation, API endpoints
+- marketing: Specific content creation, asset preparation (only if relevant)
+- launch: Deployment config, environment setup, final verification
+- post-launch: Analytics setup, error tracking
 
 For each task, provide:
-- title: Brief, actionable title (2-6 words)
-- description: Clear description of what needs to be done (1-2 sentences)
-- category: One of the categories above
-- priority: low, medium, high, or critical
-- phase: Which phase of the product this relates to
+- title: SELF-EXPLANATORY title (4-8 words). The user should know exactly what to do just by reading the title.
+- description: Optional technical details or acceptance criteria. Keep it short.
+- category: One of the categories above.
+- priority: low, medium, high, or critical.
+- phase: "Phase 1: Foundation", "Phase 2: Core Features", etc.
+
+IMPORTANT RULES:
+1. Generate 12-20 tasks.
+2. Focus heavily on "development" and "planning" phases.
+3. NO FILLER TASKS. Every task must be impactful.
+4. Titles must be declarative and specific (e.g., "Create database schema for Users" instead of "Database setup").
 
 Return a JSON object with:
 {
   "summary": "Brief summary of the launch plan",
   "tasks": [array of task objects]
-}
-
-Generate 8-15 relevant tasks based on the blueprint's scope and phases.`
+}`
 
 /**
  * Generates a launch plan with tasks from a UBP
