@@ -45,6 +45,10 @@ export default function CreateProjectModal({
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape" && isOpen && !isLoading) {
+                setPrompt("")
+                setError(null)
+                setIsLoading(false)
+                setLoadingPhase(0)
                 onClose()
             }
         }
@@ -53,27 +57,23 @@ export default function CreateProjectModal({
         return () => document.removeEventListener("keydown", handleKeyDown)
     }, [isOpen, isLoading, onClose])
 
-    // Reset form when modal closes
-    useEffect(() => {
-        if (!isOpen) {
-            setPrompt("")
-            setError(null)
-            setIsLoading(false)
-            setLoadingPhase(0)
-        }
-    }, [isOpen])
-
     // Cycle through loading phases
     useEffect(() => {
-        if (!isLoading) {
-            setLoadingPhase(0)
-            return
-        }
+        if (!isLoading) return
+
         const timer = setInterval(() => {
             setLoadingPhase(p => Math.min(p + 1, loadingPhases.length - 1))
         }, 2000)
         return () => clearInterval(timer)
     }, [isLoading])
+
+    const handleCloseWrapper = () => {
+        setPrompt("")
+        setError(null)
+        setIsLoading(false)
+        setLoadingPhase(0)
+        onClose()
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -94,6 +94,7 @@ export default function CreateProjectModal({
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to create project")
             setIsLoading(false)
+            setLoadingPhase(0)
         }
     }
 
@@ -114,7 +115,7 @@ export default function CreateProjectModal({
 
     const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (e.target === e.currentTarget && !isLoading) {
-            onClose()
+            handleCloseWrapper()
         }
     }
 
@@ -136,7 +137,7 @@ export default function CreateProjectModal({
             >
                 {/* Close button */}
                 <button
-                    onClick={onClose}
+                    onClick={handleCloseWrapper}
                     disabled={isLoading}
                     className="absolute top-4 right-4 rounded-lg p-2 text-[#9dabb9] transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label="Close modal"
@@ -216,8 +217,8 @@ export default function CreateProjectModal({
                                     <div
                                         key={index}
                                         className={`h-1.5 rounded-full transition-all duration-300 ${index <= loadingPhase
-                                                ? "w-6 bg-[#137fec]"
-                                                : "w-1.5 bg-[#283039]"
+                                            ? "w-6 bg-[#137fec]"
+                                            : "w-1.5 bg-[#283039]"
                                             }`}
                                     />
                                 ))}
@@ -245,7 +246,7 @@ export default function CreateProjectModal({
                         <div className="flex items-center gap-3 ml-auto">
                             <button
                                 type="button"
-                                onClick={onClose}
+                                onClick={handleCloseWrapper}
                                 disabled={isLoading}
                                 className="h-10 cursor-pointer rounded-lg border border-[#283039] bg-transparent px-5 text-sm font-medium text-[#9dabb9] transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                             >

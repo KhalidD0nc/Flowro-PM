@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { UBPContent } from "./UBPViewer"
 
 interface UBPEditModalProps {
@@ -11,25 +12,24 @@ interface UBPEditModalProps {
     onSave: (section: string, newData: any) => void
 }
 
-export default function UBPEditModal({
-    isOpen,
+export default function UBPEditModal(props: UBPEditModalProps) {
+    if (!props.isOpen) return null
+    return <UBPEditModalContent key={props.section} {...props} />
+}
+
+function UBPEditModalContent({
     onClose,
     section,
     data,
     onSave,
 }: UBPEditModalProps) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [formData, setFormData] = useState<any>(data)
-
-    useEffect(() => {
-        setFormData(data)
-    }, [data, isOpen])
 
     const handleSave = () => {
         onSave(section, formData)
         onClose()
     }
-
-    if (!isOpen) return null
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">

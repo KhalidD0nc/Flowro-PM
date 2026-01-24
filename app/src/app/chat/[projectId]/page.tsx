@@ -741,7 +741,7 @@ export default function ChatPage() {
                         ...prev,
                         latestBlueprint: {
                             ...prev.latestBlueprint,
-                            content: newContent as any
+                            content: newContent
                         }
                     }
                     : prev

@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        let { projectName, description, initialPrompt } = body
+        const { description, initialPrompt } = body
+        let { projectName } = body
 
         if (!projectName) {
             // Generate a clean default name - AI will suggest a proper name in its first response

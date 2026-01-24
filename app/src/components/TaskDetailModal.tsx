@@ -34,19 +34,24 @@ const statusOptions = [
     { value: "launched", label: "Launched", color: "#10b981", icon: "check_circle" },
 ]
 
-export default function TaskDetailModal({
-    isOpen,
+export default function TaskDetailModal(props: TaskDetailModalProps) {
+    if (!props.isOpen) return null
+    return <TaskDetailContent key={props.task ? props.task.id : 'new'} {...props} />
+}
+
+function TaskDetailContent({
+    isOpen, // Kept for interface compatibility but effectively always true here
     task,
     defaultStatus = "planning",
     onClose,
     onSave,
     onDelete,
 }: TaskDetailModalProps) {
-    const [title, setTitle] = useState("")
-    const [description, setDescription] = useState("")
-    const [status, setStatus] = useState(defaultStatus)
-    const [priority, setPriority] = useState<TaskFormData["priority"]>("medium")
-    const [showDetails, setShowDetails] = useState(false)
+    const [title, setTitle] = useState(task?.title || "")
+    const [description, setDescription] = useState(task?.description || "")
+    const [status, setStatus] = useState(task?.status || defaultStatus)
+    const [priority, setPriority] = useState<TaskFormData["priority"]>(task?.priority || "medium")
+    const [showDetails, setShowDetails] = useState(!!task)
     const [isLoading, setIsLoading] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -56,41 +61,22 @@ export default function TaskDetailModal({
 
     const isEditing = !!task
 
-    // Reset form when modal opens/closes or task changes
+    // Focus title input on mount
     useEffect(() => {
-        if (isOpen) {
-            if (task) {
-                setTitle(task.title)
-                setDescription(task.description || "")
-                setStatus(task.status)
-                setPriority(task.priority)
-                setShowDetails(true) // Show details when editing
-            } else {
-                setTitle("")
-                setDescription("")
-                setStatus(defaultStatus)
-                setPriority("medium")
-                setShowDetails(false)
-            }
-            setError(null)
-            setIsLoading(false)
-            setIsDeleting(false)
-            // Focus title input after a brief delay
-            setTimeout(() => titleInputRef.current?.focus(), 100)
-        }
-    }, [isOpen, task, defaultStatus])
+        setTimeout(() => titleInputRef.current?.focus(), 100)
+    }, [])
 
     // Handle ESC key to close modal
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && isOpen && !isLoading && !isDeleting) {
+            if (e.key === "Escape" && !isLoading && !isDeleting) {
                 onClose()
             }
         }
 
         document.addEventListener("keydown", handleKeyDown)
         return () => document.removeEventListener("keydown", handleKeyDown)
-    }, [isOpen, isLoading, isDeleting, onClose])
+    }, [isLoading, isDeleting, onClose])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -273,11 +259,10 @@ export default function TaskDetailModal({
                                             key={opt.value}
                                             type="button"
                                             onClick={() => setStatus(opt.value)}
-                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                                                status === opt.value
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${status === opt.value
                                                     ? "bg-white/10 text-white ring-1 ring-white/20"
                                                     : "bg-[#101922] text-[#9dabb9] hover:bg-white/5 hover:text-white"
-                                            }`}
+                                                }`}
                                             disabled={isLoading}
                                         >
                                             <span
@@ -301,11 +286,10 @@ export default function TaskDetailModal({
                                             key={opt.value}
                                             type="button"
                                             onClick={() => setPriority(opt.value as TaskFormData["priority"])}
-                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                                                priority === opt.value
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${priority === opt.value
                                                     ? "bg-white/10 text-white ring-1 ring-white/20"
                                                     : "bg-[#101922] text-[#9dabb9] hover:bg-white/5 hover:text-white"
-                                            }`}
+                                                }`}
                                             disabled={isLoading}
                                         >
                                             <div className={`w-2 h-2 rounded-full ${opt.color}`} />

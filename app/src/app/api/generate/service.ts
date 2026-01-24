@@ -334,7 +334,7 @@ export async function generateLaunchPlan(ubpContent: unknown): Promise<LaunchPla
         throw new Error("No response from LLM")
     }
 
-    let rawContent = choice.content || choice.reasoning || ""
+    const rawContent = choice.content || choice.reasoning || ""
 
     // Try to parse as JSON
     let parsed: LaunchPlanResult
