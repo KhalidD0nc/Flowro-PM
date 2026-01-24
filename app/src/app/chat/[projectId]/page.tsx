@@ -289,6 +289,7 @@ export default function ChatPage() {
     const [isSaving, setIsSaving] = useState(false)
     const [allVersions, setAllVersions] = useState<Blueprint[]>([])
     const [selectedBlueprint, setSelectedBlueprint] = useState<Blueprint | null>(null)
+    const [selectionContext, setSelectionContext] = useState<{ section: string; text: string } | null>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     // Thinking states for animated loading indicator
@@ -750,11 +751,16 @@ export default function ChatPage() {
         await updateBlueprint(newUBP)
     }
 
-    // Handle AI-assisted edits from UBPViewer
+    const handleEnhanceWithFlowro = (section: string, text: string) => {
+        setSelectionContext({ section, text })
+        setIsUBPViewerOpen(false)
+    }
+
     const handleAIEdit = async (section: string, instruction: string, selection: string) => {
         if (!user || !project) return
 
-        setIsSaving(true)
+        setIsGenerating(true)
+        setSelectionContext(null) // Clear context when starting
 
         // Construct a focused prompt for the AI
         const prompt = `I am editing the "${section}" section of the blueprint.
@@ -767,20 +773,26 @@ Please update the "${section}" section of the blueprint accordingly.
 Return the updated blueprint JSON with the changes applied to that section.`
 
         try {
-            // Re-use generateResponse essentially, but we want to auto-apply the result
-            // We'll call the API directly to get the response, then apply it
             const token = await user.getIdToken()
 
-            // Add user message to UI optimistically
-            const tempUserMsg = {
-                role: "user" as const,
-                content: `Edit ${section}: ${instruction} `,
-                timestamp: new Date().toISOString()
+            // Add user message to UI
+            const assistantMsgContent = `Edit ${section}: ${instruction} `
+            const userMessage: ChatMessage = {
+                role: "user",
+                content: assistantMsgContent,
+                timestamp: new Date().toISOString(),
+                // Keep context metadata for the bubble display
+                proposedChanges: {
+                    action: 'update',
+                    summary: selection, // We use summary to store the selected text for display
+                    sections: [section],
+                    changes: {}
+                }
             }
 
             setProject(prev => prev ? {
                 ...prev,
-                chatHistory: [...prev.chatHistory, tempUserMsg]
+                chatHistory: [...prev.chatHistory, userMessage]
             } : prev)
 
             const res = await fetch("/api/generate", {
@@ -792,7 +804,6 @@ Return the updated blueprint JSON with the changes applied to that section.`
                 body: JSON.stringify({
                     message: prompt,
                     projectId: project.id,
-                    // We send context so it knows what it's editing
                     context: project.chatHistory,
                 }),
             })
@@ -807,7 +818,8 @@ Return the updated blueprint JSON with the changes applied to that section.`
             const assistantMsg = {
                 role: "assistant" as const,
                 content: data.message,
-                intent: data.intent,
+                // If it's a proposal and we auto-applied it, change intent to initial so the button disappears
+                intent: (data.intent === 'proposal') ? 'initial' as Intent : data.intent,
                 proposedChanges: data.proposedChanges,
                 timestamp: new Date().toISOString()
             }
@@ -818,18 +830,8 @@ Return the updated blueprint JSON with the changes applied to that section.`
             } : prev)
 
             // Auto-apply logic
-            if (data.intent === 'initial' && data.content) {
-                // It returned a full UBP, use it
-                // We need to transform it first just in case
-                const newUBP = transformApiToUBP(data.content)
-                await updateBlueprint(newUBP)
-            } else if (data.intent === 'proposal' && data.proposedChanges) {
-                // It returned proposed changes, let's treat it as a "Apply" immediately for this flow
-                // Re-use logic from handleApplyProposedChanges but adapting it since we don't have msg index yet really, 
-                // but actually we can just manually apply the changes to currentUBP
-
+            if (data.intent === 'proposal' && data.proposedChanges) {
                 if (!currentUBP) return
-
                 const updatedUBP = { ...currentUBP }
                 if (data.proposedChanges.changes) {
                     Object.entries(data.proposedChanges.changes).forEach(([key, value]) => {
@@ -849,11 +851,9 @@ Return the updated blueprint JSON with the changes applied to that section.`
                         }
                     })
                 }
-
                 await updateBlueprint(updatedUBP)
             }
 
-            // Scroll to bottom of chat
             setTimeout(() => {
                 messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
             }, 100)
@@ -862,7 +862,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
             console.error("Error in AI edit:", err)
             setError("Failed to perform AI edit. Please try again.")
         } finally {
-            setIsSaving(false)
+            setIsGenerating(false)
         }
     }
 
@@ -1020,6 +1020,20 @@ Return the updated blueprint JSON with the changes applied to that section.`
                                             : "bg-[#18212b] border border-[#283039] text-white"
                                             }`}
                                     >
+                                        {/* Context Block for User Context Messages */}
+                                        {isUser && msg.proposedChanges && (
+                                            <div className="mb-2 p-2.5 bg-white/5 backdrop-blur-md border border-white/10 rounded-xl text-xs flex items-center gap-3">
+                                                <div className="flex size-6 items-center justify-center rounded-lg bg-[#137fec]/20 border border-[#137fec]/30 shadow-sm">
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#137fec]">
+                                                        <path d="M12 3V4M12 20V21M4 12H3M21 12H20M18.364 5.636L17.6569 6.34315M6.34315 17.6569L5.63604 18.364M18.364 18.364L17.6569 17.6569M6.34315 6.34315L5.63604 5.636M12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                    </svg>
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[#137fec]/80 font-bold uppercase tracking-[0.05em] text-[9px] leading-tight">AI Enhancement</span>
+                                                    <span className="text-white/90 font-medium">Applied to {msg.proposedChanges.sections[0]}</span>
+                                                </div>
+                                            </div>
+                                        )}
                                         <p className="whitespace-pre-wrap leading-relaxed">{displayInfo.text}</p>
 
                                         {/* Proposal preview - show what will be changed */}
@@ -1095,7 +1109,41 @@ Return the updated blueprint JSON with the changes applied to that section.`
                 {/* Top gradient fade */}
                 <div className="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-[#101922] to-transparent pointer-events-none" />
 
-                <form onSubmit={handleSendMessage} className="mx-auto max-w-4xl">
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (selectionContext) {
+                        handleAIEdit(selectionContext.section, message, selectionContext.text);
+                        setMessage("");
+                    } else {
+                        handleSendMessage(e);
+                    }
+                }} className="mx-auto max-w-4xl">
+                    {/* Context Block above input */}
+                    {selectionContext && (
+                        <div className="mb-3 mx-1 p-3 bg-gradient-to-r from-[#137fec]/10 to-transparent border border-[#137fec]/20 rounded-2xl animate-in slide-in-from-bottom-2 fade-in duration-300 backdrop-blur-xl">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex size-8 items-center justify-center rounded-xl bg-[#137fec]/20 border border-[#137fec]/30 shadow-lg">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#137fec]">
+                                            <path d="M12 3V4M12 20V21M4 12H3M21 12H20M18.364 5.636L17.6569 6.34315M6.34315 17.6569L5.63604 18.364M18.364 18.364L17.6569 17.6569M6.34315 6.34315L5.63604 5.636M12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[#137fec] font-bold text-[10px] uppercase tracking-[0.15em] leading-none mb-1">Enhancement Mode</span>
+                                        <span className="text-white font-medium text-sm">Target: {selectionContext.section}</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setSelectionContext(null)}
+                                    className="flex size-8 items-center justify-center rounded-lg text-[#9dabb9] hover:text-white hover:bg-white/10 transition-all active:scale-90"
+                                    title="Cancel"
+                                >
+                                    <span className="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Floating card container */}
                     <div className="relative rounded-2xl bg-gradient-to-r from-[#18212b] via-[#1a252f] to-[#18212b] border border-[#283039]/50 shadow-2xl shadow-black/30 p-1.5">
                         {/* Inner glow border */}
@@ -1112,7 +1160,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
                                             handleSendMessage(e)
                                         }
                                     }}
-                                    placeholder={project.chatHistory.length > 0 ? "Ask me anything..." : "Describe your product idea or ask me anything..."}
+                                    placeholder={selectionContext ? `Describe how to change this...` : (project.chatHistory.length > 0 ? "Ask me anything..." : "Describe your product idea or ask me anything...")}
                                     rows={1}
                                     className="w-full rounded-xl bg-transparent px-4 py-3 text-base text-white placeholder-[#9dabb9]/50 focus:outline-none resize-none min-h-[48px] max-h-[200px]"
                                     disabled={isGenerating}
@@ -1173,7 +1221,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
                 currentBlueprintId={selectedBlueprint?.id || project.latestBlueprint?.id}
                 projectId={projectId}
                 onUpdate={handleUBPUpdate}
-                onAIEdit={handleAIEdit}
+                onEnhance={handleEnhanceWithFlowro}
             />
         </div>
     )
