@@ -108,7 +108,7 @@ interface UBPViewerProps {
     projectId?: string // For share functionality
     readOnly?: boolean // Public view mode (no editing, shows viral CTA)
     onUpdate?: (newUBP: UBPContent) => Promise<void>
-    onAIEdit?: (section: string, instruction: string, selection: string) => Promise<void>
+    onEnhance?: (section: string, selection: string) => void
 }
 
 // Section navigation items
@@ -143,7 +143,7 @@ export default function UBPViewer({
     projectId,
     readOnly = false,
     onUpdate,
-    onAIEdit,
+    onEnhance,
 }: UBPViewerProps) {
     const mermaidRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -235,9 +235,9 @@ export default function UBPViewer({
         onUpdate(newUBP)
     }
 
-    const handleAIEditSubmit = async (instruction: string) => {
-        if (!selectionInfo || !onAIEdit) return
-        await onAIEdit(selectionInfo.section, instruction, selectionInfo.text)
+    const handleEnhance = () => {
+        if (!selectionInfo || !onEnhance) return
+        onEnhance(selectionInfo.section, selectionInfo.text)
         clearSelection()
     }
 
@@ -830,12 +830,12 @@ export default function UBPViewer({
             )}
 
             {/* AI Floating Menu */}
-            {selectionInfo && !readOnly && onAIEdit && (
+            {selectionInfo && (
                 <AIFloatingMenu
                     position={selectionInfo.position}
                     selectedText={selectionInfo.text}
                     onClose={clearSelection}
-                    onSubmit={handleAIEditSubmit}
+                    onEnhance={handleEnhance}
                 />
             )}
 
