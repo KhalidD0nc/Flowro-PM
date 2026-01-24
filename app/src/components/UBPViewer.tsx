@@ -109,6 +109,7 @@ interface UBPViewerProps {
     readOnly?: boolean // Public view mode (no editing, shows viral CTA)
     onUpdate?: (newUBP: UBPContent) => Promise<void>
     onEnhance?: (section: string, selection: string) => void
+    onAIEdit?: (section: string, instruction: string, selection: string) => Promise<void>
 }
 
 // Section navigation items
@@ -144,6 +145,7 @@ export default function UBPViewer({
     readOnly = false,
     onUpdate,
     onEnhance,
+    onAIEdit,
 }: UBPViewerProps) {
     const mermaidRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -836,6 +838,10 @@ export default function UBPViewer({
                     selectedText={selectionInfo.text}
                     onClose={clearSelection}
                     onEnhance={handleEnhance}
+                    onAIEdit={onAIEdit ? (instruction) => {
+                        onAIEdit(selectionInfo.section, instruction, selectionInfo.text)
+                        clearSelection()
+                    } : undefined}
                 />
             )}
 
