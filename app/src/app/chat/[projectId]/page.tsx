@@ -607,6 +607,48 @@ export default function ChatPage() {
         }
     }
 
+    // Handle manual UBP updates from UBPViewer
+    const handleUBPUpdate = async (newUBP: UBPContent) => {
+        if (!user || !project?.latestBlueprint?.id) return
+
+        setIsSaving(true)
+        try {
+            const token = await user.getIdToken()
+            const res = await fetch("/api/blueprints", {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    blueprintId: project.latestBlueprint.id,
+                    content: newUBP,
+                }),
+            })
+
+            if (!res.ok) {
+                throw new Error("Failed to update blueprint")
+            }
+
+            // Update local state
+            setCurrentUBP(newUBP)
+        } catch (err) {
+            console.error("Error updating blueprint:", err)
+            setError("Failed to save changes. Please try again.")
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
+    // Handle AI-assisted edits from UBPViewer selection
+    const handleEnhance = (section: string, selection: string) => {
+        // Build a message for the AI to enhance this section
+        const prompt = `Please improve/enhance the "${section}" section of my blueprint. Here's the selected content to focus on: "${selection}"`
+        setMessage(prompt)
+        setIsUBPViewerOpen(false)
+        // User can review and send the message
+    }
+
     const handleSaveVersion = async () => {
         if (!user || !project?.latestBlueprint?.id) return
 
@@ -1018,6 +1060,8 @@ export default function ChatPage() {
                 onVersionSelect={handleVersionSelect}
                 currentBlueprintId={selectedBlueprint?.id || project.latestBlueprint?.id}
                 projectId={projectId}
+                onUpdate={handleUBPUpdate}
+                onEnhance={handleEnhance}
             />
         </div>
     )
