@@ -265,3 +265,109 @@ export async function generateFromMessage(input: GenerateInput): Promise<Generat
     const messages = buildMessages(input)
     return callLLM(messages)
 }
+
+// =============================================================================
+// Launch Plan Generation
+// =============================================================================
+
+export interface LaunchPlanTask {
+    title: string
+    description: string
+    category: "planning" | "development" | "marketing" | "launch" | "post-launch"
+    priority: "low" | "medium" | "high" | "critical"
+    phase: string
+}
+
+export interface LaunchPlanResult {
+    summary: string
+    tasks: LaunchPlanTask[]
+}
+
+const LAUNCH_PLAN_PROMPT = `You are a product launch planning assistant. Given a product blueprint (UBP), generate a comprehensive, GRANULAR launch plan with high-value implementation tasks.
+
+Analyze the blueprint's scope, behaviors, and technical requirements. Create a list of specific, actionable tasks.
+Avoid generic tasks like "Plan launch" or "Develop features". Be specific, e.g., "Implement User Authentication using NextAuth" or "Design Landing Page Hero Section".
+
+Organize tasks into these categories:
+- planning: Detailed specs, schema design, and architecture decisions
+- development: Specific coding tasks, component implementation, API endpoints
+- marketing: Specific content creation, asset preparation (only if relevant)
+- launch: Deployment config, environment setup, final verification
+- post-launch: Analytics setup, error tracking
+
+For each task, provide:
+- title: SELF-EXPLANATORY title (4-8 words). The user should know exactly what to do just by reading the title.
+- description: Optional technical details or acceptance criteria. Keep it short.
+- category: One of the categories above.
+- priority: low, medium, high, or critical.
+- phase: "Phase 1: Foundation", "Phase 2: Core Features", etc.
+
+IMPORTANT RULES:
+1. Generate 12-20 tasks.
+2. Focus heavily on "development" and "planning" phases.
+3. NO FILLER TASKS. Every task must be impactful.
+4. Titles must be declarative and specific (e.g., "Create database schema for Users" instead of "Database setup").
+
+Return a JSON object with:
+{
+  "summary": "Brief summary of the launch plan",
+  "tasks": [array of task objects]
+}`
+
+/**
+ * Generates a launch plan with tasks from a UBP
+ */
+export async function generateLaunchPlan(ubpContent: unknown): Promise<LaunchPlanResult> {
+    const messages: Message[] = [
+        { role: "system", content: LAUNCH_PLAN_PROMPT },
+        {
+            role: "user",
+            content: `Generate a launch plan for this product blueprint:\n\n${JSON.stringify(ubpContent, null, 2)}`
+        }
+    ]
+
+    const response = await generateCompletion({ messages, stream: false })
+    const data = await response.json()
+
+    const choice = data.choices?.[0]?.message
+    if (!choice) {
+        throw new Error("No response from LLM")
+    }
+
+    const rawContent = choice.content || choice.reasoning || ""
+
+    // Try to parse as JSON
+    let parsed: LaunchPlanResult
+    try {
+        parsed = JSON.parse(rawContent)
+    } catch {
+        // Try to extract JSON from markdown
+        const jsonMatch = rawContent.match(/```(?:json)?\s*([\s\S]*?)```/)
+        if (jsonMatch) {
+            parsed = JSON.parse(jsonMatch[1].trim())
+        } else {
+            // Brute force extraction
+            const firstOpen = rawContent.indexOf('{')
+            const lastClose = rawContent.lastIndexOf('}')
+            if (firstOpen !== -1 && lastClose > firstOpen) {
+                parsed = JSON.parse(rawContent.substring(firstOpen, lastClose + 1))
+            } else {
+                throw new Error("Could not parse launch plan response")
+            }
+        }
+    }
+
+    // Validate and normalize tasks
+    const tasks: LaunchPlanTask[] = (parsed.tasks || []).map((task: Partial<LaunchPlanTask>) => ({
+        title: task.title || "Untitled Task",
+        description: task.description || "",
+        category: task.category || "planning",
+        priority: task.priority || "medium",
+        phase: task.phase || "Phase 1",
+    }))
+
+    return {
+        summary: parsed.summary || "Launch plan generated from blueprint",
+        tasks,
+    }
+}

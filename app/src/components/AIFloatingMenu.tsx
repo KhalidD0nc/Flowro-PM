@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
 interface AIFloatingMenuProps {
     position: { x: number; y: number } | null
     selectedText: string
     onClose: () => void
     onEnhance: () => void
+    onAIEdit?: (instruction: string) => void
 }
 
 export default function AIFloatingMenu({
@@ -14,8 +15,11 @@ export default function AIFloatingMenu({
     selectedText,
     onClose,
     onEnhance,
+    onAIEdit,
 }: AIFloatingMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null)
+    const [isInputOpen, setIsInputOpen] = useState(false)
+    const [instruction, setInstruction] = useState("")
 
     // Close on click outside
     useEffect(() => {
@@ -28,6 +32,14 @@ export default function AIFloatingMenu({
         return () => document.removeEventListener("mousedown", handleClickOutside)
     }, [onClose])
 
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
+        if (instruction.trim() && onAIEdit) {
+            onAIEdit(instruction)
+            onClose()
+        }
+    }
+
     if (!position) return null
 
     return (
@@ -38,33 +50,75 @@ export default function AIFloatingMenu({
                 left: position.x,
                 top: position.y,
                 transform: "translate(-50%, -100%)",
-                marginTop: "-8px",
+                marginTop: "-12px",
             }}
         >
-            <button
-                onClick={(e) => {
-                    e.stopPropagation()
-                    onEnhance()
-                }}
-                className="group flex items-center gap-2 bg-[#0d141c] hover:bg-[#137fec] text-white px-3 py-1.5 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-[#137fec]/30 hover:border-[#137fec] transition-all duration-300 hover:scale-105 active:scale-95"
-            >
-                <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="text-[#137fec] group-hover:text-white transition-colors"
+            <div className="flex items-center gap-1 bg-[#0d141c] p-1 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-[#283039]">
+                {/* Enhance Button */}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        onEnhance()
+                    }}
+                    className="group flex items-center gap-2 hover:bg-[#137fec] text-white px-3 py-1.5 rounded-lg transition-all duration-200"
+                    title="Auto-enhance selected text"
                 >
-                    <path d="M12 3V4M12 20V21M4 12H3M21 12H20M18.364 5.636L17.6569 6.34315M6.34315 17.6569L5.63604 18.364M18.364 18.364L17.6569 17.6569M6.34315 6.34315L5.63604 5.636M12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span className="text-[11px] font-bold tracking-wide transition-colors">
-                    Enhance
-                </span>
-            </button>
+                    <span className="material-symbols-outlined text-[#137fec] text-[16px] group-hover:text-white transition-colors">
+                        auto_fix_high
+                    </span>
+                    <span className="text-[12px] font-bold tracking-wide">
+                        Enhance
+                    </span>
+                </button>
 
-            {/* Minimal pointer */}
-            <div className="absolute top-[calc(100%-2px)] left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0d141c] border-b border-r border-[#137fec]/30 rotate-45 group-hover:bg-[#137fec] group-hover:border-[#137fec] transition-colors" />
+                {/* Vertical Divider */}
+                <div className="w-px h-4 bg-[#283039] mx-1" />
+
+                {/* Ask Flowro Button / Input */}
+                {isInputOpen ? (
+                    <form onSubmit={handleSubmit} className="flex items-center">
+                        <input
+                            autoFocus
+                            type="text"
+                            value={instruction}
+                            onChange={(e) => setInstruction(e.target.value)}
+                            placeholder="Ask Flowro to edit..."
+                            className="bg-transparent text-white text-xs placeholder-[#9dabb9] outline-none px-2 w-48"
+                            onKeyDown={(e) => {
+                                if (e.key === "Escape") {
+                                    setIsInputOpen(false)
+                                    setInstruction("")
+                                }
+                                e.stopPropagation()
+                            }}
+                        />
+                        <button
+                            type="submit"
+                            className="text-[#137fec] hover:text-white hover:bg-[#137fec] p-1 rounded-md transition-colors"
+                        >
+                            <span className="material-symbols-outlined text-[16px]">arrow_upward</span>
+                        </button>
+                    </form>
+                ) : (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            setIsInputOpen(true)
+                        }}
+                        className="group flex items-center gap-2 hover:bg-[#137fec] text-white px-3 py-1.5 rounded-lg transition-all duration-200"
+                    >
+                        <span className="material-symbols-outlined text-[#137fec] text-[16px] group-hover:text-white transition-colors">
+                            edit_note
+                        </span>
+                        <span className="text-[12px] font-bold tracking-wide">
+                            Ask AI
+                        </span>
+                    </button>
+                )}
+            </div>
+
+            {/* Pointer */}
+            <div className="absolute top-[calc(100%-1px)] left-1/2 -translate-x-1/2 w-3 h-3 bg-[#0d141c] border-b border-r border-[#283039] rotate-45" />
         </div>
     )
 }

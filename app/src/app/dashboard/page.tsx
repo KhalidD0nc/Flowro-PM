@@ -231,7 +231,7 @@ export default function DashboardPage() {
                                 <h1 className="text-2xl font-black leading-tight tracking-tight text-white lg:text-4xl">
                                     Welcome back, {displayName}
                                 </h1>
-                                <p className="text-sm lg:text-base text-[#9dabb9]">Let's build a unified blueprint today.</p>
+                                <p className="text-sm lg:text-base text-[#9dabb9]">Let&apos;s build a unified blueprint today.</p>
                             </div>
                         </div>
 

@@ -14,12 +14,21 @@ export interface ChatMessage {
  * Project - Top-level collection
  * Contains chat history that persists even when blueprints are locked
  */
+export interface ProjectShare {
+    email: string
+    role: "editor" | "viewer"
+    invitedAt: string
+    acceptedAt?: string
+}
+
 export interface Project {
     id: string
     userId: string
     projectName: string
     description?: string
     chatHistory: ChatMessage[]
+    visibility?: "private" | "shared"
+    sharedWith?: ProjectShare[]
     createdAt: string
     updatedAt: string
 }
@@ -509,5 +518,82 @@ export async function saveVersion(blueprintId: string): Promise<{
     })
 
     return result
+}
+
+// =============================================================================
+// Project Sharing Functions
+// =============================================================================
+
+/**
+ * Share a project with another user by email
+ */
+export async function shareProject(
+    projectId: string,
+    email: string,
+    role: "editor" | "viewer"
+): Promise<ProjectShare> {
+    const db = getAdminDb()
+    const projectRef = db.collection("projects").doc(projectId)
+    const project = await projectRef.get()
+
+    if (!project.exists) {
+        throw new Error("Project not found")
+    }
+
+    const data = project.data()
+    const sharedWith = data?.sharedWith || []
+
+    // Check if already shared with this email
+    const existingIndex = sharedWith.findIndex((s: ProjectShare) => s.email === email)
+    const now = new Date().toISOString()
+
+    const share: ProjectShare = {
+        email,
+        role,
+        invitedAt: now,
+    }
+
+    if (existingIndex >= 0) {
+        // Update existing share
+        sharedWith[existingIndex] = share
+    } else {
+        // Add new share
+        sharedWith.push(share)
+    }
+
+    await projectRef.update({
+        visibility: "shared",
+        sharedWith,
+        updatedAt: now,
+    })
+
+    return share
+}
+
+/**
+ * Remove sharing for a project with a specific email
+ */
+export async function unshareProject(
+    projectId: string,
+    email: string
+): Promise<void> {
+    const db = getAdminDb()
+    const projectRef = db.collection("projects").doc(projectId)
+    const project = await projectRef.get()
+
+    if (!project.exists) {
+        throw new Error("Project not found")
+    }
+
+    const data = project.data()
+    const sharedWith = (data?.sharedWith || []).filter(
+        (s: ProjectShare) => s.email !== email
+    )
+
+    await projectRef.update({
+        visibility: sharedWith.length > 0 ? "shared" : "private",
+        sharedWith,
+        updatedAt: new Date().toISOString(),
+    })
 }
 

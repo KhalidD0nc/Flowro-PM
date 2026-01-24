@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import mermaid from "mermaid"
 import {
     exportBlueprint,
@@ -109,6 +110,7 @@ interface UBPViewerProps {
     readOnly?: boolean // Public view mode (no editing, shows viral CTA)
     onUpdate?: (newUBP: UBPContent) => Promise<void>
     onEnhance?: (section: string, selection: string) => void
+    onAIEdit?: (section: string, instruction: string, selection: string) => Promise<void>
 }
 
 // Section navigation items
@@ -144,8 +146,9 @@ export default function UBPViewer({
     readOnly = false,
     onUpdate,
     onEnhance,
+    onAIEdit,
 }: UBPViewerProps) {
-    const mermaidRef = useRef<HTMLDivElement>(null)
+    // const mermaidRef = useRef<HTMLDivElement>(null) // Unused
     const contentRef = useRef<HTMLDivElement>(null)
     const [isVersionDropdownOpen, setIsVersionDropdownOpen] = useState(false)
     const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false)
@@ -222,7 +225,7 @@ export default function UBPViewer({
         window.getSelection()?.removeAllRanges()
     }
 
-    const handleManualSave = (section: string, newData: any) => {
+    const handleManualSave = (section: string, newData: unknown) => {
         if (!ubp || !onUpdate) return
 
         const newUBP = { ...ubp }
@@ -231,7 +234,7 @@ export default function UBPViewer({
             section === "tech" ? "techDecisions" :
                 section === "vision" ? "productVision" : section;
 
-        (newUBP as any)[propName] = newData
+        (newUBP as Record<string, unknown>)[propName] = newData
         onUpdate(newUBP)
     }
 
@@ -329,10 +332,10 @@ export default function UBPViewer({
                     <div className="flex items-center gap-4">
                         {/* Show close button only in non-readOnly mode, otherwise show Flowro branding */}
                         {readOnly ? (
-                            <a href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                                 <img src="/logo.png" alt="Flowro" className="size-7" />
                                 <span className="text-white font-bold">Flowro</span>
-                            </a>
+                            </Link>
                         ) : (
                             <button
                                 onClick={onClose}
@@ -836,6 +839,10 @@ export default function UBPViewer({
                     selectedText={selectionInfo.text}
                     onClose={clearSelection}
                     onEnhance={handleEnhance}
+                    onAIEdit={onAIEdit ? (instruction) => {
+                        onAIEdit(selectionInfo.section, instruction, selectionInfo.text)
+                        clearSelection()
+                    } : undefined}
                 />
             )}
 

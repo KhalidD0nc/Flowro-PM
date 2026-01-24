@@ -262,3 +262,116 @@ body {
 .animate-subtle-pulse {
   animation: subtlePulse 3s ease-in-out infinite;
 }
+
+/* ========================================
+   LAUNCH PLAN / KANBAN STYLES
+   ======================================== */
+
+/* Smooth horizontal scroll on mobile */
+.snap-x {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.snap-x::-webkit-scrollbar {
+  display: none;
+}
+
+/* Task card hover enhancement */
+.task-card-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.task-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* Column drop zone glow */
+.drop-zone-active {
+  background: linear-gradient(180deg, rgba(19, 127, 236, 0.05) 0%, rgba(19, 127, 236, 0.02) 100%);
+  border-color: rgba(19, 127, 236, 0.4);
+}
+
+/* Priority indicator glow */
+.priority-glow-critical {
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+.priority-glow-high {
+  box-shadow: 0 0 8px rgba(249, 115, 22, 0.5);
+}
+
+.priority-glow-medium {
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.4);
+}
+
+/* Modern button press effect */
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* Smooth modal animation */
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-animate {
+  animation: modalSlideUp 0.2s ease-out;
+}
+
+/* Mobile bottom sheet animation */
+@keyframes bottomSheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .modal-animate {
+    animation: bottomSheetUp 0.25s ease-out;
+  }
+}
+
+/* Enhanced focus states */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+}
+
+/* Pill button styles */
+.pill-btn {
+  transition: all 0.15s ease;
+}
+
+.pill-btn:hover {
+  transform: translateY(-1px);
+}
+
+.pill-btn:active {
+  transform: translateY(0);
+}
+
+/* Status badge glow effects */
+.status-planning {
+  box-shadow: 0 0 0 2px rgba(157, 171, 185, 0.1);
+}
+
+.status-in-progress {
+  box-shadow: 0 0 0 2px rgba(19, 127, 236, 0.15);
+}
+
+.status-launched {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+}

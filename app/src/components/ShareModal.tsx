@@ -141,11 +141,10 @@ export default function ShareModal({
                                 />
                                 <button
                                     onClick={handleCopyLink}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                                        isCopied
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${isCopied
                                             ? "bg-green-500/20 text-green-400"
                                             : "bg-[#137fec] hover:bg-blue-600 text-white"
-                                    }`}
+                                        }`}
                                 >
                                     <span className="material-symbols-outlined text-[18px]">
                                         {isCopied ? "check" : "content_copy"}
@@ -171,7 +170,7 @@ export default function ShareModal({
                                 <p className="text-blue-400 text-sm flex items-start gap-2">
                                     <span className="material-symbols-outlined text-[18px] mt-0.5">info</span>
                                     <span>
-                                        Viewers will see a read-only version with a "Create your own blueprint" call-to-action
+                                        Viewers will see a read-only version with a &quot;Create your own blueprint&quot; call-to-action
                                     </span>
                                 </p>
                             </div>
