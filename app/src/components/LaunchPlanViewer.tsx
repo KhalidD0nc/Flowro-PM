@@ -90,18 +90,18 @@ export default function LaunchPlanViewer({
     return (
         <div className="fixed inset-0 z-50 flex flex-col bg-[#101922]">
             {/* Header */}
-            <header className="flex items-center justify-between px-6 py-4 border-b border-[#283039] bg-[#0d141c] shrink-0">
-                <div className="flex items-center gap-4">
+            <header className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-[#283039] bg-[#0d141c] shrink-0 gap-2">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
                     <button
                         onClick={onClose}
-                        className="flex items-center justify-center rounded-lg p-2 text-[#9dabb9] transition-colors hover:bg-white/10 hover:text-white"
+                        className="flex items-center justify-center rounded-lg p-1.5 sm:p-2 text-[#9dabb9] transition-colors hover:bg-white/10 hover:text-white shrink-0"
                     >
-                        <span className="material-symbols-outlined">arrow_back</span>
+                        <span className="material-symbols-outlined text-xl sm:text-2xl">arrow_back</span>
                     </button>
-                    <div>
-                        <h1 className="text-lg font-bold text-white flex items-center gap-2">
-                            Launch Plan
-                            <span className="text-[#9dabb9] font-normal text-sm px-2 py-0.5 rounded-full bg-[#283039] border border-[#3d4a56]">
+                    <div className="min-w-0">
+                        <h1 className="text-sm sm:text-lg font-bold text-white flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            <span className="shrink-0">Launch Plan</span>
+                            <span className="text-[#9dabb9] font-normal text-xs sm:text-sm px-1.5 sm:px-2 py-0.5 rounded-full bg-[#283039] border border-[#3d4a56] truncate max-w-[100px] xs:max-w-[150px] sm:max-w-none">
                                 {projectName}
                             </span>
                         </h1>
@@ -109,17 +109,18 @@ export default function LaunchPlanViewer({
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                     {view === "board" && (
                         <button
                             onClick={handleGenerate}
                             disabled={isGenerating}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#283039] hover:bg-[#3d4a56] text-white text-sm font-medium transition-colors"
+                            className="flex items-center justify-center gap-1.5 sm:gap-2 p-2 sm:px-3 sm:py-1.5 rounded-lg bg-[#283039] hover:bg-[#3d4a56] text-white text-xs sm:text-sm font-medium transition-colors"
+                            title={isGenerating ? "Regenerating..." : "Regenerate"}
                         >
-                            <span className="material-symbols-outlined text-[18px]">
+                            <span className="material-symbols-outlined text-[16px] sm:text-[18px]">
                                 {isGenerating ? "sync" : "refresh"}
                             </span>
-                            {isGenerating ? "Regenerating..." : "Regenerate"}
+                            <span className="hidden sm:inline">{isGenerating ? "Regenerating..." : "Regenerate"}</span>
                         </button>
                     )}
                 </div>
