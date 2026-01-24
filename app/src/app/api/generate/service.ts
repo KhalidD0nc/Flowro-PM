@@ -265,3 +265,102 @@ export async function generateFromMessage(input: GenerateInput): Promise<Generat
     const messages = buildMessages(input)
     return callLLM(messages)
 }
+
+// =============================================================================
+// Launch Plan Generation
+// =============================================================================
+
+export interface LaunchPlanTask {
+    title: string
+    description: string
+    category: "planning" | "development" | "marketing" | "launch" | "post-launch"
+    priority: "low" | "medium" | "high" | "critical"
+    phase: string
+}
+
+export interface LaunchPlanResult {
+    summary: string
+    tasks: LaunchPlanTask[]
+}
+
+const LAUNCH_PLAN_PROMPT = `You are a product launch planning assistant. Given a product blueprint (UBP), generate a comprehensive launch plan with actionable tasks.
+
+Analyze the blueprint and create tasks organized by these categories:
+- planning: Strategy, research, and preparation tasks
+- development: Technical implementation tasks
+- marketing: Promotion, content, and outreach tasks
+- launch: Launch day activities
+- post-launch: Follow-up, monitoring, and iteration tasks
+
+For each task, provide:
+- title: Brief, actionable title (2-6 words)
+- description: Clear description of what needs to be done (1-2 sentences)
+- category: One of the categories above
+- priority: low, medium, high, or critical
+- phase: Which phase of the product this relates to
+
+Return a JSON object with:
+{
+  "summary": "Brief summary of the launch plan",
+  "tasks": [array of task objects]
+}
+
+Generate 8-15 relevant tasks based on the blueprint's scope and phases.`
+
+/**
+ * Generates a launch plan with tasks from a UBP
+ */
+export async function generateLaunchPlan(ubpContent: unknown): Promise<LaunchPlanResult> {
+    const messages: Message[] = [
+        { role: "system", content: LAUNCH_PLAN_PROMPT },
+        {
+            role: "user",
+            content: `Generate a launch plan for this product blueprint:\n\n${JSON.stringify(ubpContent, null, 2)}`
+        }
+    ]
+
+    const response = await generateCompletion({ messages, stream: false })
+    const data = await response.json()
+
+    const choice = data.choices?.[0]?.message
+    if (!choice) {
+        throw new Error("No response from LLM")
+    }
+
+    let rawContent = choice.content || choice.reasoning || ""
+
+    // Try to parse as JSON
+    let parsed: LaunchPlanResult
+    try {
+        parsed = JSON.parse(rawContent)
+    } catch {
+        // Try to extract JSON from markdown
+        const jsonMatch = rawContent.match(/```(?:json)?\s*([\s\S]*?)```/)
+        if (jsonMatch) {
+            parsed = JSON.parse(jsonMatch[1].trim())
+        } else {
+            // Brute force extraction
+            const firstOpen = rawContent.indexOf('{')
+            const lastClose = rawContent.lastIndexOf('}')
+            if (firstOpen !== -1 && lastClose > firstOpen) {
+                parsed = JSON.parse(rawContent.substring(firstOpen, lastClose + 1))
+            } else {
+                throw new Error("Could not parse launch plan response")
+            }
+        }
+    }
+
+    // Validate and normalize tasks
+    const tasks: LaunchPlanTask[] = (parsed.tasks || []).map((task: Partial<LaunchPlanTask>) => ({
+        title: task.title || "Untitled Task",
+        description: task.description || "",
+        category: task.category || "planning",
+        priority: task.priority || "medium",
+        phase: task.phase || "Phase 1",
+    }))
+
+    return {
+        summary: parsed.summary || "Launch plan generated from blueprint",
+        tasks,
+    }
+}

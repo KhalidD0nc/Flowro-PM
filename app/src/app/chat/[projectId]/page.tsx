@@ -4,6 +4,7 @@ import { useAuth } from "@/components/Providers"
 import { useRouter, useParams } from "next/navigation"
 import { useEffect, useState, useRef } from "react"
 import UBPViewer, { UBPContent } from "@/components/UBPViewer"
+import ShareProjectModal from "@/components/ShareProjectModal"
 
 interface Blueprint {
     id: string
@@ -285,6 +286,7 @@ export default function ChatPage() {
     const [isGenerating, setIsGenerating] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isUBPViewerOpen, setIsUBPViewerOpen] = useState(false)
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false)
     const [currentUBP, setCurrentUBP] = useState<UBPContent | null>(null)
     const [isSaving, setIsSaving] = useState(false)
     const [allVersions, setAllVersions] = useState<Blueprint[]>([])
@@ -933,6 +935,14 @@ Return the updated blueprint JSON with the changes applied to that section.`
                     </div>
                 </div>
                 <div className="relative flex items-center gap-3">
+                    {/* Launch Plan button */}
+                    <button
+                        onClick={() => router.push(`/chat/${projectId}/board`)}
+                        className="group flex items-center gap-2.5 bg-gradient-to-r from-[#10b981]/10 to-[#10b981]/5 hover:from-[#10b981]/20 hover:to-[#10b981]/10 border border-[#10b981]/20 hover:border-[#10b981]/40 text-white font-medium py-2.5 px-4 rounded-xl transition-all hover:shadow-lg hover:shadow-[#10b981]/10"
+                    >
+                        <span className="material-symbols-outlined text-[18px] text-[#10b981] group-hover:scale-110 transition-transform">rocket_launch</span>
+                        <span className="hidden sm:inline">Launch Plan</span>
+                    </button>
                     {/* Blueprint button - Premium style */}
                     <button
                         onClick={handleOpenUBP}
@@ -945,6 +955,14 @@ Return the updated blueprint JSON with the changes applied to that section.`
                                 v{project.latestBlueprint.version}
                             </span>
                         )}
+                    </button>
+                    {/* Share button */}
+                    <button
+                        onClick={() => setIsShareModalOpen(true)}
+                        className="flex items-center justify-center rounded-xl p-2.5 text-[#9dabb9] transition-all hover:bg-white/5 hover:text-white hover:scale-105"
+                        title="Share Project"
+                    >
+                        <span className="material-symbols-outlined">share</span>
                     </button>
                 </div>
             </header>
@@ -1222,6 +1240,18 @@ Return the updated blueprint JSON with the changes applied to that section.`
                 projectId={projectId}
                 onUpdate={handleUBPUpdate}
                 onEnhance={handleEnhanceWithFlowro}
+            />
+
+            {/* Share Modal */}
+            <ShareProjectModal
+                isOpen={isShareModalOpen}
+                projectId={projectId}
+                projectName={project.projectName}
+                onClose={() => setIsShareModalOpen(false)}
+                getToken={async () => {
+                    if (!user) throw new Error("Not authenticated")
+                    return user.getIdToken()
+                }}
             />
         </div>
     )
