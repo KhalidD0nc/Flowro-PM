@@ -61,11 +61,29 @@ function isValidEmail(email: string): boolean {
  * @throws Error if sign-in fails
  */
 export async function signInWithGoogle(): Promise<void> {
-    const provider = new GoogleAuthProvider()
-    const result = await signInWithPopup(auth, provider)
+    try {
+        const provider = new GoogleAuthProvider()
+        // Add custom parameters for better debugging
+        provider.setCustomParameters({
+            prompt: 'select_account'
+        })
 
-    // Store user in Firestore if first time
-    await storeUserInFirestore(result)
+        console.log('Attempting Google Sign-In...')
+        const result = await signInWithPopup(auth, provider)
+        console.log('Google Sign-In successful:', result.user.email)
+
+        // Store user in Firestore if first time
+        await storeUserInFirestore(result)
+        console.log('User stored in Firestore successfully')
+    } catch (error: any) {
+        console.error('Google Sign-In Error Details:', {
+            code: error.code,
+            message: error.message,
+            stack: error.stack,
+            customData: error.customData
+        })
+        throw error
+    }
 }
 
 /**

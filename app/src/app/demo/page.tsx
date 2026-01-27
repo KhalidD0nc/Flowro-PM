@@ -1,19 +1,15 @@
-import { Metadata } from "next"
-import Link from "next/link"
+"use client"
 
-export const metadata: Metadata = {
-    title: "Demo",
-    description: "Try Flowro AI with a sample project blueprint. No sign-up required.",
-    robots: {
-        index: true,
-        follow: true,
-    },
-}
+import { useAuth } from "@/components/Providers"
+import Link from "next/link"
 
 // Sample project ID for demo (hardcoded example)
 const DEMO_PROJECT_ID = "demo-saas-startup"
 
 export default function DemoLandingPage() {
+    const { user, loading } = useAuth()
+    const isAuthenticated = !loading && !!user
+
     return (
         <div className="min-h-screen bg-[#101922] flex flex-col">
             {/* Header */}
@@ -22,12 +18,21 @@ export default function DemoLandingPage() {
                     <span className="material-symbols-outlined text-[#137fec] text-3xl">hourglass_top</span>
                     <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">Flowro AI</h2>
                 </Link>
-                <Link
-                    href="/auth"
-                    className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-9 px-4 bg-[#137fec] text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-[#137fec]/90 transition-all"
-                >
-                    Sign Up Free
-                </Link>
+                {isAuthenticated ? (
+                    <Link
+                        href="/dashboard"
+                        className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-9 px-4 bg-[#137fec] text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-[#137fec]/90 transition-all"
+                    >
+                        Dashboard
+                    </Link>
+                ) : (
+                    <Link
+                        href="/auth"
+                        className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-9 px-4 bg-[#137fec] text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-[#137fec]/90 transition-all"
+                    >
+                        Sign Up Free
+                    </Link>
+                )}
             </header>
 
             {/* Main Content */}
@@ -92,29 +97,53 @@ export default function DemoLandingPage() {
                         </div>
                     </div>
 
-                    {/* CTA */}
+                    {/* CTA - Auth Aware */}
                     <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                        <Link
-                            href="/auth"
-                            className="flex items-center justify-center gap-2 h-12 px-8 rounded-lg bg-[#137fec] text-white font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-[#137fec]/20"
-                        >
-                            <span className="material-symbols-outlined text-[20px]">bolt</span>
-                            Start Building for Free
-                        </Link>
+                        {isAuthenticated ? (
+                            <Link
+                                href="/dashboard"
+                                className="flex items-center justify-center gap-2 h-12 px-8 rounded-lg bg-[#137fec] text-white font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-[#137fec]/20"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">add</span>
+                                Create Your Own Project
+                            </Link>
+                        ) : (
+                            <Link
+                                href="/auth"
+                                className="flex items-center justify-center gap-2 h-12 px-8 rounded-lg bg-[#137fec] text-white font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-[#137fec]/20"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">bolt</span>
+                                Start Building for Free
+                            </Link>
+                        )}
                     </div>
                     <p className="text-[#9dabb9] text-sm mt-4">
-                        No credit card required. Create up to 1 project free.
+                        {isAuthenticated
+                            ? "Head to your dashboard to create a new project."
+                            : "No credit card required. Create up to 1 project free."
+                        }
                     </p>
                 </div>
             </main>
 
-            {/* Footer */}
+            {/* Footer - Auth Aware */}
             <footer className="border-t border-[#30363d] py-6 px-6 text-center">
                 <p className="text-[#9dabb9] text-sm">
-                    Want to create your own blueprints?{" "}
-                    <Link href="/auth" className="text-[#137fec] hover:text-blue-400 transition-colors font-medium">
-                        Sign up free
-                    </Link>
+                    {isAuthenticated ? (
+                        <>
+                            Ready to create your own blueprints?{" "}
+                            <Link href="/dashboard" className="text-[#137fec] hover:text-blue-400 transition-colors font-medium">
+                                Go to Dashboard
+                            </Link>
+                        </>
+                    ) : (
+                        <>
+                            Want to create your own blueprints?{" "}
+                            <Link href="/auth" className="text-[#137fec] hover:text-blue-400 transition-colors font-medium">
+                                Sign up free
+                            </Link>
+                        </>
+                    )}
                 </p>
             </footer>
         </div>
@@ -137,15 +166,13 @@ function DemoCard({
     return (
         <Link
             href={href}
-            className={`group flex flex-col gap-4 p-6 rounded-xl border transition-all hover:-translate-y-1 ${
-                featured
+            className={`group flex flex-col gap-4 p-6 rounded-xl border transition-all hover:-translate-y-1 ${featured
                     ? "bg-[#137fec]/10 border-[#137fec]/30 hover:border-[#137fec]/50"
                     : "bg-[#18212b] border-[#283039] hover:border-[#137fec]/30"
-            }`}
+                }`}
         >
-            <div className={`size-12 rounded-lg flex items-center justify-center ${
-                featured ? "bg-[#137fec]/20 text-[#137fec]" : "bg-[#283039] text-[#9dabb9] group-hover:text-[#137fec]"
-            } transition-colors`}>
+            <div className={`size-12 rounded-lg flex items-center justify-center ${featured ? "bg-[#137fec]/20 text-[#137fec]" : "bg-[#283039] text-[#9dabb9] group-hover:text-[#137fec]"
+                } transition-colors`}>
                 <span className="material-symbols-outlined text-2xl">{icon}</span>
             </div>
             <div>

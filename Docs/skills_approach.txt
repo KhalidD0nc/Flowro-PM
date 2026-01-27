@@ -1,0 +1,13 @@
+IMPORTANT: When reading skill files, always read the SKILL.md file inside the skill directory, not the directory itself.
+
+❌ WRONG:
+Read(~/.gemini/antigravity/global_skills/frontend-design)
+
+✅ CORRECT:
+Read(~/.gemini/antigravity/global_skills/frontend-design/SKILL.md)
+
+Pattern: ~/.gemini/antigravity/global_skills/[skill-name]/SKILL.md
+
+If you need to explore a skill directory first:
+1. List directory: ls ~/.gemini/antigravity/global_skills/[skill-name]
+2. Read skill file: cat ~/.gemini/antigravity/global_skills/[skill-name]/SKILL.md

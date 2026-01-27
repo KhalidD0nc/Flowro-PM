@@ -712,6 +712,8 @@ export default function Home() {
                         <span className="text-white font-bold text-lg">Flowro AI</span>
                     </div>
                     <div className="flex gap-8 text-sm text-[#9dabb9]">
+                        <a className="hover:text-white transition-colors" href="/terms">Terms</a>
+                        <a className="hover:text-white transition-colors" href="/privacy">Privacy</a>
                         <a className="hover:text-white transition-colors" href="#">X</a>
                         <a className="hover:text-white transition-colors" href="#">LinkedIn</a>
                         <a className="hover:text-white transition-colors" href="#">Discord</a>

@@ -4,6 +4,7 @@ import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useState } from "react"
 import UBPViewer, { UBPContent } from "@/components/UBPViewer"
+import { useAuth } from "@/components/Providers"
 
 // Sample demo blueprint data
 const demoBlueprints: Record<string, { name: string; description: string; content: UBPContent }> = {
@@ -184,6 +185,8 @@ export default function DemoProjectPage() {
     const params = useParams()
     const projectId = params.projectId as string
     const [isUBPViewerOpen, setIsUBPViewerOpen] = useState(true)
+    const { user, loading } = useAuth()
+    const isAuthenticated = !loading && !!user
 
     const demo = demoBlueprints[projectId]
 
@@ -215,10 +218,10 @@ export default function DemoProjectPage() {
                         <span className="text-[#9dabb9] text-sm hidden sm:inline">- Read-only preview</span>
                     </div>
                     <Link
-                        href="/auth"
+                        href={isAuthenticated ? "/dashboard" : "/auth"}
                         className="flex items-center gap-1 text-[#137fec] text-sm font-medium hover:text-blue-400 transition-colors"
                     >
-                        Create your own
+                        {isAuthenticated ? "Go to Dashboard" : "Create your own"}
                         <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                     </Link>
                 </div>
@@ -307,18 +310,25 @@ export default function DemoProjectPage() {
                         </div>
                     </div>
 
-                    {/* CTA */}
+                    {/* CTA - Auth Aware */}
                     <div className="text-center py-8">
-                        <h2 className="text-white text-2xl font-bold mb-2">Ready to create your own?</h2>
+                        <h2 className="text-white text-2xl font-bold mb-2">
+                            {isAuthenticated ? "Create Your Own Blueprint" : "Ready to create your own?"}
+                        </h2>
                         <p className="text-[#9dabb9] mb-6">
-                            Sign up free and generate your first blueprint in minutes.
+                            {isAuthenticated
+                                ? "Head to your dashboard to start a new project."
+                                : "Sign up free and generate your first blueprint in minutes."
+                            }
                         </p>
                         <Link
-                            href="/auth"
+                            href={isAuthenticated ? "/dashboard" : "/auth"}
                             className="inline-flex items-center gap-2 bg-[#137fec] text-white font-bold px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors shadow-lg shadow-[#137fec]/20"
                         >
-                            <span className="material-symbols-outlined text-[20px]">bolt</span>
-                            Start Building Free
+                            <span className="material-symbols-outlined text-[20px]">
+                                {isAuthenticated ? "add" : "bolt"}
+                            </span>
+                            {isAuthenticated ? "Create New Project" : "Start Building Free"}
                         </Link>
                     </div>
                 </div>
