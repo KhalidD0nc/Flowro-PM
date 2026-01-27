@@ -3,6 +3,8 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/Providers";
 import Analytics from "@/components/Analytics";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -96,7 +98,11 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased bg-background-dark text-white`}>
         <Analytics />
-        <AuthProvider>{children}</AuthProvider>
+        <ErrorBoundary>
+          <ToastProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </ToastProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

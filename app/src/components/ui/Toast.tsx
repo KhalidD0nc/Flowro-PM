@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react"
 
 export type ToastVariant = "success" | "error" | "warning" | "info"
 
@@ -103,3 +103,49 @@ export function ToastContainer({ toasts, onDismiss }: { toasts: ToastData[]; onD
         </div>
     )
 }
+
+// Toast Context for app-wide usage
+interface ToastContextValue {
+    toasts: ToastData[]
+    addToast: (variant: ToastVariant, message: string, duration?: number) => void
+    dismissToast: (id: string) => void
+}
+
+const ToastContext = createContext<ToastContextValue | undefined>(undefined)
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+    const [toasts, setToasts] = useState<ToastData[]>([])
+
+    const addToast = useCallback((variant: ToastVariant, message: string, duration = 5000) => {
+        const id = Math.random().toString(36).substr(2, 9)
+        setToasts((prev) => [...prev, { id, variant, message, duration }])
+    }, [])
+
+    const dismissToast = useCallback((id: string) => {
+        setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, [])
+
+    return (
+        <ToastContext.Provider value={{ toasts, addToast, dismissToast }}>
+            {children}
+            <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+        </ToastContext.Provider>
+    )
+}
+
+export function useToast() {
+    const context = useContext(ToastContext)
+    if (!context) {
+        throw new Error("useToast must be used within a ToastProvider")
+    }
+
+    return {
+        toast: context.addToast,
+        success: (message: string, duration?: number) => context.addToast("success", message, duration),
+        error: (message: string, duration?: number) => context.addToast("error", message, duration),
+        warning: (message: string, duration?: number) => context.addToast("warning", message, duration),
+        info: (message: string, duration?: number) => context.addToast("info", message, duration),
+        dismiss: context.dismissToast,
+    }
+}
+

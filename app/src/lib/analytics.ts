@@ -18,6 +18,10 @@ export type AnalyticsEvent =
     | { name: "error_occurred"; params: { error_type: string; error_message: string; location?: string } }
     | { name: "page_view"; params: { page_path: string; page_title?: string } }
     | { name: "feature_used"; params: { feature_name: string; details?: string } }
+    // Conversion funnel events
+    | { name: "trial_started"; params: { user_id?: string } }
+    | { name: "subscription_started"; params: { plan: string; billing_cycle: "monthly" | "yearly" } }
+    | { name: "subscription_completed"; params: { plan: string; billing_cycle: "monthly" | "yearly"; amount?: number } }
 
 // Track an analytics event
 export function trackEvent<T extends AnalyticsEvent>(event: T): void {
@@ -73,4 +77,18 @@ export const analytics = {
     featureUsed: (featureName: string, details?: string) => {
         trackEvent({ name: "feature_used", params: { feature_name: featureName, details } })
     },
+
+    // Conversion funnel events
+    trialStarted: (userId?: string) => {
+        trackEvent({ name: "trial_started", params: { user_id: userId } })
+    },
+
+    subscriptionStarted: (plan: string, billingCycle: "monthly" | "yearly") => {
+        trackEvent({ name: "subscription_started", params: { plan, billing_cycle: billingCycle } })
+    },
+
+    subscriptionCompleted: (plan: string, billingCycle: "monthly" | "yearly", amount?: number) => {
+        trackEvent({ name: "subscription_completed", params: { plan, billing_cycle: billingCycle, amount } })
+    },
 }
+

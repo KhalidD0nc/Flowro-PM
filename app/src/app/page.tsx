@@ -1,6 +1,9 @@
 "use client"
 
 import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/Providers";
 import PricingSection from "@/components/PricingSection";
 
 // JSON-LD structured data for SEO
@@ -54,6 +57,28 @@ const jsonLdOrganization = {
 };
 
 export default function Home() {
+    const router = useRouter()
+    const { user, loading } = useAuth()
+
+    // Redirect authenticated users to dashboard - use replace to prevent back navigation
+    useEffect(() => {
+        if (user && !loading) {
+            router.replace("/dashboard")
+        }
+    }, [user, loading, router])
+
+    // Show smooth loading state while checking auth or redirecting
+    if (loading || user) {
+        return (
+            <div className="min-h-screen bg-[#0D1117] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <span className="material-symbols-outlined text-[#137fec] animate-spin text-5xl">hourglass_top</span>
+                    {user && <span className="text-[#9dabb9] text-sm animate-pulse">Taking you to your dashboard...</span>}
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="bg-[#0D1117] text-white overflow-x-hidden w-full">
             {/* JSON-LD Structured Data */}

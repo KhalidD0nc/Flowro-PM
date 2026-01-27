@@ -25,10 +25,10 @@ export default function AuthPage() {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isGoogleLoading, setIsGoogleLoading] = useState(false)
 
-    // Redirect if already logged in
+    // Redirect if already logged in - use replace to prevent back navigation
     useEffect(() => {
         if (user && !loading) {
-            router.push("/dashboard")
+            router.replace("/dashboard")
         }
     }, [user, loading, router])
 
@@ -116,12 +116,13 @@ export default function AuthPage() {
         }
     }
 
-    if (loading) {
+    // Show loading state while checking auth or redirecting authenticated user
+    if (loading || user) {
         return (
             <div className="min-h-screen bg-[#101922] flex items-center justify-center">
-                <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_top</span>
-                    {/* <span className="text-white">Loading...</span> */}
+                <div className="flex flex-col items-center gap-4 animate-pulse">
+                    <span className="material-symbols-outlined text-[#137fec] animate-spin text-4xl">hourglass_top</span>
+                    <span className="text-slate-400 text-sm">{user ? "Redirecting to dashboard..." : ""}</span>
                 </div>
             </div>
         )
