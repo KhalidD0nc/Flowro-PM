@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/Providers"
 import { useEffect } from "react"
 import { signInWithGoogle, signIn, signUp, resetPassword } from "./actions"
+import { analytics } from "@/lib/analytics"
 
 type AuthMode = "signIn" | "signUp" | "resetPassword"
 
@@ -33,7 +34,9 @@ export default function AuthPage() {
         try {
             setError(null)
             setSuccessMessage(null)
+            analytics.signupStarted("google")
             await signInWithGoogle()
+            analytics.signupCompleted("google")
             router.push("/dashboard")
         } catch (error) {
             console.error("Sign in error:", error)
@@ -53,10 +56,14 @@ export default function AuthPage() {
                 setSuccessMessage("Password reset email sent! Check your inbox.")
                 setEmail("")
             } else if (authMode === "signUp") {
+                analytics.signupStarted("email")
                 await signUp(email, password, displayName || undefined)
+                analytics.signupCompleted("email")
                 router.push("/dashboard")
             } else {
+                analytics.signupStarted("email")
                 await signIn(email, password)
+                analytics.signupCompleted("email")
                 router.push("/dashboard")
             }
         } catch (error: unknown) {

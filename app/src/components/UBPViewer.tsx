@@ -9,6 +9,7 @@ import {
     generateFilename,
     type ExportFormat,
 } from "@/lib/exportBlueprint"
+import { analytics } from "@/lib/analytics"
 import ShareModal from "./ShareModal"
 import UBPEditModal from "./UBPEditModals"
 import AIFloatingMenu from "./AIFloatingMenu"
@@ -260,6 +261,12 @@ export default function UBPViewer({
 
         const filename = generateFilename(projectName, version)
         downloadBlueprint(content, filename, format)
+
+        // Track export analytics
+        if (projectId) {
+            analytics.blueprintExported(projectId, format)
+        }
+
         setIsExportDropdownOpen(false)
     }
 

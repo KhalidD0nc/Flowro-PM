@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { analytics } from "@/lib/analytics"
 
 interface ProjectShare {
     odurId?: string
@@ -123,6 +124,9 @@ export default function ShareProjectModal({
                 sharedWith: [...prev.sharedWith, data.share],
             } : null)
 
+            // Track share analytics
+            analytics.shareLinkCreated(projectId, "email")
+
             setEmail("")
             emailInputRef.current?.focus()
         } catch (err) {
@@ -188,6 +192,11 @@ export default function ShareProjectModal({
                 publicLinkEnabled: data.publicLinkEnabled,
                 publicLinkId: data.publicLinkId,
             } : null)
+
+            // Track public link creation
+            if (data.publicLinkEnabled) {
+                analytics.shareLinkCreated(projectId, "public")
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to toggle")
         } finally {

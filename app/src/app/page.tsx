@@ -3,9 +3,68 @@
 import Link from "next/link";
 import PricingSection from "@/components/PricingSection";
 
+// JSON-LD structured data for SEO
+const jsonLdSoftware = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Flowro AI",
+    applicationCategory: "ProductivityApplication",
+    operatingSystem: "Web",
+    description:
+        "Transform messy ideas into structured, agent-ready project blueprints. AI-powered product management for builders using Cursor, Claude, and Windsurf.",
+    url: "https://flowro.ai",
+    offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+        description: "Free tier available with 1 project",
+    },
+    creator: {
+        "@type": "Organization",
+        name: "Flowro AI",
+        url: "https://flowro.ai",
+    },
+    featureList: [
+        "AI-powered blueprint generation",
+        "Unified Blueprint (UBP) framework",
+        "Export to JSON, Markdown",
+        "Share blueprints with stakeholders",
+        "Kanban task board",
+        "Version control for specifications",
+    ],
+};
+
+// Organization JSON-LD for brand recognition
+const jsonLdOrganization = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Flowro AI",
+    url: "https://flowro.ai",
+    logo: "https://flowro.ai/logo.png",
+    description: "AI-powered product management and blueprint generation platform for modern builders.",
+    sameAs: [
+        "https://twitter.com/flowroai",
+        "https://linkedin.com/company/flowroai",
+    ],
+    contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        email: "support@flowro.ai",
+    },
+};
+
 export default function Home() {
     return (
         <div className="bg-[#0D1117] text-white overflow-x-hidden w-full">
+            {/* JSON-LD Structured Data */}
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdSoftware) }}
+            />
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdOrganization) }}
+            />
             <div className="relative flex min-h-screen w-full flex-col group/design-root">
                 {/* Header */}
                 <header className="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-[#30363d] bg-[#0D1117]/80 backdrop-blur-md px-10 py-3">

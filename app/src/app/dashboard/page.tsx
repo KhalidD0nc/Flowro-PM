@@ -4,6 +4,8 @@ import { useAuth } from "@/components/Providers"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, useMemo } from "react"
 import CreateProjectModal from "@/components/CreateProjectModal"
+import { SkeletonCardGrid, SkeletonStat } from "@/components/ui/Skeleton"
+import { analytics } from "@/lib/analytics"
 
 interface Project {
     id: string
@@ -103,6 +105,9 @@ export default function DashboardPage() {
         }
 
         const newProject = await res.json()
+
+        // Track project creation
+        analytics.projectCreated(newProject.id)
 
         // Close modal and redirect immediately for a smooth flow
         setShowCreateModal(false)
@@ -309,23 +314,69 @@ export default function DashboardPage() {
 
                         {/* Projects Grid */}
                         {loadingProjects ? (
-                            <div className="flex items-center justify-center py-12">
-                                <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_empty</span>
-                                {/* <span className="ml-3 text-[#9dabb9]">Loading projects...</span> */}
-                            </div>
+                            <SkeletonCardGrid count={6} />
                         ) : filteredProjects.length === 0 ? (
-                            <div className="bg-[#18212b] border border-[#283039] rounded-xl p-12 text-center">
-                                <span className="material-symbols-outlined text-[#9dabb9] text-5xl mb-4 block">folder_open</span>
-                                <p className="text-[#9dabb9] mb-6">
-                                    {searchQuery ? "No projects match your search" : "No projects yet"}
-                                </p>
-                                {!searchQuery && (
-                                    <button
-                                        onClick={handleOpenCreateModal}
-                                        className="bg-[#137fec] hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-colors shadow-lg shadow-blue-500/20"
-                                    >
-                                        Create Your First Project
-                                    </button>
+                            <div className="bg-gradient-to-br from-[#18212b] to-[#0d141c] border border-[#283039] rounded-2xl p-8 lg:p-12">
+                                {searchQuery ? (
+                                    <div className="text-center">
+                                        <span className="material-symbols-outlined text-[#9dabb9] text-5xl mb-4 block">search_off</span>
+                                        <p className="text-[#9dabb9] text-lg">No projects match your search</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col lg:flex-row items-center gap-8">
+                                        {/* Left side - Illustration */}
+                                        <div className="flex-shrink-0">
+                                            <div className="relative">
+                                                <div className="absolute inset-0 bg-[#137fec]/10 blur-3xl rounded-full" />
+                                                <div className="relative size-32 lg:size-40 rounded-2xl bg-gradient-to-br from-[#137fec]/20 to-[#137fec]/5 border border-[#137fec]/20 flex items-center justify-center">
+                                                    <span className="material-symbols-outlined text-[#137fec] text-6xl lg:text-7xl">
+                                                        architecture
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Right side - Content */}
+                                        <div className="flex-1 text-center lg:text-left">
+                                            <h2 className="text-2xl lg:text-3xl font-bold text-white mb-3">
+                                                Create your first blueprint
+                                            </h2>
+                                            <p className="text-[#9dabb9] text-lg mb-6 max-w-lg">
+                                                Transform your product ideas into structured, agent-ready specifications.
+                                                Start by describing what you want to build.
+                                            </p>
+
+                                            {/* Example prompts */}
+                                            <div className="flex flex-wrap gap-2 mb-6 justify-center lg:justify-start">
+                                                <span className="px-3 py-1.5 bg-[#283039]/50 border border-[#283039] rounded-full text-[#9dabb9] text-sm">
+                                                    &quot;A SaaS for team collaboration&quot;
+                                                </span>
+                                                <span className="px-3 py-1.5 bg-[#283039]/50 border border-[#283039] rounded-full text-[#9dabb9] text-sm">
+                                                    &quot;Mobile fitness app&quot;
+                                                </span>
+                                                <span className="px-3 py-1.5 bg-[#283039]/50 border border-[#283039] rounded-full text-[#9dabb9] text-sm">
+                                                    &quot;E-commerce platform&quot;
+                                                </span>
+                                            </div>
+
+                                            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+                                                <button
+                                                    onClick={handleOpenCreateModal}
+                                                    className="flex items-center justify-center gap-2 bg-[#137fec] hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-colors shadow-lg shadow-blue-500/20"
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">add</span>
+                                                    Create Your First Project
+                                                </button>
+                                                <a
+                                                    href="/demo"
+                                                    className="flex items-center justify-center gap-2 bg-[#283039] hover:bg-[#3d4a56] text-white font-medium py-3 px-6 rounded-lg transition-colors"
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">science</span>
+                                                    View Demo
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         ) : (
