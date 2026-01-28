@@ -152,28 +152,6 @@ export default function Home() {
                                     </a>
                                 </div>
 
-                                {/* Trust Badges */}
-                                {/* Trust Badges */}
-                                <div className="flex flex-wrap items-center gap-3 pt-8">
-                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#161b22]/50 border border-[#30363d] backdrop-blur-sm group hover:border-green-500/30 hover:bg-green-500/5 transition-all cursor-default">
-                                        <div className="flex items-center justify-center size-5 rounded-full bg-green-500/10 text-green-500 group-hover:scale-110 transition-transform">
-                                            <span className="material-symbols-outlined text-[14px]">shield_lock</span>
-                                        </div>
-                                        <span className="text-xs font-medium text-[#9dabb9] group-hover:text-green-500/90 transition-colors">Enterprise SSL</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#161b22]/50 border border-[#30363d] backdrop-blur-sm group hover:border-[#137fec]/30 hover:bg-[#137fec]/5 transition-all cursor-default">
-                                        <div className="flex items-center justify-center size-5 rounded-full bg-[#137fec]/10 text-[#137fec] group-hover:scale-110 transition-transform">
-                                            <span className="material-symbols-outlined text-[14px]">credit_card_off</span>
-                                        </div>
-                                        <span className="text-xs font-medium text-[#9dabb9] group-hover:text-[#137fec]/90 transition-colors">No Card Required</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#161b22]/50 border border-[#30363d] backdrop-blur-sm group hover:border-yellow-500/30 hover:bg-yellow-500/5 transition-all cursor-default">
-                                        <div className="flex items-center justify-center size-5 rounded-full bg-yellow-500/10 text-yellow-500 group-hover:scale-110 transition-transform">
-                                            <span className="material-symbols-outlined text-[14px]">stars</span>
-                                        </div>
-                                        <span className="text-xs font-medium text-[#9dabb9] group-hover:text-yellow-500/90 transition-colors">Forever Free Tier</span>
-                                    </div>
-                                </div>
                             </div>
 
                             {/* Right side - Terminal/Engine visualization */}
@@ -689,7 +667,7 @@ export default function Home() {
             {/* UBP Standard Section - Clean & Direct */}
             <section id="ubp-standard" className="py-20 px-6 lg:px-20 bg-[#0d1117] border-t border-[#30363d] relative overflow-hidden scroll-mt-20">
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#137fec]/5 blur-[100px] rounded-full pointer-events-none"></div>
-                
+
                 <div className="max-w-[1100px] mx-auto relative z-10">
                     {/* Header - Minimal */}
                     <div className="text-center mb-16">
@@ -767,7 +745,7 @@ export default function Home() {
                             Get Started
                         </Link>
                     </div>
-                    <p className="text-xs text-[#637588]">No credit card required</p>
+
                 </div>
             </section>
 
