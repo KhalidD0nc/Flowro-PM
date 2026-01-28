@@ -8,6 +8,14 @@ export interface ChatMessage {
     role: "user" | "assistant"
     content: string
     timestamp: string
+    // Optional metadata for assistant messages
+    intent?: "initial" | "discussion" | "proposal"
+    proposedChanges?: {
+        action: "add" | "update" | "remove"
+        summary: string
+        sections: string[]
+        changes: Record<string, unknown>
+    }
 }
 
 /**
@@ -300,6 +308,51 @@ export async function updateProjectName(
     })
 }
 
+/**
+ * Deletes a project and all associated blueprints and tasks
+ * Uses batch delete for atomicity
+ */
+export async function deleteProject(projectId: string): Promise<void> {
+    const db = getAdminDb()
+    const batch = db.batch()
+
+    // Delete all blueprints for this project
+    const blueprintsSnapshot = await db
+        .collection("blueprints")
+        .where("projectId", "==", projectId)
+        .get()
+
+    blueprintsSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref)
+    })
+
+    // Delete all tasks for this project
+    const tasksSnapshot = await db
+        .collection("tasks")
+        .where("projectId", "==", projectId)
+        .get()
+
+    tasksSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref)
+    })
+
+    // Delete all share tokens for this project
+    const shareTokensSnapshot = await db
+        .collection("shareTokens")
+        .where("projectId", "==", projectId)
+        .get()
+
+    shareTokensSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref)
+    })
+
+    // Delete the project itself
+    batch.delete(db.collection("projects").doc(projectId))
+
+    // Execute batch delete
+    await batch.commit()
+}
+
 // =============================================================================
 // Blueprint Service Functions
 // =============================================================================
@@ -378,6 +431,33 @@ export async function lockBlueprint(blueprintId: string): Promise<void> {
     await blueprintRef.update({
         status: "locked",
         lockedAt: new Date().toISOString(),
+    })
+}
+
+/**
+ * Unlocks a blueprint, allowing modifications again
+ * Note: Approved blueprints cannot be unlocked
+ */
+export async function unlockBlueprint(blueprintId: string): Promise<void> {
+    const blueprintRef = getAdminDb().collection("blueprints").doc(blueprintId)
+    const blueprint = await blueprintRef.get()
+
+    if (!blueprint.exists) {
+        throw new Error("Blueprint not found")
+    }
+
+    const data = blueprint.data()
+    if (data?.status === "approved") {
+        throw new Error("Cannot unlock an approved blueprint")
+    }
+
+    if (data?.status !== "locked") {
+        throw new Error("Blueprint is not locked")
+    }
+
+    await blueprintRef.update({
+        status: "draft",
+        lockedAt: null,
     })
 }
 

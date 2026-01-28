@@ -47,13 +47,11 @@ export async function POST(request: NextRequest) {
 
         console.log("Generated tasks:", launchPlan.tasks.length)
 
-        // Map category to status
+        // Map category to status (currently unused - all tasks go to backlog)
         const categoryToStatus: Record<string, string> = {
-            planning: "planning",
-            development: "planning",
-            marketing: "planning",
-            launch: "in_progress",
-            "post-launch": "planning",
+            feature: "backlog",
+            marketing: "backlog",
+            operations: "backlog",
         }
 
         // Create tasks in Firestore

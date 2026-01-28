@@ -4,6 +4,7 @@ import {
     getProjectBlueprints,
     updateBlueprintContent,
     lockBlueprint,
+    unlockBlueprint,
     createBlueprintVersion,
     saveVersion,
     verifyProjectOwnership,
@@ -93,6 +94,12 @@ export async function PATCH(request: NextRequest) {
         if (action === "lock") {
             await lockBlueprint(blueprintId)
             return NextResponse.json({ success: true, message: "Blueprint locked" })
+        }
+
+        // Unlock action - revert a locked blueprint to draft status
+        if (action === "unlock") {
+            await unlockBlueprint(blueprintId)
+            return NextResponse.json({ success: true, message: "Blueprint unlocked" })
         }
 
         // Save Version action - lock current and create new draft

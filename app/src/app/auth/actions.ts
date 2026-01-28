@@ -7,6 +7,7 @@ import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     sendPasswordResetEmail,
+    sendEmailVerification,
     updateProfile,
     UserCredential
 } from "firebase/auth"
@@ -61,11 +62,29 @@ function isValidEmail(email: string): boolean {
  * @throws Error if sign-in fails
  */
 export async function signInWithGoogle(): Promise<void> {
-    const provider = new GoogleAuthProvider()
-    const result = await signInWithPopup(auth, provider)
+    try {
+        const provider = new GoogleAuthProvider()
+        // Add custom parameters for better debugging
+        provider.setCustomParameters({
+            prompt: 'select_account'
+        })
 
-    // Store user in Firestore if first time
-    await storeUserInFirestore(result)
+        console.log('Attempting Google Sign-In...')
+        const result = await signInWithPopup(auth, provider)
+        console.log('Google Sign-In successful:', result.user.email)
+
+        // Store user in Firestore if first time
+        await storeUserInFirestore(result)
+        console.log('User stored in Firestore successfully')
+    } catch (error: any) {
+        console.error('Google Sign-In Error Details:', {
+            code: error.code,
+            message: error.message,
+            stack: error.stack,
+            customData: error.customData
+        })
+        throw error
+    }
 }
 
 /**
@@ -126,6 +145,9 @@ export async function signUp(
     if (sanitizedDisplayName && result.user) {
         await updateProfile(result.user, { displayName: sanitizedDisplayName })
     }
+
+    // Send email verification
+    await sendEmailVerification(result.user)
 
     // Store user data in Firestore
     await storeUserInFirestore(result, sanitizedDisplayName)
@@ -190,4 +212,20 @@ async function storeUserInFirestore(
  */
 export async function signOutUser(): Promise<void> {
     await firebaseSignOut(auth)
+}
+
+/**
+ * Resends verification email to the current user
+ * @returns Promise that resolves when email is sent
+ * @throws Error if sending fails or no user is logged in
+ */
+export async function resendVerificationEmail(): Promise<void> {
+    const user = auth.currentUser
+    if (!user) {
+        throw new Error("No user is currently logged in")
+    }
+    if (user.emailVerified) {
+        throw new Error("Email is already verified")
+    }
+    await sendEmailVerification(user)
 }

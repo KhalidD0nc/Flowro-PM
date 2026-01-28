@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react"
 import { User, onAuthStateChanged } from "firebase/auth"
 import { auth } from "@/lib/firebase"
+import { ToastProvider } from "./ui/ToastProvider"
 
 interface AuthContextType {
     user: User | null
@@ -30,7 +31,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return (
         <AuthContext.Provider value={{ user, loading }}>
-            {children}
+            <ToastProvider>
+                {children}
+            </ToastProvider>
         </AuthContext.Provider>
     )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import Link from "next/link"
 import mermaid from "mermaid"
 import {
@@ -9,9 +9,53 @@ import {
     generateFilename,
     type ExportFormat,
 } from "@/lib/exportBlueprint"
+import { analytics } from "@/lib/analytics"
 import ShareModal from "./ShareModal"
 import UBPEditModal from "./UBPEditModals"
 import AIFloatingMenu from "./AIFloatingMenu"
+
+// =============================================================================
+// IDE Integration Types & Helpers
+// =============================================================================
+
+type IDEType = "vscode" | "cursor" | "antigravity"
+
+interface IDEConfig {
+    name: string
+    logo: string
+    protocol: string
+    fileProtocol: string
+}
+
+const IDE_CONFIGS: Record<IDEType, IDEConfig> = {
+    vscode: {
+        name: "VS Code",
+        logo: "/vscode.png",
+        protocol: "vscode://",
+        fileProtocol: "vscode://file"
+    },
+    cursor: {
+        name: "Cursor",
+        logo: "/CUBE_2D_DARK.png",
+        protocol: "cursor://",
+        fileProtocol: "cursor://file"
+    },
+    antigravity: {
+        name: "Antigravity",
+        logo: "/antigraviti-logo.png",
+        protocol: "antigravity://",
+        fileProtocol: "antigravity://open"
+    }
+}
+
+// Generate a unique filename for the blueprint
+function generateIDEFilename(projectName: string): string {
+    const safeName = projectName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "flowro-blueprint"
+    return `${safeName}-blueprint.md`
+}
 
 // Initialize mermaid
 mermaid.initialize({
@@ -164,6 +208,42 @@ export default function UBPViewer({
         position: { x: number; y: number }
     } | null>(null)
 
+    // Simple IDE Handler - Download file + Open IDE immediately
+    const handleIDEClick = useCallback((ide: IDEType) => {
+        if (!ubp || !currentBlueprintId) return
+
+        const config = IDE_CONFIGS[ide]
+        const filename = generateIDEFilename(projectName)
+
+        // Step 1: Generate and download the file
+        const content = exportBlueprint(ubp, {
+            projectName,
+            projectDescription,
+            blueprintId: currentBlueprintId,
+            version,
+            status,
+            createdAt: createdAt || new Date().toISOString(),
+            lockedAt,
+        }, "markdown")
+
+        // Create and trigger download
+        const blob = new Blob([content], { type: "text/markdown" })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = filename
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+
+        // Step 2: Open IDE immediately
+        setTimeout(() => {
+            window.location.href = config.protocol
+        }, 100)
+
+    }, [ubp, currentBlueprintId, projectName, projectDescription, version, status, createdAt, lockedAt])
+
     // Handle text selection
     useEffect(() => {
         if (readOnly) return
@@ -260,6 +340,12 @@ export default function UBPViewer({
 
         const filename = generateFilename(projectName, version)
         downloadBlueprint(content, filename, format)
+
+        // Track export analytics
+        if (projectId) {
+            analytics.blueprintExported(projectId, format)
+        }
+
         setIsExportDropdownOpen(false)
     }
 
@@ -328,8 +414,8 @@ export default function UBPViewer({
             {/* Panel */}
             <div className="fixed top-0 right-0 h-full w-full max-w-[1200px] bg-[#101922] border-l border-[#283039] z-50 flex flex-col overflow-hidden animate-slide-in-right">
                 {/* Header */}
-                <header className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-[#283039] bg-[#0d141c] shrink-0 gap-2">
-                    <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                <header className="relative flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-white/5 bg-[#0d141c]/50 shrink-0 gap-2 z-10">
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                         {/* Show close button only in non-readOnly mode, otherwise show Flowro branding */}
                         {readOnly ? (
                             <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
@@ -339,31 +425,37 @@ export default function UBPViewer({
                         ) : (
                             <button
                                 onClick={onClose}
-                                className="flex items-center justify-center rounded-lg p-1.5 sm:p-2 text-[#9dabb9] transition-colors hover:bg-white/10 hover:text-white shrink-0"
+                                className="group flex items-center justify-center rounded-xl p-2 text-[#9dabb9] transition-all hover:bg-white/5 hover:text-white"
                                 title="Close"
                             >
-                                <span className="material-symbols-outlined text-xl sm:text-2xl">close</span>
+                                <span className="material-symbols-outlined text-xl sm:text-2xl transition-transform group-hover:rotate-90">close</span>
                             </button>
                         )}
                         <div className="flex flex-col min-w-0">
-                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                <h1 className="text-sm sm:text-lg font-bold text-white truncate max-w-[100px] xs:max-w-[150px] sm:max-w-none">{projectName}</h1>
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-sm sm:text-lg font-bold text-white truncate min-w-0">
+                                    {projectName}
+                                </h1>
+                                <div className="h-4 w-px bg-white/10 hidden sm:block" />
+                                <span className="hidden sm:block text-xs font-medium text-[#9dabb9] uppercase tracking-wider">Unified Blueprint</span>
+                            </div>
 
+                            <div className="flex items-center gap-2 mt-0.5">
                                 {/* Version Dropdown */}
                                 {allVersions.length > 1 && onVersionSelect ? (
                                     <div className="relative shrink-0">
                                         <button
                                             onClick={() => setIsVersionDropdownOpen(!isVersionDropdownOpen)}
-                                            className="flex items-center gap-0.5 sm:gap-1 text-[#9dabb9] text-xs sm:text-sm hover:text-white hover:bg-white/10 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded transition-colors"
+                                            className="flex items-center gap-1 text-[#9dabb9] text-xs hover:text-white transition-colors"
                                         >
-                                            v{version}
-                                            <span className="material-symbols-outlined text-[14px] sm:text-[16px]">
+                                            <span className="font-mono">v{version}</span>
+                                            <span className="material-symbols-outlined text-[14px]">
                                                 {isVersionDropdownOpen ? "expand_less" : "expand_more"}
                                             </span>
                                         </button>
 
                                         {isVersionDropdownOpen && (
-                                            <div className="absolute top-full left-0 mt-1 bg-[#1f2937] border border-[#283039] rounded-lg shadow-xl z-10 min-w-[160px] sm:min-w-[180px] py-1">
+                                            <div className="absolute top-full left-0 mt-2 bg-[#1a232e] border border-white/10 rounded-xl shadow-2xl z-20 min-w-[200px] py-1 overflow-hidden backdrop-blur-md">
                                                 {allVersions.map((v) => (
                                                     <button
                                                         key={v.id}
@@ -371,17 +463,17 @@ export default function UBPViewer({
                                                             onVersionSelect(v.id)
                                                             setIsVersionDropdownOpen(false)
                                                         }}
-                                                        className={`w-full flex items-center justify-between px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors ${v.id === currentBlueprintId
-                                                            ? "bg-[#137fec]/20 text-white"
-                                                            : "text-[#9dabb9] hover:bg-white/5 hover:text-white"
+                                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs transition-colors border-l-2 ${v.id === currentBlueprintId
+                                                            ? "bg-[#137fec]/10 text-white border-[#137fec]"
+                                                            : "text-[#9dabb9] hover:bg-white/5 hover:text-white border-transparent"
                                                             }`}
                                                     >
-                                                        <span>v{v.version}</span>
-                                                        <span className={`text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded ${v.status === "draft"
-                                                            ? "bg-yellow-500/20 text-yellow-400"
-                                                            : "bg-blue-500/20 text-blue-400"
+                                                        <span className="font-mono">v{v.version}</span>
+                                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${v.status === "draft"
+                                                            ? "bg-yellow-500/10 text-yellow-500"
+                                                            : "bg-blue-500/10 text-blue-500"
                                                             }`}>
-                                                            {v.status === "draft" ? "Draft" : "Locked"}
+                                                            {v.status}
                                                         </span>
                                                     </button>
                                                 ))}
@@ -389,103 +481,140 @@ export default function UBPViewer({
                                         )}
                                     </div>
                                 ) : (
-                                    <span className="text-[#9dabb9] text-xs sm:text-sm shrink-0">v{version}</span>
+                                    <span className="text-[#9dabb9] text-xs font-mono">v{version}</span>
                                 )}
-                            </div>
-                            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                                <span className={`inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 rounded-full border text-[10px] sm:text-xs font-bold uppercase tracking-wide ${statusColors[status]}`}>
-                                    <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-current" />
+
+                                <span className="text-[#9dabb9]/40 text-xs">•</span>
+
+                                {/* Status Badge */}
+                                <span className={`flex items-center gap-1.5 text-xs font-medium ${status === 'draft' ? 'text-yellow-500' :
+                                        status === 'locked' ? 'text-blue-500' : 'text-green-500'
+                                    }`}>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${status === 'draft' ? 'bg-yellow-500' :
+                                            status === 'locked' ? 'bg-blue-500' : 'bg-green-500'
+                                        }`} />
                                     {statusLabels[status]}
                                 </span>
+
                                 {lastUpdated && (
-                                    <span className="hidden sm:inline text-[#9dabb9] text-xs">
-                                        Last updated {lastUpdated}
-                                    </span>
+                                    <>
+                                        <span className="text-[#9dabb9]/40 text-xs hidden sm:inline">•</span>
+                                        <span className="hidden sm:inline text-[#9dabb9] text-xs">
+                                            {lastUpdated}
+                                        </span>
+                                    </>
                                 )}
                             </div>
                         </div>
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                        {/* Share Button - only shown if not readOnly and has required data */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* IDE Integration Links */}
+                        <div className="hidden lg:flex items-center gap-4 mr-3 px-4 py-2 rounded-xl bg-[#1a232e]/80 border border-[#283039]">
+                            <span className="text-[#9dabb9] text-xs font-medium whitespace-nowrap">Open in</span>
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={() => handleIDEClick("vscode")}
+                                    title="Download & Open in VS Code"
+                                    className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/5 opacity-70 hover:opacity-100 transition-all"
+                                >
+                                    <img src="/vscode.png" alt="VS Code" className="h-5 w-auto" />
+                                    <span className="text-[#9dabb9] text-xs hidden xl:inline">VS Code</span>
+                                </button>
+                                <button
+                                    onClick={() => handleIDEClick("cursor")}
+                                    title="Download & Open in Cursor"
+                                    className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/5 opacity-70 hover:opacity-100 transition-all"
+                                >
+                                    <img src="/CUBE_2D_DARK.png" alt="Cursor" className="h-5 w-auto" />
+                                    <span className="text-[#9dabb9] text-xs hidden xl:inline">Cursor</span>
+                                </button>
+                                <button
+                                    onClick={() => handleIDEClick("antigravity")}
+                                    title="Download & Open in Antigravity"
+                                    className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/5 opacity-70 hover:opacity-100 transition-all"
+                                >
+                                    <img src="/antigraviti-logo.png" alt="Antigravity" className="h-5 w-auto" />
+                                    <span className="text-[#9dabb9] text-xs hidden xl:inline">Antigravity</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Share Button */}
                         {!readOnly && currentBlueprintId && projectId && (
                             <button
                                 onClick={() => setIsShareModalOpen(true)}
-                                className="flex items-center justify-center gap-1.5 sm:gap-2 bg-[#283039] hover:bg-[#3d4a56] text-white font-medium p-2 sm:py-2 sm:px-4 rounded-lg transition-colors"
+                                className="hidden sm:flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-[#9dabb9] hover:text-white hover:bg-white/5 transition-colors text-xs font-medium"
                                 title="Share"
                             >
-                                <span className="material-symbols-outlined text-lg sm:text-[18px]">share</span>
-                                <span className="hidden sm:inline">Share</span>
+                                <span className="material-symbols-outlined text-[18px]">ios_share</span>
+                                Share
                             </button>
                         )}
 
-                        {/* Export Dropdown - only shown if not readOnly */}
+                        {/* Export Dropdown */}
                         {!readOnly && (
                             <div className="relative">
                                 <button
                                     onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
-                                    className="flex items-center justify-center gap-1.5 sm:gap-2 bg-[#283039] hover:bg-[#3d4a56] text-white font-medium p-2 sm:py-2 sm:px-4 rounded-lg transition-colors"
+                                    className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-[#9dabb9] hover:text-white hover:bg-white/5 transition-colors text-xs font-medium"
                                     title="Export"
                                 >
-                                    <span className="material-symbols-outlined text-lg sm:text-[18px]">download</span>
+                                    <span className="material-symbols-outlined text-[18px]">download</span>
                                     <span className="hidden sm:inline">Export</span>
-                                    <span className="material-symbols-outlined text-[14px] sm:text-[16px] hidden sm:inline">
-                                        {isExportDropdownOpen ? "expand_less" : "expand_more"}
-                                    </span>
                                 </button>
 
                                 {isExportDropdownOpen && (
-                                    <div className="absolute top-full right-0 mt-1 bg-[#1f2937] border border-[#283039] rounded-lg shadow-xl z-10 min-w-[160px] sm:min-w-[180px] py-1">
+                                    <div className="absolute top-full right-0 mt-2 bg-[#1a232e] border border-white/10 rounded-xl shadow-2xl z-20 min-w-[180px] py-1 overflow-hidden backdrop-blur-md">
                                         <button
                                             onClick={() => handleExport("json")}
-                                            className="w-full flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
+                                            className="w-full flex items-center gap-3 px-4 py-2 text-xs text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
                                         >
-                                            <span className="material-symbols-outlined text-[16px] sm:text-[18px]">data_object</span>
-                                            Export as JSON
+                                            <span className="material-symbols-outlined text-[16px]">data_object</span>
+                                            Export JSON
                                         </button>
                                         <button
                                             onClick={() => handleExport("markdown")}
-                                            className="w-full flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
+                                            className="w-full flex items-center gap-3 px-4 py-2 text-xs text-[#d0d6dc] hover:bg-white/5 hover:text-white transition-colors"
                                         >
-                                            <span className="material-symbols-outlined text-[16px] sm:text-[18px]">description</span>
-                                            Export as Markdown
+                                            <span className="material-symbols-outlined text-[16px]">description</span>
+                                            Export Markdown
                                         </button>
                                     </div>
                                 )}
                             </div>
                         )}
 
-                        {/* Save Version Button - only shown for draft status and not readOnly */}
+                        {/* Save Version Button - Primary Action */}
                         {!readOnly && status === "draft" && onSaveVersion && (
-                            <div className="flex flex-col items-end">
+                            <div className="flex items-center ml-2">
                                 <button
                                     onClick={onSaveVersion}
                                     disabled={isSaving}
-                                    className="flex items-center justify-center gap-1.5 sm:gap-2 bg-[#137fec] hover:bg-blue-600 disabled:bg-[#137fec]/50 disabled:cursor-not-allowed text-white font-medium p-2 sm:py-2 sm:px-4 rounded-lg transition-colors"
+                                    className="flex items-center justify-center gap-2 bg-[#137fec] hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-1.5 px-3 rounded-lg transition-all shadow-lg shadow-blue-500/20 text-xs sm:text-sm"
                                     title="Save Version"
                                 >
                                     {isSaving ? (
                                         <>
-                                            <span className="material-symbols-outlined text-lg sm:text-[18px] animate-spin">progress_activity</span>
+                                            <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
                                             <span className="hidden sm:inline">Saving...</span>
                                         </>
                                     ) : (
                                         <>
-                                            <span className="material-symbols-outlined text-lg sm:text-[18px]">save</span>
+                                            <span className="material-symbols-outlined text-[16px]">save</span>
                                             <span className="hidden sm:inline">Save Version</span>
                                         </>
                                     )}
                                 </button>
-                                <span className="hidden lg:block text-[#9dabb9] text-xs mt-1">Save as milestone, continue editing</span>
                             </div>
                         )}
 
-                        {/* Public View Badge - shown in readOnly mode */}
+                        {/* Public View Badge */}
                         {readOnly && (
-                            <span className="flex items-center gap-1.5 sm:gap-2 bg-blue-500/20 text-blue-400 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium border border-blue-500/30">
-                                <span className="material-symbols-outlined text-[16px] sm:text-[18px]">visibility</span>
-                                <span className="hidden xs:inline">Public View</span>
+                            <span className="flex items-center gap-1.5 bg-blue-500/10 text-blue-400 px-3 py-1.5 rounded-full text-xs font-bold border border-blue-500/20 uppercase tracking-wide">
+                                <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                                Public View
                             </span>
                         )}
                     </div>
@@ -535,257 +664,257 @@ export default function UBPViewer({
                         {/* Main Content */}
                         <main ref={contentRef} className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
                             <div className="p-3 sm:p-6 pb-20 space-y-4 sm:space-y-6">
-                            {/* No UBP Content */}
-                            {!ubp && (
-                                <div className="flex flex-col items-center justify-center py-20 text-center">
-                                    <div className="size-16 rounded-2xl bg-[#137fec]/10 flex items-center justify-center mb-4">
-                                        <span className="material-symbols-outlined text-[#137fec] text-3xl">
-                                            description
-                                        </span>
+                                {/* No UBP Content */}
+                                {!ubp && (
+                                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                                        <div className="size-16 rounded-2xl bg-[#137fec]/10 flex items-center justify-center mb-4">
+                                            <span className="material-symbols-outlined text-[#137fec] text-3xl">
+                                                description
+                                            </span>
+                                        </div>
+                                        <h2 className="text-xl font-bold text-white mb-2">No Blueprint Yet</h2>
+                                        <p className="text-[#9dabb9] max-w-md">
+                                            Continue chatting with the AI to generate your Unified Blueprint.
+                                        </p>
                                     </div>
-                                    <h2 className="text-xl font-bold text-white mb-2">No Blueprint Yet</h2>
-                                    <p className="text-[#9dabb9] max-w-md">
-                                        Continue chatting with the AI to generate your Unified Blueprint.
-                                    </p>
-                                </div>
-                            )}
+                                )}
 
-                            {ubp && (
-                                <>
-                                    {/* Product Vision */}
-                                    <Section id="vision" icon="visibility" title="1. Product Vision" onEdit={!readOnly && onUpdate ? () => setEditSection("vision") : undefined}>
-                                        {ubp.productVision?.description && (
-                                            <p className="text-[#d0d6dc] text-base leading-relaxed mb-6">
-                                                {ubp.productVision.description}
-                                            </p>
-                                        )}
-                                        <div className="grid md:grid-cols-2 gap-4">
-                                            {ubp.productVision?.primaryGoal && (
-                                                <InfoCard title="Primary Goal" content={ubp.productVision.primaryGoal} />
+                                {ubp && (
+                                    <>
+                                        {/* Product Vision */}
+                                        <Section id="vision" icon="visibility" title="1. Product Vision" onEdit={!readOnly && onUpdate ? () => setEditSection("vision") : undefined}>
+                                            {ubp.productVision?.description && (
+                                                <p className="text-[#d0d6dc] text-base leading-relaxed mb-6">
+                                                    {ubp.productVision.description}
+                                                </p>
                                             )}
-                                            {ubp.productVision?.targetAudience && (
-                                                <InfoCard title="Target Audience" content={ubp.productVision.targetAudience} />
-                                            )}
-                                        </div>
-                                    </Section>
+                                            <div className="grid md:grid-cols-2 gap-4">
+                                                {ubp.productVision?.primaryGoal && (
+                                                    <InfoCard title="Primary Goal" content={ubp.productVision.primaryGoal} />
+                                                )}
+                                                {ubp.productVision?.targetAudience && (
+                                                    <InfoCard title="Target Audience" content={ubp.productVision.targetAudience} />
+                                                )}
+                                            </div>
+                                        </Section>
 
-                                    {/* Scope */}
-                                    <Section id="scope" icon="my_location" title="2. Scope" onEdit={!readOnly && onUpdate ? () => setEditSection("scope") : undefined}>
-                                        <div className="grid md:grid-cols-2 gap-6">
-                                            {ubp.scope?.inScope && ubp.scope.inScope.length > 0 && (
-                                                <div>
-                                                    <h3 className="flex items-center gap-2 text-white font-semibold mb-4 text-sm uppercase tracking-wider">
-                                                        <span className="text-green-500 material-symbols-outlined text-lg">check_circle</span>
-                                                        In Scope
-                                                    </h3>
-                                                    <ul className="space-y-3">
-                                                        {ubp.scope.inScope.map((item, i) => (
-                                                            <li key={i} className="flex items-start gap-3 text-[#d0d6dc] text-sm">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-[#9dabb9] mt-2 shrink-0" />
-                                                                <span>{item}</span>
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
-                                            {ubp.scope?.outOfScope && ubp.scope.outOfScope.length > 0 && (
-                                                <div>
-                                                    <h3 className="flex items-center gap-2 text-white font-semibold mb-4 text-sm uppercase tracking-wider">
-                                                        <span className="text-red-500 material-symbols-outlined text-lg">cancel</span>
-                                                        Out of Scope
-                                                    </h3>
-                                                    <ul className="space-y-3">
-                                                        {ubp.scope.outOfScope.map((item, i) => (
-                                                            <li key={i} className="flex items-start gap-3 text-[#9dabb9] text-sm">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-[#3d4a56] mt-2 shrink-0" />
-                                                                <span>{item}</span>
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </Section>
-
-                                    {/* Actors */}
-                                    <Section id="actors" icon="group" title="3. Actors" onEdit={!readOnly && onUpdate ? () => setEditSection("actors") : undefined}>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            {ubp.actors?.map((actor, i) => (
-                                                <div key={i} className="bg-[#283039]/40 p-4 rounded-lg border border-[#283039] flex flex-col gap-2">
-                                                    <div className={`size-10 rounded-full flex items-center justify-center mb-2 ${getActorColor(i)}`}>
-                                                        <span className="material-symbols-outlined">
-                                                            {actor.icon || "person"}
-                                                        </span>
-                                                    </div>
-                                                    <h4 className="text-white font-bold text-sm">{actor.name}</h4>
-                                                    <p className="text-[#9dabb9] text-xs leading-normal">{actor.description}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </Section>
-
-                                    {/* Behaviors */}
-                                    <Section id="behaviors" icon="bolt" title="4. Behaviors" onEdit={!readOnly && onUpdate ? () => setEditSection("behaviors") : undefined}>
-                                        <div className="divide-y divide-[#283039]">
-                                            {ubp.behaviors?.map((behavior, i) => (
-                                                <div key={i} className="py-6 first:pt-0 last:pb-0">
-                                                    <div className="flex items-center justify-between mb-3">
-                                                        <h4 className="text-white font-semibold text-sm">{behavior.id}: {behavior.title}</h4>
-                                                        {behavior.priority && (
-                                                            <span className="text-[#9dabb9] text-xs font-mono bg-[#283039] px-2 py-1 rounded">
-                                                                {behavior.priority}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="bg-[#111418] rounded-lg p-4 font-mono text-sm border border-[#283039]">
-                                                        {behavior.given && (
-                                                            <p className="text-purple-400">
-                                                                <span className="text-[#9dabb9] font-bold">GIVEN</span> {behavior.given}
-                                                            </p>
-                                                        )}
-                                                        {behavior.when && (
-                                                            <p className="text-blue-400">
-                                                                <span className="text-[#9dabb9] font-bold">WHEN</span> {behavior.when}
-                                                            </p>
-                                                        )}
-                                                        {behavior.then && (
-                                                            <p className="text-green-400">
-                                                                <span className="text-[#9dabb9] font-bold">THEN</span> {behavior.then}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                    {behavior.diagram && (
-                                                        <div
-                                                            className="mermaid-diagram mt-4 bg-[#111418] rounded-lg p-4 border border-[#283039] overflow-x-auto"
-                                                            data-mermaid={behavior.diagram}
-                                                        />
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </Section>
-
-                                    {/* Constraints & Risks */}
-                                    <Section id="constraints" icon="warning" title="5. Constraints & Risks" onEdit={!readOnly && onUpdate ? () => setEditSection("constraints") : undefined}>
-                                        <div className="grid gap-4">
-                                            {ubp.constraints?.map((constraint, i) => (
-                                                <div
-                                                    key={i}
-                                                    className={`flex gap-4 p-4 rounded-lg ${constraint.type === "risk"
-                                                        ? "bg-red-500/10 border border-red-500/20"
-                                                        : "bg-yellow-500/10 border border-yellow-500/20"
-                                                        }`}
-                                                >
-                                                    <span className={`material-symbols-outlined flex-none ${constraint.type === "risk" ? "text-red-500" : "text-yellow-500"
-                                                        }`}>
-                                                        {constraint.type === "risk" ? "lock" : "dns"}
-                                                    </span>
+                                        {/* Scope */}
+                                        <Section id="scope" icon="my_location" title="2. Scope" onEdit={!readOnly && onUpdate ? () => setEditSection("scope") : undefined}>
+                                            <div className="grid md:grid-cols-2 gap-6">
+                                                {ubp.scope?.inScope && ubp.scope.inScope.length > 0 && (
                                                     <div>
-                                                        <h4 className={`font-bold text-sm mb-1 ${constraint.type === "risk" ? "text-red-500" : "text-yellow-500"
-                                                            }`}>
-                                                            {constraint.title}
-                                                        </h4>
-                                                        <p className="text-[#d0d6dc] text-sm">{constraint.description}</p>
+                                                        <h3 className="flex items-center gap-2 text-white font-semibold mb-4 text-sm uppercase tracking-wider">
+                                                            <span className="text-green-500 material-symbols-outlined text-lg">check_circle</span>
+                                                            In Scope
+                                                        </h3>
+                                                        <ul className="space-y-3">
+                                                            {ubp.scope.inScope.map((item, i) => (
+                                                                <li key={i} className="flex items-start gap-3 text-[#d0d6dc] text-sm">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-[#9dabb9] mt-2 shrink-0" />
+                                                                    <span>{item}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
                                                     </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </Section>
-
-                                    {/* Tech Decisions */}
-                                    <Section id="tech" icon="code" title="6. Technology Decisions" onEdit={!readOnly && onUpdate ? () => setEditSection("tech") : undefined}>
-                                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                            {ubp.techDecisions?.map((tech, i) => (
-                                                <div key={i} className="p-4 bg-[#283039] rounded-lg border border-[#283039]">
-                                                    <p className="text-[#9dabb9] text-xs uppercase tracking-wide mb-1">{tech.category}</p>
-                                                    <p className="text-white font-bold">{tech.choice}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </Section>
-
-                                    {/* Implementation Phases */}
-                                    <Section id="phases" icon="stairs" title="7. Implementation Phases" onEdit={!readOnly && onUpdate ? () => setEditSection("phases") : undefined}>
-                                        <div className="relative pl-6 border-l-2 border-[#283039] space-y-8">
-                                            {ubp.phases?.map((phase, i) => (
-                                                <div key={i} className="relative">
-                                                    <div className={`absolute -left-[31px] top-1 w-4 h-4 rounded-full border-2 border-[#1f2937] ${phase.status === "completed"
-                                                        ? "bg-green-500"
-                                                        : phase.status === "current"
-                                                            ? "bg-[#137fec]"
-                                                            : "bg-[#283039]"
-                                                        }`}
-                                                    />
-                                                    <h4 className={`font-bold text-sm mb-1 ${phase.status === "upcoming" ? "text-[#9dabb9]" : "text-white"
-                                                        }`}>
-                                                        {phase.name}
-                                                    </h4>
-                                                    {phase.timeline && (
-                                                        <p className="text-[#9dabb9] text-xs mb-2">{phase.timeline}</p>
-                                                    )}
-                                                    <p className={`text-sm ${phase.status === "upcoming" ? "text-[#9dabb9]" : "text-[#d0d6dc]"
-                                                        }`}>
-                                                        {phase.description}
-                                                    </p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </Section>
-
-                                    {/* Integration Points */}
-                                    <Section id="integration" icon="cable" title="8. Integration Points" onEdit={!readOnly && onUpdate ? () => setEditSection("integration") : undefined}>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-left text-sm text-[#d0d6dc]">
-                                                <thead className="text-xs uppercase bg-[#283039] text-[#9dabb9]">
-                                                    <tr>
-                                                        <th className="px-4 py-3 rounded-l-lg">System</th>
-                                                        <th className="px-4 py-3">Method</th>
-                                                        <th className="px-4 py-3 rounded-r-lg">Purpose</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-[#283039]">
-                                                    {ubp.integrations?.map((integration, i) => (
-                                                        <tr key={i}>
-                                                            <td className="px-4 py-3 font-medium text-white">{integration.system}</td>
-                                                            <td className="px-4 py-3">
-                                                                <code className="bg-[#111418] px-2 py-0.5 rounded text-xs">
-                                                                    {integration.method}
-                                                                </code>
-                                                            </td>
-                                                            <td className="px-4 py-3">{integration.purpose}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </Section>
-
-                                    {/* Change Log */}
-                                    <Section id="changelog" icon="history" title="9. Change Log" onEdit={!readOnly && onUpdate ? () => setEditSection("changelog") : undefined}>
-                                        <div className="space-y-4">
-                                            {ubp.changelog?.map((entry, i) => (
-                                                <div key={i} className="flex gap-4">
-                                                    <div className="text-[#9dabb9] text-sm font-mono whitespace-nowrap pt-0.5">
-                                                        {entry.timestamp || "—"}
-                                                    </div>
+                                                )}
+                                                {ubp.scope?.outOfScope && ubp.scope.outOfScope.length > 0 && (
                                                     <div>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <span className="bg-blue-500/20 text-blue-400 text-xs px-2 py-0.5 rounded font-bold">
-                                                                v{entry.version}
+                                                        <h3 className="flex items-center gap-2 text-white font-semibold mb-4 text-sm uppercase tracking-wider">
+                                                            <span className="text-red-500 material-symbols-outlined text-lg">cancel</span>
+                                                            Out of Scope
+                                                        </h3>
+                                                        <ul className="space-y-3">
+                                                            {ubp.scope.outOfScope.map((item, i) => (
+                                                                <li key={i} className="flex items-start gap-3 text-[#9dabb9] text-sm">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-[#3d4a56] mt-2 shrink-0" />
+                                                                    <span>{item}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </Section>
+
+                                        {/* Actors */}
+                                        <Section id="actors" icon="group" title="3. Actors" onEdit={!readOnly && onUpdate ? () => setEditSection("actors") : undefined}>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {ubp.actors?.map((actor, i) => (
+                                                    <div key={i} className="bg-[#283039]/40 p-4 rounded-lg border border-[#283039] flex flex-col gap-2">
+                                                        <div className={`size-10 rounded-full flex items-center justify-center mb-2 ${getActorColor(i)}`}>
+                                                            <span className="material-symbols-outlined">
+                                                                {actor.icon || "person"}
                                                             </span>
-                                                            <span className="text-white font-medium text-sm">{entry.title}</span>
                                                         </div>
-                                                        <p className="text-[#9dabb9] text-sm">{entry.description}</p>
+                                                        <h4 className="text-white font-bold text-sm">{actor.name}</h4>
+                                                        <p className="text-[#9dabb9] text-xs leading-normal">{actor.description}</p>
                                                     </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </Section>
-                                </>
-                            )}
-                        </div>
-                    </main>
-                </div>
+                                                ))}
+                                            </div>
+                                        </Section>
+
+                                        {/* Behaviors */}
+                                        <Section id="behaviors" icon="bolt" title="4. Behaviors" onEdit={!readOnly && onUpdate ? () => setEditSection("behaviors") : undefined}>
+                                            <div className="divide-y divide-[#283039]">
+                                                {ubp.behaviors?.map((behavior, i) => (
+                                                    <div key={i} className="py-6 first:pt-0 last:pb-0">
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <h4 className="text-white font-semibold text-sm">{behavior.id}: {behavior.title}</h4>
+                                                            {behavior.priority && (
+                                                                <span className="text-[#9dabb9] text-xs font-mono bg-[#283039] px-2 py-1 rounded">
+                                                                    {behavior.priority}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="bg-[#111418] rounded-lg p-4 font-mono text-sm border border-[#283039]">
+                                                            {behavior.given && (
+                                                                <p className="text-purple-400">
+                                                                    <span className="text-[#9dabb9] font-bold">GIVEN</span> {behavior.given}
+                                                                </p>
+                                                            )}
+                                                            {behavior.when && (
+                                                                <p className="text-blue-400">
+                                                                    <span className="text-[#9dabb9] font-bold">WHEN</span> {behavior.when}
+                                                                </p>
+                                                            )}
+                                                            {behavior.then && (
+                                                                <p className="text-green-400">
+                                                                    <span className="text-[#9dabb9] font-bold">THEN</span> {behavior.then}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        {behavior.diagram && (
+                                                            <div
+                                                                className="mermaid-diagram mt-4 bg-[#111418] rounded-lg p-4 border border-[#283039] overflow-x-auto"
+                                                                data-mermaid={behavior.diagram}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </Section>
+
+                                        {/* Constraints & Risks */}
+                                        <Section id="constraints" icon="warning" title="5. Constraints & Risks" onEdit={!readOnly && onUpdate ? () => setEditSection("constraints") : undefined}>
+                                            <div className="grid gap-4">
+                                                {ubp.constraints?.map((constraint, i) => (
+                                                    <div
+                                                        key={i}
+                                                        className={`flex gap-4 p-4 rounded-lg ${constraint.type === "risk"
+                                                            ? "bg-red-500/10 border border-red-500/20"
+                                                            : "bg-yellow-500/10 border border-yellow-500/20"
+                                                            }`}
+                                                    >
+                                                        <span className={`material-symbols-outlined flex-none ${constraint.type === "risk" ? "text-red-500" : "text-yellow-500"
+                                                            }`}>
+                                                            {constraint.type === "risk" ? "lock" : "dns"}
+                                                        </span>
+                                                        <div>
+                                                            <h4 className={`font-bold text-sm mb-1 ${constraint.type === "risk" ? "text-red-500" : "text-yellow-500"
+                                                                }`}>
+                                                                {constraint.title}
+                                                            </h4>
+                                                            <p className="text-[#d0d6dc] text-sm">{constraint.description}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </Section>
+
+                                        {/* Tech Decisions */}
+                                        <Section id="tech" icon="code" title="6. Technology Decisions" onEdit={!readOnly && onUpdate ? () => setEditSection("tech") : undefined}>
+                                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                                {ubp.techDecisions?.map((tech, i) => (
+                                                    <div key={i} className="p-4 bg-[#283039] rounded-lg border border-[#283039]">
+                                                        <p className="text-[#9dabb9] text-xs uppercase tracking-wide mb-1">{tech.category}</p>
+                                                        <p className="text-white font-bold">{tech.choice}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </Section>
+
+                                        {/* Implementation Phases */}
+                                        <Section id="phases" icon="stairs" title="7. Implementation Phases" onEdit={!readOnly && onUpdate ? () => setEditSection("phases") : undefined}>
+                                            <div className="relative pl-6 border-l-2 border-[#283039] space-y-8">
+                                                {ubp.phases?.map((phase, i) => (
+                                                    <div key={i} className="relative">
+                                                        <div className={`absolute -left-[31px] top-1 w-4 h-4 rounded-full border-2 border-[#1f2937] ${phase.status === "completed"
+                                                            ? "bg-green-500"
+                                                            : phase.status === "current"
+                                                                ? "bg-[#137fec]"
+                                                                : "bg-[#283039]"
+                                                            }`}
+                                                        />
+                                                        <h4 className={`font-bold text-sm mb-1 ${phase.status === "upcoming" ? "text-[#9dabb9]" : "text-white"
+                                                            }`}>
+                                                            {phase.name}
+                                                        </h4>
+                                                        {phase.timeline && (
+                                                            <p className="text-[#9dabb9] text-xs mb-2">{phase.timeline}</p>
+                                                        )}
+                                                        <p className={`text-sm ${phase.status === "upcoming" ? "text-[#9dabb9]" : "text-[#d0d6dc]"
+                                                            }`}>
+                                                            {phase.description}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </Section>
+
+                                        {/* Integration Points */}
+                                        <Section id="integration" icon="cable" title="8. Integration Points" onEdit={!readOnly && onUpdate ? () => setEditSection("integration") : undefined}>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-sm text-[#d0d6dc]">
+                                                    <thead className="text-xs uppercase bg-[#283039] text-[#9dabb9]">
+                                                        <tr>
+                                                            <th className="px-4 py-3 rounded-l-lg">System</th>
+                                                            <th className="px-4 py-3">Method</th>
+                                                            <th className="px-4 py-3 rounded-r-lg">Purpose</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-[#283039]">
+                                                        {ubp.integrations?.map((integration, i) => (
+                                                            <tr key={i}>
+                                                                <td className="px-4 py-3 font-medium text-white">{integration.system}</td>
+                                                                <td className="px-4 py-3">
+                                                                    <code className="bg-[#111418] px-2 py-0.5 rounded text-xs">
+                                                                        {integration.method}
+                                                                    </code>
+                                                                </td>
+                                                                <td className="px-4 py-3">{integration.purpose}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </Section>
+
+                                        {/* Change Log */}
+                                        <Section id="changelog" icon="history" title="9. Change Log" onEdit={!readOnly && onUpdate ? () => setEditSection("changelog") : undefined}>
+                                            <div className="space-y-4">
+                                                {ubp.changelog?.map((entry, i) => (
+                                                    <div key={i} className="flex gap-4">
+                                                        <div className="text-[#9dabb9] text-sm font-mono whitespace-nowrap pt-0.5">
+                                                            {entry.timestamp || "—"}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <span className="bg-blue-500/20 text-blue-400 text-xs px-2 py-0.5 rounded font-bold">
+                                                                    v{entry.version}
+                                                                </span>
+                                                                <span className="text-white font-medium text-sm">{entry.title}</span>
+                                                            </div>
+                                                            <p className="text-[#9dabb9] text-sm">{entry.description}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </Section>
+                                    </>
+                                )}
+                            </div>
+                        </main>
+                    </div>
                 </div>
             </div>
 
@@ -804,6 +933,22 @@ export default function UBPViewer({
                                     <span className="text-[#9dabb9] text-xs leading-tight">Built with</span>
                                     <span className="text-white font-bold text-sm leading-tight">Flowro AI</span>
                                 </div>
+                            </div>
+
+                            {/* Divider */}
+                            <div className="w-px h-8 bg-gradient-to-b from-transparent via-[#283039] to-transparent hidden sm:block" />
+
+                            {/* IDE Logos */}
+                            <div className="hidden sm:flex items-center gap-3">
+                                <button onClick={() => handleIDEClick("vscode")} title="Download & Open in VS Code" className="opacity-60 hover:opacity-100 transition-opacity">
+                                    <img src="/vscode.png" alt="VS Code" className="h-6 w-auto" />
+                                </button>
+                                <button onClick={() => handleIDEClick("cursor")} title="Download & Open in Cursor" className="opacity-60 hover:opacity-100 transition-opacity">
+                                    <img src="/CUBE_2D_DARK.png" alt="Cursor" className="h-6 w-auto" />
+                                </button>
+                                <button onClick={() => handleIDEClick("antigravity")} title="Download & Open in Antigravity" className="opacity-60 hover:opacity-100 transition-opacity">
+                                    <img src="/antigraviti-logo.png" alt="Antigravity" className="h-6 w-auto" />
+                                </button>
                             </div>
 
                             {/* Divider */}

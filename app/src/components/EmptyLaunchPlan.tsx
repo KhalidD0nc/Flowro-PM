@@ -26,7 +26,7 @@ export default function EmptyLaunchPlan({ onGenerate, isGenerating }: EmptyLaunc
             </h2>
 
             <p className="text-[#9dabb9] max-w-sm sm:max-w-md mb-6 sm:mb-8 text-sm sm:text-base leading-relaxed px-2">
-                Turn your blueprint into an actionable launch plan. Flowro will analyze every phase, feature, and dependency to create your perfect roadmap.
+                Turn your blueprint into an actionable roadmap. Flowro analyzes every phase to create your perfect launch plan.
             </p>
 
             <button
@@ -37,7 +37,7 @@ export default function EmptyLaunchPlan({ onGenerate, isGenerating }: EmptyLaunc
                 {isGenerating ? (
                     <>
                         <span className="material-symbols-outlined animate-spin text-[18px] sm:text-[20px]">
-                            smart_toy
+                            cached
                         </span>
                         <span>Crafting Your Plan...</span>
                     </>

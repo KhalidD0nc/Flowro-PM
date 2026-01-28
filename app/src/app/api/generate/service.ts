@@ -273,7 +273,7 @@ export async function generateFromMessage(input: GenerateInput): Promise<Generat
 export interface LaunchPlanTask {
     title: string
     description: string
-    category: "planning" | "development" | "marketing" | "launch" | "post-launch"
+    category: "feature" | "marketing" | "operations"
     priority: "low" | "medium" | "high" | "critical"
     phase: string
 }
@@ -283,30 +283,41 @@ export interface LaunchPlanResult {
     tasks: LaunchPlanTask[]
 }
 
-const LAUNCH_PLAN_PROMPT = `You are a product launch planning assistant. Given a product blueprint (UBP), generate a comprehensive, GRANULAR launch plan with high-value implementation tasks.
+const LAUNCH_PLAN_PROMPT = `You are a product manager creating a launch plan. Given a product blueprint (UBP), generate HIGH-VALUE DELIVERABLES that track real outcomes.
 
-Analyze the blueprint's scope, behaviors, and technical requirements. Create a list of specific, actionable tasks.
-Avoid generic tasks like "Plan launch" or "Develop features". Be specific, e.g., "Implement User Authentication using NextAuth" or "Design Landing Page Hero Section".
+## CORE PRINCIPLES
+1. Each task = ONE VERIFIABLE OUTCOME the user can see or do
+2. Bundle related work (auth + onboarding = 1 task, not 3)
+3. NO technical implementation details - focus on WHAT, not HOW
+4. Plain language anyone can understand (no framework names, no API jargon)
+5. Every task answers: "What can the user do now that they couldn't before?"
 
-Organize tasks into these categories:
-- planning: Detailed specs, schema design, and architecture decisions
-- development: Specific coding tasks, component implementation, API endpoints
-- marketing: Specific content creation, asset preparation (only if relevant)
-- launch: Deployment config, environment setup, final verification
-- post-launch: Analytics setup, error tracking
+## TASK FORMAT
+- title: Start with "User can..." or describe the tangible outcome (5-10 words)
+- description: What this enables, acceptance criteria in plain language
+- category: feature | marketing | operations
+- priority: critical | high | medium | low
+- phase: "Phase 1" | "Phase 2" | "Launch"
 
-For each task, provide:
-- title: SELF-EXPLANATORY title (4-8 words). The user should know exactly what to do just by reading the title.
-- description: Optional technical details or acceptance criteria. Keep it short.
-- category: One of the categories above.
-- priority: low, medium, high, or critical.
-- phase: "Phase 1: Foundation", "Phase 2: Core Features", etc.
+## GOOD vs BAD EXAMPLES
+BAD: "Implement NextAuth authentication with Google OAuth"
+GOOD: "User can sign up and log in with email or Google"
 
-IMPORTANT RULES:
-1. Generate 12-20 tasks.
-2. Focus heavily on "development" and "planning" phases.
-3. NO FILLER TASKS. Every task must be impactful.
-4. Titles must be declarative and specific (e.g., "Create database schema for Users" instead of "Database setup").
+BAD: "Create Express API endpoint for habit CRUD operations"
+GOOD: "User can create, edit, and delete their habits"
+
+BAD: "Set up PostgreSQL database with Prisma schema"
+GOOD: (Don't create this - it's not a user-visible outcome)
+
+BAD: "Configure Vercel deployment with environment variables"
+GOOD: "App is deployed and accessible at production URL"
+
+## WHAT TO GENERATE
+- 5-10 tasks maximum (fewer is better if scope is small)
+- Focus on features that deliver user value
+- Include 1 marketing task if relevant (landing page, etc.)
+- Include 1 operations task (app is live, monitored, reliable)
+- DO NOT create tasks for: database setup, API endpoints, testing frameworks, CI/CD pipelines, code architecture
 
 Return a JSON object with:
 {
@@ -361,7 +372,7 @@ export async function generateLaunchPlan(ubpContent: unknown): Promise<LaunchPla
     const tasks: LaunchPlanTask[] = (parsed.tasks || []).map((task: Partial<LaunchPlanTask>) => ({
         title: task.title || "Untitled Task",
         description: task.description || "",
-        category: task.category || "planning",
+        category: task.category || "feature",
         priority: task.priority || "medium",
         phase: task.phase || "Phase 1",
     }))

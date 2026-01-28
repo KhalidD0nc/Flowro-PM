@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../../blueprints/auth"
-import { getProjectById, verifyProjectOwnership, getLatestBlueprint, updateProjectName } from "../../blueprints/service"
+import { getProjectById, verifyProjectOwnership, getLatestBlueprint, updateProjectName, deleteProject } from "../../blueprints/service"
 
 // GET /api/projects/[projectId] - Get a single project with its latest blueprint
 export async function GET(
@@ -70,6 +70,38 @@ export async function PATCH(
     } catch (error) {
         console.error("Update project error:", error)
         const message = error instanceof Error ? error.message : "Failed to update project"
+        const status = message.includes("Access denied") ? 403 : message.includes("not found") ? 404 : 500
+        return NextResponse.json({ error: message }, { status })
+    }
+}
+
+// DELETE /api/projects/[projectId] - Delete a project and all related data
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: Promise<{ projectId: string }> }
+) {
+    try {
+        const authResult = await verifyAuthToken(request)
+
+        if (isAuthError(authResult)) {
+            return unauthorizedResponse(authResult)
+        }
+
+        const { projectId } = await params
+
+        // Verify ownership before deletion
+        await verifyProjectOwnership(projectId, authResult.userId)
+
+        // Delete project and all related data (blueprints, tasks, share tokens)
+        await deleteProject(projectId)
+
+        return NextResponse.json({
+            success: true,
+            message: "Project deleted successfully",
+        })
+    } catch (error) {
+        console.error("Delete project error:", error)
+        const message = error instanceof Error ? error.message : "Failed to delete project"
         const status = message.includes("Access denied") ? 403 : message.includes("not found") ? 404 : 500
         return NextResponse.json({ error: message }, { status })
     }

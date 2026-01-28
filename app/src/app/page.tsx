@@ -1,11 +1,95 @@
 "use client"
 
 import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/Providers";
 import PricingSection from "@/components/PricingSection";
 
+// JSON-LD structured data for SEO
+const jsonLdSoftware = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Flowro AI",
+    applicationCategory: "ProductivityApplication",
+    operatingSystem: "Web",
+    description:
+        "Transform messy ideas into structured, agent-ready project blueprints. AI-powered product management for builders using Cursor, Claude, and Windsurf.",
+    url: "https://flowro.ai",
+    offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+        description: "Free tier available with 1 project",
+    },
+    creator: {
+        "@type": "Organization",
+        name: "Flowro AI",
+        url: "https://flowro.ai",
+    },
+    featureList: [
+        "AI-powered blueprint generation",
+        "Unified Blueprint (UBP) framework",
+        "Export to JSON, Markdown",
+        "Share blueprints with stakeholders",
+        "Kanban task board",
+        "Version control for specifications",
+    ],
+};
+
+// Organization JSON-LD for brand recognition
+const jsonLdOrganization = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Flowro AI",
+    url: "https://flowro.ai",
+    logo: "https://flowro.ai/logo.png",
+    description: "AI-powered product management and blueprint generation platform for modern builders.",
+    sameAs: [
+        "https://twitter.com/flowroai",
+        "https://linkedin.com/company/flowroai",
+    ],
+    contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        email: "support@flowro.ai",
+    },
+};
+
 export default function Home() {
+    const router = useRouter()
+    const { user, loading } = useAuth()
+
+    // Redirect authenticated users to dashboard - use replace to prevent back navigation
+    useEffect(() => {
+        if (user && !loading) {
+            router.replace("/dashboard")
+        }
+    }, [user, loading, router])
+
+    // Show smooth loading state while checking auth or redirecting
+    if (loading || user) {
+        return (
+            <div className="min-h-screen bg-[#0D1117] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <span className="material-symbols-outlined text-[#137fec] animate-spin text-5xl">hourglass_top</span>
+                    {user && <span className="text-[#9dabb9] text-sm animate-pulse">Taking you to your dashboard...</span>}
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="bg-[#0D1117] text-white overflow-x-hidden w-full">
+            {/* JSON-LD Structured Data */}
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdSoftware) }}
+            />
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdOrganization) }}
+            />
             <div className="relative flex min-h-screen w-full flex-col group/design-root">
                 {/* Header */}
                 <header className="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-[#30363d] bg-[#0D1117]/80 backdrop-blur-md px-10 py-3">
@@ -47,11 +131,11 @@ export default function Home() {
                                 </div>
                                 <div className="flex flex-col gap-6">
                                     <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black leading-[1.1] tracking-[-0.033em]">
-                                        Your vision, <br />
-                                        <span className="text-[#137fec] bg-clip-text text-transparent bg-gradient-to-r from-[#137fec] to-blue-300">architected in seconds.</span>
+                                        Still <span className="text-red-400 line-through decoration-red-400/50">prompting blind</span>? <br />
+                                        <span className="text-[#137fec] bg-clip-text text-transparent bg-gradient-to-r from-[#137fec] to-blue-300">Ship with clarity.</span>
                                     </h1>
                                     <h2 className="text-[#9dabb9] text-lg sm:text-xl font-normal leading-relaxed max-w-[580px]">
-                                        Turn messy ideas into a clear blueprint for AI.
+                                        Stop burning tokens on vague prompts. Feed your AI agents specs that actually work.
                                     </h2>
                                 </div>
                                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
@@ -67,6 +151,7 @@ export default function Home() {
                                         <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
                                     </a>
                                 </div>
+
                             </div>
 
                             {/* Right side - Terminal/Engine visualization */}
@@ -98,22 +183,25 @@ export default function Home() {
 
                                         <div className="relative w-full max-w-[600px] h-full flex flex-col md:flex-row items-center justify-between z-10 gap-8 md:gap-0">
                                             {/* Messy Input side */}
-                                            <div className="relative w-32 h-32 md:h-full flex flex-col justify-center items-center shrink-0">
+                                            <div className="relative w-36 h-36 md:w-32 md:h-full flex flex-col justify-center items-center shrink-0">
                                                 <div className="absolute inset-0 border border-dashed border-white/10 rounded-xl bg-white/5"></div>
                                                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0d1117] px-2 text-[10px] text-gray-500 font-mono uppercase tracking-widest whitespace-nowrap">Messy Input</div>
 
-                                                {/* Floating document icons */}
-                                                <div className="absolute top-4 md:top-10 left-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-6deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_4s_ease-in-out_infinite]">
-                                                    <span className="material-symbols-outlined text-blue-400">description</span>
+                                                {/* Top row - 2 icons */}
+                                                <div className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2 flex gap-3 md:gap-4">
+                                                    <div className="p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-8deg] hover:scale-110 transition-transform cursor-default animate-[float_4s_ease-in-out_infinite]">
+                                                        <span className="material-symbols-outlined text-blue-400 text-[20px] md:text-[24px]">description</span>
+                                                    </div>
+                                                    <div className="p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[8deg] hover:scale-110 transition-transform cursor-default animate-[float_5s_ease-in-out_infinite_0.5s]">
+                                                        <span className="material-symbols-outlined text-yellow-500 text-[20px] md:text-[24px]">sticky_note_2</span>
+                                                    </div>
                                                 </div>
-                                                <div className="absolute top-12 md:top-24 right-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[12deg] hover:scale-110 transition-transform cursor-default z-20 animate-[float_5s_ease-in-out_infinite_1s]">
-                                                    <span className="material-symbols-outlined text-yellow-500">sticky_note_2</span>
-                                                </div>
-                                                <div className="absolute bottom-10 md:bottom-20 left-4 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-3deg] hover:scale-110 transition-transform cursor-default z-0 animate-[float_4s_ease-in-out_infinite_0.5s]">
-                                                    <span className="material-symbols-outlined text-purple-400">video_file</span>
-                                                </div>
-                                                <div className="absolute bottom-2 md:bottom-8 right-6 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[8deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_6s_ease-in-out_infinite_2s]">
-                                                    <span className="material-symbols-outlined text-green-400">chat</span>
+
+                                                {/* Bottom row - 1 icon centered */}
+                                                <div className="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2">
+                                                    <div className="p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[3deg] hover:scale-110 transition-transform cursor-default animate-[float_4s_ease-in-out_infinite_1s]">
+                                                        <span className="material-symbols-outlined text-green-400 text-[20px] md:text-[24px]">chat</span>
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -231,6 +319,86 @@ export default function Home() {
 
                 <div className="absolute -right-20 -bottom-20 w-[400px] h-[400px] bg-[#137fec]/20 blur-[100px] rounded-full pointer-events-none z-0"></div>
             </div>
+
+            {/* IDE Integration Section */}
+            <section className="py-12 px-6 lg:px-20 bg-[#0d1117] border-b border-[#30363d]">
+                <div className="max-w-[1200px] mx-auto">
+                    <div className="flex flex-col items-center gap-8">
+                        <p className="text-[#637588] text-sm font-medium uppercase tracking-widest">Works seamlessly with your favorite IDE</p>
+                        <div className="flex flex-wrap items-center justify-center gap-8 md:gap-16">
+                            {/* VS Code */}
+                            <div
+                                className="group flex flex-col items-center gap-3 p-4 rounded-xl transition-all"
+                            >
+                                <div className="relative">
+                                    <img
+                                        src="/vscode.png"
+                                        alt="VS Code"
+                                        className="h-12 w-auto object-contain opacity-70 group-hover:opacity-100 transition-opacity"
+                                    />
+                                    <div className="absolute inset-0 bg-blue-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full"></div>
+                                </div>
+                                <span className="text-[#9dabb9] text-xs font-medium group-hover:text-white transition-colors">VS Code</span>
+                            </div>
+
+                            {/* Cursor */}
+                            <div
+                                className="group flex flex-col items-center gap-3 p-4 rounded-xl transition-all"
+                            >
+                                <div className="relative">
+                                    <img
+                                        src="/CUBE_2D_DARK.png"
+                                        alt="Cursor"
+                                        className="h-12 w-auto object-contain opacity-70 group-hover:opacity-100 transition-opacity"
+                                    />
+                                    <div className="absolute inset-0 bg-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full"></div>
+                                </div>
+                                <span className="text-[#9dabb9] text-xs font-medium group-hover:text-white transition-colors">Cursor</span>
+                            </div>
+
+                            {/* Antigravity */}
+                            <div
+                                className="group flex flex-col items-center gap-3 p-4 rounded-xl transition-all"
+                            >
+                                <div className="relative">
+                                    <img
+                                        src="/antigraviti-logo.png"
+                                        alt="Antigravity"
+                                        className="h-12 w-auto object-contain opacity-70 group-hover:opacity-100 transition-opacity"
+                                    />
+                                    <div className="absolute inset-0 bg-orange-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full"></div>
+                                </div>
+                                <span className="text-[#9dabb9] text-xs font-medium group-hover:text-white transition-colors">Antigravity</span>
+                            </div>
+                        </div>
+                        <p className="text-[#637588] text-xs">Export your blueprints directly to your IDE workflow</p>
+                    </div>
+                </div>
+            </section>
+
+            {/* Social Proof Stats Section */}
+            <section className="py-16 px-6 lg:px-20 bg-[#0d1117]">
+                <div className="max-w-[1000px] mx-auto">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                        <div className="flex flex-col gap-2">
+                            <span className="text-3xl md:text-4xl font-black text-white">500+</span>
+                            <span className="text-sm text-[#9dabb9]">Blueprints Created</span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-3xl md:text-4xl font-black text-[#137fec]">10x</span>
+                            <span className="text-sm text-[#9dabb9]">Faster Planning</span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-3xl md:text-4xl font-black text-white">98%</span>
+                            <span className="text-sm text-[#9dabb9]">Less Rework</span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-3xl md:text-4xl font-black text-white">AI-First</span>
+                            <span className="text-sm text-[#9dabb9]">Built for Builders</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
             {/* UBP Visualizer Section */}
             <section className="py-24 px-6 lg:px-20 bg-[#0d1117] border-y border-[#30363d] overflow-hidden relative">
@@ -359,6 +527,7 @@ export default function Home() {
                     </div>
                 </div>
             </section>
+
 
             {/* How it Works Section */}
             <section id="how-it-works" className="py-24 px-6 lg:px-40 scroll-mt-20">
@@ -495,124 +664,59 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* UBP Standard Section */}
-            <section id="ubp-standard" className="py-24 px-6 lg:px-20 bg-[#0d1117] border-t border-[#30363d] relative overflow-hidden scroll-mt-20">
-                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#137fec]/5 blur-[120px] rounded-full pointer-events-none"></div>
-                <div className="layout-content-container max-w-[1200px] mx-auto flex flex-col gap-20 relative z-10">
-                    <div className="flex flex-col gap-12">
-                        <div className="flex flex-col gap-6 max-w-[720px]">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-[#137fec]/30 bg-[#137fec]/10 px-3 py-1 w-fit">
-                                <span className="material-symbols-outlined text-[14px] text-[#137fec]">schema</span>
-                                <span className="text-xs font-bold text-[#137fec]">The UBP Standard</span>
-                            </div>
-                            <h2 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight text-white">
-                                The Unified Blueprint Framework
-                            </h2>
-                            <p className="text-[#9dabb9] text-lg">
-                                Structured thinking, automated. The UBP isn&apos;t just a document; it&apos;s a rigorous framework designed to bridge the gap between human ideas and AI implementation.
-                            </p>
+            {/* UBP Standard Section - Clean & Direct */}
+            <section id="ubp-standard" className="py-20 px-6 lg:px-20 bg-[#0d1117] border-t border-[#30363d] relative overflow-hidden scroll-mt-20">
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#137fec]/5 blur-[100px] rounded-full pointer-events-none"></div>
+
+                <div className="max-w-[1100px] mx-auto relative z-10">
+                    {/* Header - Minimal */}
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                            One Blueprint. <span className="text-[#137fec]">Zero Ambiguity.</span>
+                        </h2>
+                        <p className="text-[#9dabb9] text-base max-w-[500px] mx-auto">
+                            The UBP standard your AI agents actually understand.
+                        </p>
+                    </div>
+
+                    {/* Core Value Props - 3 Columns, Super Clean */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+                        <div className="text-center p-6 rounded-xl border border-[#30363d] bg-[#161b22]/50 hover:border-[#137fec]/30 transition-colors">
+                            <span className="material-symbols-outlined text-[#137fec] text-3xl mb-3">center_focus_strong</span>
+                            <h3 className="text-white font-semibold mb-1">Single Source</h3>
+                            <p className="text-[#9dabb9] text-sm">One file. All context.</p>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
-                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                    <span className="material-symbols-outlined text-[24px]">center_focus_strong</span>
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-white text-lg mb-2">Single Source of Truth</h3>
-                                    <p className="text-sm text-[#9dabb9] leading-relaxed">No scattered docs. One master file that rules them all.</p>
-                                </div>
-                            </div>
-                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
-                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                    <span className="material-symbols-outlined text-[24px]">psychology</span>
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-white text-lg mb-2">Consultant Logic</h3>
-                                    <p className="text-sm text-[#9dabb9] leading-relaxed">Applies senior PM frameworks to organize chaos into clarity.</p>
-                                </div>
-                            </div>
-                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
-                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                    <span className="material-symbols-outlined text-[24px]">smart_toy</span>
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-white text-lg mb-2">Agent-Ready</h3>
-                                    <p className="text-sm text-[#9dabb9] leading-relaxed">Optimized context window usage for AI coding agents.</p>
-                                </div>
-                            </div>
-                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
-                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                    <span className="material-symbols-outlined text-[24px]">do_not_disturb_on</span>
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-white text-lg mb-2">No Narrative</h3>
-                                    <p className="text-sm text-[#9dabb9] leading-relaxed">Zero fluff. Pure specifications, constraints, and logical flows.</p>
-                                </div>
-                            </div>
+                        <div className="text-center p-6 rounded-xl border border-[#30363d] bg-[#161b22]/50 hover:border-[#137fec]/30 transition-colors">
+                            <span className="material-symbols-outlined text-[#137fec] text-3xl mb-3">smart_toy</span>
+                            <h3 className="text-white font-semibold mb-1">Agent-Ready</h3>
+                            <p className="text-[#9dabb9] text-sm">Optimized for AI.</p>
+                        </div>
+                        <div className="text-center p-6 rounded-xl border border-[#30363d] bg-[#161b22]/50 hover:border-[#137fec]/30 transition-colors">
+                            <span className="material-symbols-outlined text-[#137fec] text-3xl mb-3">do_not_disturb_on</span>
+                            <h3 className="text-white font-semibold mb-1">No Fluff</h3>
+                            <p className="text-[#9dabb9] text-sm">Pure specs only.</p>
                         </div>
                     </div>
 
-                    {/* 9-Section Anatomy */}
-                    <div className="rounded-2xl border border-[#30363d] bg-[#0b0e11] overflow-hidden flex flex-col lg:flex-row shadow-2xl">
-                        <div className="p-8 lg:p-12 flex flex-col justify-center gap-6 lg:w-[40%] border-b lg:border-b-0 lg:border-r border-[#30363d] z-10 bg-[#0b0e11]">
-                            <h3 className="text-2xl font-bold text-white">The 9-Section Anatomy</h3>
-                            <p className="text-[#9dabb9] text-base leading-relaxed">
-                                Every UBP is generated with a strict 9-point structure. This ensures that whether you&apos;re handing off to a human developer or an AI agent, every requirement is explicitly defined.
-                            </p>
-                            <div className="flex flex-col gap-3 mt-2">
-                                <div className="flex items-center gap-3">
-                                    <span className="material-symbols-outlined text-green-500 text-[20px]">check_circle</span>
-                                    <span className="text-sm text-white">Standardized Output</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="material-symbols-outlined text-green-500 text-[20px]">check_circle</span>
-                                    <span className="text-sm text-white">Machine Readable</span>
-                                </div>
+                    {/* 9-Section Anatomy - Compact Horizontal List */}
+                    <div className="rounded-xl border border-[#30363d] bg-[#161b22]/30 p-6 md:p-8">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-semibold text-white">9-Section Structure</h3>
+                            <div className="flex items-center gap-2 text-xs text-green-500">
+                                <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                <span>Standardized</span>
                             </div>
                         </div>
-                        <div className="p-8 lg:p-12 lg:w-[60%] bg-[#161b22] relative overflow-hidden">
-                            <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
-                                backgroundImage: 'radial-gradient(#637588 1px, transparent 1px)',
-                                backgroundSize: '20px 20px'
-                            }}></div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">01</span>
-                                    <span className="text-sm font-medium text-gray-300">Product Vision</span>
+                        <div className="flex flex-wrap gap-2">
+                            {[
+                                "Vision", "Scope", "Actors", "Behaviors", "Constraints",
+                                "Tech Stack", "Phases", "Integrations", "Changelog"
+                            ].map((step, i) => (
+                                <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0d1117] border border-[#30363d] text-sm text-[#9dabb9] hover:border-[#137fec]/50 hover:text-white transition-colors cursor-default">
+                                    <span className="text-[#137fec] font-mono text-[10px]">{String(i + 1).padStart(2, '0')}</span>
+                                    <span>{step}</span>
                                 </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">02</span>
-                                    <span className="text-sm font-medium text-gray-300">Scope</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">03</span>
-                                    <span className="text-sm font-medium text-gray-300">Actors</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">04</span>
-                                    <span className="text-sm font-medium text-gray-300">Behaviors</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">05</span>
-                                    <span className="text-sm font-medium text-gray-300">Constraints &amp; Risks</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">06</span>
-                                    <span className="text-sm font-medium text-gray-300">Technology Decisions</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">07</span>
-                                    <span className="text-sm font-medium text-gray-300">Implementation Phases</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">08</span>
-                                    <span className="text-sm font-medium text-gray-300">Integration Points</span>
-                                </div>
-                                <div className="col-span-1 sm:col-span-2 flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">09</span>
-                                    <span className="text-sm font-medium text-gray-300">Change Log</span>
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -641,7 +745,7 @@ export default function Home() {
                             Get Started
                         </Link>
                     </div>
-                    <p className="text-xs text-[#637588]">No credit card required</p>
+
                 </div>
             </section>
 
@@ -653,6 +757,8 @@ export default function Home() {
                         <span className="text-white font-bold text-lg">Flowro AI</span>
                     </div>
                     <div className="flex gap-8 text-sm text-[#9dabb9]">
+                        <a className="hover:text-white transition-colors" href="/terms">Terms</a>
+                        <a className="hover:text-white transition-colors" href="/privacy">Privacy</a>
                         <a className="hover:text-white transition-colors" href="#">X</a>
                         <a className="hover:text-white transition-colors" href="#">LinkedIn</a>
                         <a className="hover:text-white transition-colors" href="#">Discord</a>
