@@ -112,7 +112,7 @@ export const LaunchTaskSchema = z.object({
     description: z.string().describe("Details and acceptance criteria"),
     priority: z.enum(["low", "medium", "high", "critical"]),
     phase: z.string().describe("Which phase this belongs to"),
-    category: z.enum(["planning", "development", "marketing", "launch", "post-launch"]),
+    category: z.enum(["feature", "marketing", "operations"]),
     estimatedDuration: z.string().optional().describe("Rough time estimate"),
 })
 
@@ -182,19 +182,33 @@ The user has confirmed they want changes. Generate a proposal with:
 
 const LAUNCH_PLAN_SYSTEM_PROMPT = `You are Flowro AI generating a Product Launch Plan from a UBP.
 
-Analyze the UBP and create a high-level Product Roadmap for the founder to track progress.
-The goal is to prevent confusion by focusing on user-facing features and milestones, NOT technical implementation details.
+## GOAL
+Create HIGH-VALUE DELIVERABLES that track tangible outcomes. Each task = one verifiable result.
 
-DO NOT create technical tasks like "Setup database", "Configure API", or "Install dependencies".
-CREATE feature-focused stories like "User Login Flow", "Credit Card Payments", "Dashboard Analytics View", "Email Notifications".
+## RULES
+1. Start titles with "User can..." or describe what's now possible
+2. Bundle related work (auth + onboarding = 1 task, not 3)
+3. NO technical jargon - plain language anyone understands
+4. Every task answers: "What can the user do now?"
 
-Create 8-12 actionable product milestones covering:
-1. Core Features (MVP functionality)
-2. User Experience (Onboarding, settings, flows)
-3. Monetization (Billing, plans - if applicable)
-4. Launch Activities (Beta access, public release)
+## DO NOT CREATE
+- Database setup, API endpoints, schema design
+- Framework configuration, deployment pipelines
+- Testing tasks, code architecture decisions
 
-Assign each task a priority and categorization.`
+## DO CREATE (5-10 tasks max)
+- "User can sign up and start using the app"
+- "User can create and manage their [items]"
+- "User views their progress on dashboard"
+- "Landing page converts visitors to signups"
+- "App is live, stable, and monitored"
+
+## CATEGORIES
+- feature: User-facing capabilities
+- marketing: Landing page, content, growth
+- operations: Deployment, monitoring, reliability
+
+Assign priority (critical/high/medium/low) and phase (Phase 1/Phase 2/Launch).`
 
 // =============================================================================
 // Intent Detection

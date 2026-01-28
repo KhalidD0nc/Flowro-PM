@@ -294,6 +294,7 @@ export default function ChatPage() {
     const [allVersions, setAllVersions] = useState<Blueprint[]>([])
     const [selectedBlueprint, setSelectedBlueprint] = useState<Blueprint | null>(null)
     const [selectionContext, setSelectionContext] = useState<{ section: string; text: string } | null>(null)
+    const [isLaunchPlanGenerating, setIsLaunchPlanGenerating] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     // Thinking states for animated loading indicator
@@ -399,7 +400,7 @@ export default function ChatPage() {
 
                 if (res.status === 429) {
                     // Rate limited - show retry time
-                    throw new Error(`⏳ ${errorMessage} `)
+                    throw new Error(`⏳ ${errorMessage}`)
                 } else if (data.retryable) {
                     throw new Error(`${errorMessage} Please try again.`)
                 } else {
@@ -407,47 +408,34 @@ export default function ChatPage() {
                 }
             }
 
-            // Build user message (matches what backend saved)
-            const userMessage: ChatMessage = {
-                role: "user",
-                content: usersMessage,
-                timestamp: new Date().toISOString(),
-            }
-
-            // Build assistant message with intent data
-            const assistantMessage: ChatMessage = {
-                role: "assistant",
-                content: data.message || JSON.stringify(data.content || {}),
-                timestamp: new Date().toISOString(),
-                intent: data.intent as Intent,
-                proposedChanges: data.proposedChanges as ProposedChanges | undefined,
-            }
-
-            // Check if user message is already in history (happens with dangling user message from project creation)
-            // If so, only add the assistant message
-            setProject((prev) => {
-                if (!prev) return prev
-
-                const lastMsg = prev.chatHistory[prev.chatHistory.length - 1]
-                const userMessageAlreadyExists = lastMsg &&
-                    lastMsg.role === "user" &&
-                    lastMsg.content === usersMessage
-
-                return {
-                    ...prev,
-                    chatHistory: userMessageAlreadyExists
-                        ? [...prev.chatHistory, assistantMessage]
-                        : [...prev.chatHistory, userMessage, assistantMessage],
-                }
+            // Refetch project to get updated chat history from backend (single source of truth)
+            // This prevents duplicate messages that occur when frontend adds messages that backend already saved
+            const projectRes = await fetch(`/api/projects/${projectId}`, {
+                headers: { Authorization: `Bearer ${token}` },
             })
+
+            if (projectRes.ok) {
+                const updatedProject = await projectRes.json()
+                setProject(updatedProject)
+
+                // Update UBP if the latest blueprint content changed
+                if (updatedProject.latestBlueprint?.content) {
+                    setCurrentUBP(transformApiToUBP(updatedProject.latestBlueprint.content))
+                    setSelectedBlueprint(updatedProject.latestBlueprint)
+                }
+            }
 
             // Only update current UBP on initial intent (new project)
             if (data.intent === 'initial' && data.content && typeof data.content === "object" && isUBPContent(data.content)) {
                 setCurrentUBP(transformApiToUBP(data.content))
+
+                // Auto-generate launch plan in background after blueprint is created
+                generateLaunchPlanInBackground()
             }
 
-            // Update project name if AI suggested one
-            if (data.productName) {
+            // Project name is already updated via refetch, but we can double-check
+            // This handles edge case where project name updates faster than full refetch
+            if (data.productName && projectRes.ok) {
                 setProject((prev) => prev ? { ...prev, projectName: data.productName } : prev)
             }
         } catch (err) {
@@ -545,6 +533,30 @@ export default function ChatPage() {
 
     const handleOpenLaunchPlan = () => {
         setIsLaunchPlanOpen(true)
+    }
+
+    // Auto-generate launch plan in background after blueprint is created
+    const generateLaunchPlanInBackground = async () => {
+        if (!user || !projectId) return
+
+        setIsLaunchPlanGenerating(true)
+        try {
+            const token = await user.getIdToken()
+            await fetch("/api/tasks/generate", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ projectId })
+            })
+            // Don't need to handle response - LaunchPlanViewer will fetch tasks when opened
+        } catch (err) {
+            console.error("Background launch plan generation failed:", err)
+            // Silent failure - user can manually generate later
+        } finally {
+            setIsLaunchPlanGenerating(false)
+        }
     }
 
     // Apply proposed changes from a proposal message
@@ -906,71 +918,92 @@ Return the updated blueprint JSON with the changes applied to that section.`
     return (
         <div className="flex h-screen w-full flex-col bg-[#101922] text-white overflow-hidden">
             {/* Header */}
-            <header className="relative flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 shrink-0">
-                {/* Glassmorphism background */}
-                <div className="absolute inset-0 bg-gradient-to-r from-[#0d141c]/95 via-[#101922]/95 to-[#0d141c]/95 backdrop-blur-xl" />
-                {/* Bottom gradient border */}
-                <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#137fec]/30 to-transparent" />
+            <header className="relative flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 shrink-0 z-10">
+                {/* Modern Glass Background - Matched to App Background */}
+                <div className="absolute inset-0 bg-[#101922]/80 backdrop-blur-xl border-b border-white/5" />
 
-                <div className="relative flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                <div className="relative flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                     <button
                         onClick={handleBackToDashboard}
-                        className="flex items-center justify-center rounded-xl p-2 sm:p-2.5 text-[#9dabb9] transition-all hover:bg-white/5 hover:text-white hover:scale-105 shrink-0"
+                        className="group flex items-center justify-center rounded-xl p-2 text-[#9dabb9] transition-all hover:bg-white/5 hover:text-white"
                         title="Back to Dashboard"
                     >
-                        <span className="material-symbols-outlined text-xl sm:text-2xl">arrow_back</span>
+                        <span className="material-symbols-outlined text-xl sm:text-2xl transition-transform group-hover:-translate-x-0.5">arrow_back</span>
                     </button>
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                        {/* Project avatar - hidden on very small screens */}
-                        <div className="hidden xs:flex size-8 sm:size-10 items-center justify-center rounded-lg sm:rounded-xl bg-gradient-to-br from-[#137fec]/20 to-[#137fec]/5 border border-[#137fec]/20 shrink-0">
-                            <span className="material-symbols-outlined text-[#137fec] text-base sm:text-lg">folder</span>
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                            <div className="flex items-center gap-1.5 sm:gap-2">
-                                <h1 className="text-sm sm:text-lg font-semibold text-white truncate max-w-[120px] sm:max-w-none">{project.projectName}</h1>
-                                {/* Online status indicator - simplified on mobile */}
-                                <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-                                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-emerald-400 rounded-full animate-pulse" />
-                                    <span className="hidden sm:inline text-xs text-emerald-400 font-medium">Ready</span>
-                                </div>
-                            </div>
-                            {project.description && (
-                                <p className="hidden sm:block text-sm text-[#9dabb9] truncate max-w-md">{project.description}</p>
+
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                        {/* Premium Project Icon */}
+                        <div className="hidden xs:flex size-9 sm:size-10 items-center justify-center rounded-xl bg-gradient-to-b from-[#137fec]/20 to-[#137fec]/5 border border-white/5 shadow-inner shadow-[#137fec]/10 shrink-0">
+                            {isGenerating && (!project.projectName || project.projectName === "Untitled Project" || project.projectName === "Project") ? (
+                                <span className="material-symbols-outlined text-[#137fec] text-lg animate-spin">progress_activity</span>
+                            ) : (
+                                <span className="material-symbols-outlined text-[#137fec] text-lg sm:text-xl">folder_open</span>
                             )}
+                        </div>
+
+                        <div className="flex flex-col min-w-0 justify-center">
+                            <div className="flex items-center gap-2">
+                                {/* Flowro is cooking logic */}
+                                {isGenerating && (!project.projectName || project.projectName === "Untitled Project" || project.projectName === "Project") ? (
+                                    <h1 className="text-sm sm:text-base font-medium text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 animate-pulse truncate">
+                                        Flowro is cooking...
+                                    </h1>
+                                ) : (
+                                    <h1 className="text-sm sm:text-base font-medium text-white/90 truncate max-w-[150px] sm:max-w-none tracking-tight">
+                                        {project.projectName}
+                                    </h1>
+                                )}
+
+                                {/* Status Dot */}
+                                {!isGenerating && (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div className="relative flex items-center gap-1.5 sm:gap-3 shrink-0">
-                    {/* Launch Plan button */}
+
+                {/* Right Actions - Premium Ghost Buttons */}
+                <div className="relative flex items-center gap-1 sm:gap-2 shrink-0">
+                    {/* Launch Plan */}
                     <button
                         onClick={handleOpenLaunchPlan}
-                        className="group flex items-center justify-center gap-2 sm:gap-2.5 bg-gradient-to-r from-[#10b981]/10 to-[#10b981]/5 hover:from-[#10b981]/20 hover:to-[#10b981]/10 border border-[#10b981]/20 hover:border-[#10b981]/40 text-white font-medium p-2 sm:py-2.5 sm:px-4 rounded-lg sm:rounded-xl transition-all hover:shadow-lg hover:shadow-[#10b981]/10"
-                        title="Launch Plan"
+                        className="group flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[#9dabb9] hover:text-white hover:bg-white/5 transition-all text-xs sm:text-sm font-medium"
+                        title={isLaunchPlanGenerating ? "Generating Launch Plan..." : "Launch Plan"}
                     >
-                        <span className="material-symbols-outlined text-lg sm:text-[18px] text-[#10b981] group-hover:scale-110 transition-transform">rocket_launch</span>
-                        <span className="hidden md:inline">Launch Plan</span>
+                        <span className={`material-symbols-outlined text-[18px] sm:text-[20px] ${isLaunchPlanGenerating ? "text-[#10b981] animate-pulse" : "text-[#9dabb9] group-hover:text-[#10b981]"} transition-colors`}>
+                            {isLaunchPlanGenerating ? "sync" : "rocket_launch"}
+                        </span>
+                        <span className="hidden md:inline">
+                            {isLaunchPlanGenerating ? "Preparing..." : "Launch Plan"}
+                        </span>
                     </button>
-                    {/* Blueprint button - Premium style */}
+
+                    {/* Blueprint */}
                     <button
                         onClick={handleOpenUBP}
-                        className="group flex items-center justify-center gap-2 sm:gap-2.5 bg-gradient-to-r from-[#137fec]/10 to-[#137fec]/5 hover:from-[#137fec]/20 hover:to-[#137fec]/10 border border-[#137fec]/20 hover:border-[#137fec]/40 text-white font-medium p-2 sm:py-2.5 sm:px-4 rounded-lg sm:rounded-xl transition-all hover:shadow-lg hover:shadow-[#137fec]/10"
+                        className="group flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[#9dabb9] hover:text-white hover:bg-white/5 transition-all text-xs sm:text-sm font-medium"
                         title="Blueprint"
                     >
-                        <span className="material-symbols-outlined text-lg sm:text-[18px] text-[#137fec] group-hover:scale-110 transition-transform">description</span>
+                        <span className="material-symbols-outlined text-[18px] sm:text-[20px] text-[#9dabb9] group-hover:text-[#137fec] transition-colors">description</span>
                         <span className="hidden md:inline">Blueprint</span>
                         {project.latestBlueprint && (
-                            <span className="hidden sm:inline text-xs bg-[#137fec]/30 text-[#137fec] px-2 py-0.5 rounded-lg font-semibold">
+                            <span className="hidden lg:inline-flex items-center justify-center px-1.5 py-0.5 rounded-[4px] bg-[#137fec]/10 border border-[#137fec]/20 text-[#137fec] text-[10px] font-bold tracking-wide">
                                 v{project.latestBlueprint.version}
                             </span>
                         )}
                     </button>
-                    {/* Share button */}
+
+                    {/* Divider */}
+                    <div className="w-px h-6 bg-white/10 mx-1" />
+
+                    {/* Share */}
                     <button
                         onClick={() => setIsShareModalOpen(true)}
-                        className="flex items-center justify-center rounded-lg sm:rounded-xl p-2 sm:p-2.5 text-[#9dabb9] transition-all hover:bg-white/5 hover:text-white hover:scale-105"
+                        className="flex items-center justify-center size-9 sm:size-10 rounded-lg sm:rounded-xl text-[#9dabb9] hover:text-white hover:bg-white/5 transition-all"
                         title="Share Project"
                     >
-                        <span className="material-symbols-outlined text-xl sm:text-2xl">share</span>
+                        <span className="material-symbols-outlined text-lg sm:text-[20px]">ios_share</span>
                     </button>
                 </div>
             </header>

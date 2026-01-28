@@ -139,11 +139,13 @@ export async function POST(request: NextRequest) {
                     })
                 }
 
-                // Always add the assistant response
+                // Always add the assistant response with metadata
                 newMessages.push({
                     role: "assistant",
                     content: result.rawContent,
                     timestamp: new Date().toISOString(),
+                    intent: result.intent,
+                    proposedChanges: result.proposedChanges,
                 })
 
                 // Save chat history to project (continues even when blueprints are locked)

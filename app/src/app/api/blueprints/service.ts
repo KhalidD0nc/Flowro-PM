@@ -8,6 +8,14 @@ export interface ChatMessage {
     role: "user" | "assistant"
     content: string
     timestamp: string
+    // Optional metadata for assistant messages
+    intent?: "initial" | "discussion" | "proposal"
+    proposedChanges?: {
+        action: "add" | "update" | "remove"
+        summary: string
+        sections: string[]
+        changes: Record<string, unknown>
+    }
 }
 
 /**

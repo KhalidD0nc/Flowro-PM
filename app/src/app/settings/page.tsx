@@ -10,17 +10,24 @@ export default function SettingsPage() {
     const { user, loading } = useAuth()
     const router = useRouter()
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+    const [isSigningOut, setIsSigningOut] = useState(false)
 
     // Redirect if not logged in
     useEffect(() => {
-        if (!loading && !user) {
+        if (!loading && !user && !isSigningOut) {
             router.push("/auth")
         }
-    }, [user, loading, router])
+    }, [user, loading, router, isSigningOut])
 
     const handleSignOut = async () => {
-        await signOut(auth)
-        router.push("/auth")
+        try {
+            setIsSigningOut(true)
+            await signOut(auth)
+            router.push("/")
+        } catch (error) {
+            console.error("Error signing out:", error)
+            setIsSigningOut(false)
+        }
     }
 
     if (loading) {

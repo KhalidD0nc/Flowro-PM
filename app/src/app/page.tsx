@@ -316,6 +316,62 @@ export default function Home() {
                 <div className="absolute -right-20 -bottom-20 w-[400px] h-[400px] bg-[#137fec]/20 blur-[100px] rounded-full pointer-events-none z-0"></div>
             </div>
 
+            {/* IDE Integration Section */}
+            <section className="py-12 px-6 lg:px-20 bg-[#0d1117] border-b border-[#30363d]">
+                <div className="max-w-[1200px] mx-auto">
+                    <div className="flex flex-col items-center gap-8">
+                        <p className="text-[#637588] text-sm font-medium uppercase tracking-widest">Works seamlessly with your favorite IDE</p>
+                        <div className="flex flex-wrap items-center justify-center gap-8 md:gap-16">
+                            {/* VS Code */}
+                            <div
+                                className="group flex flex-col items-center gap-3 p-4 rounded-xl transition-all"
+                            >
+                                <div className="relative">
+                                    <img
+                                        src="/vscode.png"
+                                        alt="VS Code"
+                                        className="h-12 w-auto object-contain opacity-70 group-hover:opacity-100 transition-opacity"
+                                    />
+                                    <div className="absolute inset-0 bg-blue-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full"></div>
+                                </div>
+                                <span className="text-[#9dabb9] text-xs font-medium group-hover:text-white transition-colors">VS Code</span>
+                            </div>
+
+                            {/* Cursor */}
+                            <div
+                                className="group flex flex-col items-center gap-3 p-4 rounded-xl transition-all"
+                            >
+                                <div className="relative">
+                                    <img
+                                        src="/CUBE_2D_DARK.png"
+                                        alt="Cursor"
+                                        className="h-12 w-auto object-contain opacity-70 group-hover:opacity-100 transition-opacity"
+                                    />
+                                    <div className="absolute inset-0 bg-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full"></div>
+                                </div>
+                                <span className="text-[#9dabb9] text-xs font-medium group-hover:text-white transition-colors">Cursor</span>
+                            </div>
+
+                            {/* Antigravity */}
+                            <div
+                                className="group flex flex-col items-center gap-3 p-4 rounded-xl transition-all"
+                            >
+                                <div className="relative">
+                                    <img
+                                        src="/antigraviti-logo.png"
+                                        alt="Antigravity"
+                                        className="h-12 w-auto object-contain opacity-70 group-hover:opacity-100 transition-opacity"
+                                    />
+                                    <div className="absolute inset-0 bg-orange-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full"></div>
+                                </div>
+                                <span className="text-[#9dabb9] text-xs font-medium group-hover:text-white transition-colors">Antigravity</span>
+                            </div>
+                        </div>
+                        <p className="text-[#637588] text-xs">Export your blueprints directly to your IDE workflow</p>
+                    </div>
+                </div>
+            </section>
+
             {/* UBP Visualizer Section */}
             <section className="py-24 px-6 lg:px-20 bg-[#0d1117] border-y border-[#30363d] overflow-hidden relative">
                 <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#137fec]/5 blur-[120px] rounded-full pointer-events-none"></div>
