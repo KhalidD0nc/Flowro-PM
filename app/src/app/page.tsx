@@ -153,18 +153,25 @@ export default function Home() {
                                 </div>
 
                                 {/* Trust Badges */}
-                                <div className="flex flex-wrap items-center gap-4 pt-6 text-xs text-[#9dabb9]">
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-green-500 text-[16px]">verified_user</span>
-                                        <span>SSL Secure</span>
+                                {/* Trust Badges */}
+                                <div className="flex flex-wrap items-center gap-3 pt-8">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#161b22]/50 border border-[#30363d] backdrop-blur-sm group hover:border-green-500/30 hover:bg-green-500/5 transition-all cursor-default">
+                                        <div className="flex items-center justify-center size-5 rounded-full bg-green-500/10 text-green-500 group-hover:scale-110 transition-transform">
+                                            <span className="material-symbols-outlined text-[14px]">shield_lock</span>
+                                        </div>
+                                        <span className="text-xs font-medium text-[#9dabb9] group-hover:text-green-500/90 transition-colors">Enterprise SSL</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-[#137fec] text-[16px]">credit_card_off</span>
-                                        <span>No credit card required</span>
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#161b22]/50 border border-[#30363d] backdrop-blur-sm group hover:border-[#137fec]/30 hover:bg-[#137fec]/5 transition-all cursor-default">
+                                        <div className="flex items-center justify-center size-5 rounded-full bg-[#137fec]/10 text-[#137fec] group-hover:scale-110 transition-transform">
+                                            <span className="material-symbols-outlined text-[14px]">credit_card_off</span>
+                                        </div>
+                                        <span className="text-xs font-medium text-[#9dabb9] group-hover:text-[#137fec]/90 transition-colors">No Card Required</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-yellow-500 text-[16px]">star</span>
-                                        <span>Free tier available</span>
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#161b22]/50 border border-[#30363d] backdrop-blur-sm group hover:border-yellow-500/30 hover:bg-yellow-500/5 transition-all cursor-default">
+                                        <div className="flex items-center justify-center size-5 rounded-full bg-yellow-500/10 text-yellow-500 group-hover:scale-110 transition-transform">
+                                            <span className="material-symbols-outlined text-[14px]">stars</span>
+                                        </div>
+                                        <span className="text-xs font-medium text-[#9dabb9] group-hover:text-yellow-500/90 transition-colors">Forever Free Tier</span>
                                     </div>
                                 </div>
                             </div>
@@ -679,124 +686,59 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* UBP Standard Section */}
-            <section id="ubp-standard" className="py-24 px-6 lg:px-20 bg-[#0d1117] border-t border-[#30363d] relative overflow-hidden scroll-mt-20">
-                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#137fec]/5 blur-[120px] rounded-full pointer-events-none"></div>
-                <div className="layout-content-container max-w-[1200px] mx-auto flex flex-col gap-20 relative z-10">
-                    <div className="flex flex-col gap-12">
-                        <div className="flex flex-col gap-6 max-w-[720px]">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-[#137fec]/30 bg-[#137fec]/10 px-3 py-1 w-fit">
-                                <span className="material-symbols-outlined text-[14px] text-[#137fec]">schema</span>
-                                <span className="text-xs font-bold text-[#137fec]">The UBP Standard</span>
-                            </div>
-                            <h2 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight text-white">
-                                The Unified Blueprint Framework
-                            </h2>
-                            <p className="text-[#9dabb9] text-lg">
-                                Structured thinking, automated. The UBP isn&apos;t just a document; it&apos;s a rigorous framework designed to bridge the gap between human ideas and AI implementation.
-                            </p>
+            {/* UBP Standard Section - Clean & Direct */}
+            <section id="ubp-standard" className="py-20 px-6 lg:px-20 bg-[#0d1117] border-t border-[#30363d] relative overflow-hidden scroll-mt-20">
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#137fec]/5 blur-[100px] rounded-full pointer-events-none"></div>
+                
+                <div className="max-w-[1100px] mx-auto relative z-10">
+                    {/* Header - Minimal */}
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                            One Blueprint. <span className="text-[#137fec]">Zero Ambiguity.</span>
+                        </h2>
+                        <p className="text-[#9dabb9] text-base max-w-[500px] mx-auto">
+                            The UBP standard your AI agents actually understand.
+                        </p>
+                    </div>
+
+                    {/* Core Value Props - 3 Columns, Super Clean */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+                        <div className="text-center p-6 rounded-xl border border-[#30363d] bg-[#161b22]/50 hover:border-[#137fec]/30 transition-colors">
+                            <span className="material-symbols-outlined text-[#137fec] text-3xl mb-3">center_focus_strong</span>
+                            <h3 className="text-white font-semibold mb-1">Single Source</h3>
+                            <p className="text-[#9dabb9] text-sm">One file. All context.</p>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
-                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                    <span className="material-symbols-outlined text-[24px]">center_focus_strong</span>
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-white text-lg mb-2">Single Source of Truth</h3>
-                                    <p className="text-sm text-[#9dabb9] leading-relaxed">No scattered docs. One master file that rules them all.</p>
-                                </div>
-                            </div>
-                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
-                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                    <span className="material-symbols-outlined text-[24px]">psychology</span>
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-white text-lg mb-2">Consultant Logic</h3>
-                                    <p className="text-sm text-[#9dabb9] leading-relaxed">Applies senior PM frameworks to organize chaos into clarity.</p>
-                                </div>
-                            </div>
-                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
-                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                    <span className="material-symbols-outlined text-[24px]">smart_toy</span>
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-white text-lg mb-2">Agent-Ready</h3>
-                                    <p className="text-sm text-[#9dabb9] leading-relaxed">Optimized context window usage for AI coding agents.</p>
-                                </div>
-                            </div>
-                            <div className="group bg-[#161b22] border border-[#30363d] p-6 rounded-xl hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300 flex flex-col gap-4">
-                                <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                    <span className="material-symbols-outlined text-[24px]">do_not_disturb_on</span>
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-white text-lg mb-2">No Narrative</h3>
-                                    <p className="text-sm text-[#9dabb9] leading-relaxed">Zero fluff. Pure specifications, constraints, and logical flows.</p>
-                                </div>
-                            </div>
+                        <div className="text-center p-6 rounded-xl border border-[#30363d] bg-[#161b22]/50 hover:border-[#137fec]/30 transition-colors">
+                            <span className="material-symbols-outlined text-[#137fec] text-3xl mb-3">smart_toy</span>
+                            <h3 className="text-white font-semibold mb-1">Agent-Ready</h3>
+                            <p className="text-[#9dabb9] text-sm">Optimized for AI.</p>
+                        </div>
+                        <div className="text-center p-6 rounded-xl border border-[#30363d] bg-[#161b22]/50 hover:border-[#137fec]/30 transition-colors">
+                            <span className="material-symbols-outlined text-[#137fec] text-3xl mb-3">do_not_disturb_on</span>
+                            <h3 className="text-white font-semibold mb-1">No Fluff</h3>
+                            <p className="text-[#9dabb9] text-sm">Pure specs only.</p>
                         </div>
                     </div>
 
-                    {/* 9-Section Anatomy */}
-                    <div className="rounded-2xl border border-[#30363d] bg-[#0b0e11] overflow-hidden flex flex-col lg:flex-row shadow-2xl">
-                        <div className="p-8 lg:p-12 flex flex-col justify-center gap-6 lg:w-[40%] border-b lg:border-b-0 lg:border-r border-[#30363d] z-10 bg-[#0b0e11]">
-                            <h3 className="text-2xl font-bold text-white">The 9-Section Anatomy</h3>
-                            <p className="text-[#9dabb9] text-base leading-relaxed">
-                                Every UBP is generated with a strict 9-point structure. This ensures that whether you&apos;re handing off to a human developer or an AI agent, every requirement is explicitly defined.
-                            </p>
-                            <div className="flex flex-col gap-3 mt-2">
-                                <div className="flex items-center gap-3">
-                                    <span className="material-symbols-outlined text-green-500 text-[20px]">check_circle</span>
-                                    <span className="text-sm text-white">Standardized Output</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="material-symbols-outlined text-green-500 text-[20px]">check_circle</span>
-                                    <span className="text-sm text-white">Machine Readable</span>
-                                </div>
+                    {/* 9-Section Anatomy - Compact Horizontal List */}
+                    <div className="rounded-xl border border-[#30363d] bg-[#161b22]/30 p-6 md:p-8">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-semibold text-white">9-Section Structure</h3>
+                            <div className="flex items-center gap-2 text-xs text-green-500">
+                                <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                <span>Standardized</span>
                             </div>
                         </div>
-                        <div className="p-8 lg:p-12 lg:w-[60%] bg-[#161b22] relative overflow-hidden">
-                            <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
-                                backgroundImage: 'radial-gradient(#637588 1px, transparent 1px)',
-                                backgroundSize: '20px 20px'
-                            }}></div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">01</span>
-                                    <span className="text-sm font-medium text-gray-300">Product Vision</span>
+                        <div className="flex flex-wrap gap-2">
+                            {[
+                                "Vision", "Scope", "Actors", "Behaviors", "Constraints",
+                                "Tech Stack", "Phases", "Integrations", "Changelog"
+                            ].map((step, i) => (
+                                <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0d1117] border border-[#30363d] text-sm text-[#9dabb9] hover:border-[#137fec]/50 hover:text-white transition-colors cursor-default">
+                                    <span className="text-[#137fec] font-mono text-[10px]">{String(i + 1).padStart(2, '0')}</span>
+                                    <span>{step}</span>
                                 </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">02</span>
-                                    <span className="text-sm font-medium text-gray-300">Scope</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">03</span>
-                                    <span className="text-sm font-medium text-gray-300">Actors</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">04</span>
-                                    <span className="text-sm font-medium text-gray-300">Behaviors</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">05</span>
-                                    <span className="text-sm font-medium text-gray-300">Constraints &amp; Risks</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">06</span>
-                                    <span className="text-sm font-medium text-gray-300">Technology Decisions</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">07</span>
-                                    <span className="text-sm font-medium text-gray-300">Implementation Phases</span>
-                                </div>
-                                <div className="flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">08</span>
-                                    <span className="text-sm font-medium text-gray-300">Integration Points</span>
-                                </div>
-                                <div className="col-span-1 sm:col-span-2 flex items-center gap-3 p-3 rounded bg-[#0d1117] border border-[#30363d] hover:border-[#137fec]/50 transition-colors">
-                                    <span className="flex items-center justify-center size-6 rounded bg-[#137fec]/10 text-[#137fec] text-[10px] font-mono font-bold">09</span>
-                                    <span className="text-sm font-medium text-gray-300">Change Log</span>
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     </div>
                 </div>

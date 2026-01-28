@@ -1166,7 +1166,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
             </main>
 
             {/* Message Input - Premium Floating Card */}
-            <footer className="relative px-2 sm:px-4 pb-3 sm:pb-4 pt-2 shrink-0">
+            <footer className="relative px-2 sm:px-4 pb-3 sm:pb-4 pb-safe pt-2 shrink-0">
                 {/* Top gradient fade */}
                 <div className="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-[#101922] to-transparent pointer-events-none" />
 
