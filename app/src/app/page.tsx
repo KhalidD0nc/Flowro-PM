@@ -131,11 +131,11 @@ export default function Home() {
                                 </div>
                                 <div className="flex flex-col gap-6">
                                     <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black leading-[1.1] tracking-[-0.033em]">
-                                        Your vision, <br />
-                                        <span className="text-[#137fec] bg-clip-text text-transparent bg-gradient-to-r from-[#137fec] to-blue-300">architected in seconds.</span>
+                                        Still <span className="text-red-400 line-through decoration-red-400/50">prompting blind</span>? <br />
+                                        <span className="text-[#137fec] bg-clip-text text-transparent bg-gradient-to-r from-[#137fec] to-blue-300">Ship with clarity.</span>
                                     </h1>
                                     <h2 className="text-[#9dabb9] text-lg sm:text-xl font-normal leading-relaxed max-w-[580px]">
-                                        Turn messy ideas into a clear blueprint for AI.
+                                        Stop burning tokens on vague prompts. Feed your AI agents specs that actually work.
                                     </h2>
                                 </div>
                                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
@@ -499,6 +499,7 @@ export default function Home() {
                     </div>
                 </div>
             </section>
+
 
             {/* How it Works Section */}
             <section id="how-it-works" className="py-24 px-6 lg:px-40 scroll-mt-20">
