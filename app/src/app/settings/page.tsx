@@ -11,6 +11,10 @@ export default function SettingsPage() {
     const router = useRouter()
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [isSigningOut, setIsSigningOut] = useState(false)
+    const [showDeleteModal, setShowDeleteModal] = useState(false)
+    const [deleteConfirmation, setDeleteConfirmation] = useState("")
+    const [isDeleting, setIsDeleting] = useState(false)
+    const [deleteError, setDeleteError] = useState<string | null>(null)
 
     // Redirect if not logged in
     useEffect(() => {
@@ -27,6 +31,36 @@ export default function SettingsPage() {
         } catch (error) {
             console.error("Error signing out:", error)
             setIsSigningOut(false)
+        }
+    }
+
+    const handleDeleteAccount = async () => {
+        if (deleteConfirmation !== "DELETE") return
+
+        setIsDeleting(true)
+        setDeleteError(null)
+
+        try {
+            const token = await user?.getIdToken()
+            const res = await fetch("/api/account", {
+                method: "DELETE",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            })
+
+            if (!res.ok) {
+                const data = await res.json()
+                throw new Error(data.error || "Failed to delete account")
+            }
+
+            // Sign out and redirect to home
+            await signOut(auth)
+            router.push("/")
+        } catch (error) {
+            console.error("Error deleting account:", error)
+            setDeleteError(error instanceof Error ? error.message : "Failed to delete account")
+            setIsDeleting(false)
         }
     }
 
@@ -187,10 +221,10 @@ export default function SettingsPage() {
                             </div>
                         </section>
 
-                        {/* Danger Zone */}
-                        <section className="rounded-xl border border-red-500/30 bg-[#18212b] p-6">
+                        {/* Session Section */}
+                        <section className="rounded-xl border border-[#283039] bg-[#18212b] p-6">
                             <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-red-400">warning</span>
+                                <span className="material-symbols-outlined text-[#9dabb9]">logout</span>
                                 Session
                             </h2>
 
@@ -200,15 +234,110 @@ export default function SettingsPage() {
 
                             <button
                                 onClick={handleSignOut}
-                                className="flex items-center justify-center gap-2 rounded-lg border border-red-500/50 bg-red-500/10 px-6 py-3 text-red-400 font-medium transition-all hover:bg-red-500/20 hover:border-red-500"
+                                className="flex items-center justify-center gap-2 rounded-lg border border-[#283039] bg-[#11161d] px-6 py-3 text-white font-medium transition-all hover:bg-[#1e2936]"
                             >
                                 <span className="material-symbols-outlined">logout</span>
                                 Sign Out
                             </button>
                         </section>
+
+                        {/* Danger Zone */}
+                        <section className="rounded-xl border border-red-500/30 bg-[#18212b] p-6">
+                            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-red-400">warning</span>
+                                Danger Zone
+                            </h2>
+
+                            <p className="text-sm text-[#9dabb9] mb-6">
+                                Permanently delete your account and all associated data. This action cannot be undone.
+                            </p>
+
+                            <button
+                                onClick={() => setShowDeleteModal(true)}
+                                className="flex items-center justify-center gap-2 rounded-lg border border-red-500/50 bg-red-500/10 px-6 py-3 text-red-400 font-medium transition-all hover:bg-red-500/20 hover:border-red-500"
+                            >
+                                <span className="material-symbols-outlined">delete_forever</span>
+                                Delete Account
+                            </button>
+                        </section>
                     </div>
                 </div>
             </main>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-[#18212b] border border-[#283039] rounded-xl p-6 max-w-md w-full shadow-2xl">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="size-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-red-400" style={{ fontSize: '24px' }}>warning</span>
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-white">Delete Account</h3>
+                                <p className="text-sm text-[#9dabb9]">This action is permanent</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
+                            <p className="text-sm text-red-300">
+                                All your projects, blueprints, and data will be permanently deleted.
+                                This cannot be undone.
+                            </p>
+                        </div>
+
+                        <div className="mb-6">
+                            <label className="text-sm font-medium text-[#9dabb9] mb-2 block">
+                                Type <span className="text-red-400 font-bold">DELETE</span> to confirm
+                            </label>
+                            <input
+                                type="text"
+                                value={deleteConfirmation}
+                                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                                placeholder="DELETE"
+                                className="w-full rounded-lg border border-[#283039] bg-[#11161d] px-4 py-3 text-white placeholder-[#9dabb9]/50 focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
+                            />
+                        </div>
+
+                        {deleteError && (
+                            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                                <p className="text-sm text-red-400">{deleteError}</p>
+                            </div>
+                        )}
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setShowDeleteModal(false)
+                                    setDeleteConfirmation("")
+                                    setDeleteError(null)
+                                }}
+                                disabled={isDeleting}
+                                className="flex-1 rounded-lg border border-[#283039] bg-[#11161d] px-4 py-3 text-white font-medium transition-all hover:bg-[#1e2936] disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeleteAccount}
+                                disabled={deleteConfirmation !== "DELETE" || isDeleting}
+                                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-3 text-white font-medium transition-all hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isDeleting ? (
+                                    <>
+                                        <span className="material-symbols-outlined animate-spin" style={{ fontSize: '20px' }}>sync</span>
+                                        Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>delete_forever</span>
+                                        Delete Forever
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
+

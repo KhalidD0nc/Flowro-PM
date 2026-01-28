@@ -151,6 +151,22 @@ export default function Home() {
                                         <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
                                     </a>
                                 </div>
+
+                                {/* Trust Badges */}
+                                <div className="flex flex-wrap items-center gap-4 pt-6 text-xs text-[#9dabb9]">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="material-symbols-outlined text-green-500 text-[16px]">verified_user</span>
+                                        <span>SSL Secure</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="material-symbols-outlined text-[#137fec] text-[16px]">credit_card_off</span>
+                                        <span>No credit card required</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="material-symbols-outlined text-yellow-500 text-[16px]">star</span>
+                                        <span>Free tier available</span>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Right side - Terminal/Engine visualization */}
@@ -182,22 +198,25 @@ export default function Home() {
 
                                         <div className="relative w-full max-w-[600px] h-full flex flex-col md:flex-row items-center justify-between z-10 gap-8 md:gap-0">
                                             {/* Messy Input side */}
-                                            <div className="relative w-32 h-32 md:h-full flex flex-col justify-center items-center shrink-0">
+                                            <div className="relative w-36 h-36 md:w-32 md:h-full flex flex-col justify-center items-center shrink-0">
                                                 <div className="absolute inset-0 border border-dashed border-white/10 rounded-xl bg-white/5"></div>
                                                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0d1117] px-2 text-[10px] text-gray-500 font-mono uppercase tracking-widest whitespace-nowrap">Messy Input</div>
 
-                                                {/* Floating document icons */}
-                                                <div className="absolute top-4 md:top-10 left-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-6deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_4s_ease-in-out_infinite]">
-                                                    <span className="material-symbols-outlined text-blue-400">description</span>
+                                                {/* Top row - 2 icons */}
+                                                <div className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2 flex gap-3 md:gap-4">
+                                                    <div className="p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-8deg] hover:scale-110 transition-transform cursor-default animate-[float_4s_ease-in-out_infinite]">
+                                                        <span className="material-symbols-outlined text-blue-400 text-[20px] md:text-[24px]">description</span>
+                                                    </div>
+                                                    <div className="p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[8deg] hover:scale-110 transition-transform cursor-default animate-[float_5s_ease-in-out_infinite_0.5s]">
+                                                        <span className="material-symbols-outlined text-yellow-500 text-[20px] md:text-[24px]">sticky_note_2</span>
+                                                    </div>
                                                 </div>
-                                                <div className="absolute top-12 md:top-24 right-2 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[12deg] hover:scale-110 transition-transform cursor-default z-20 animate-[float_5s_ease-in-out_infinite_1s]">
-                                                    <span className="material-symbols-outlined text-yellow-500">sticky_note_2</span>
-                                                </div>
-                                                <div className="absolute bottom-10 md:bottom-20 left-4 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[-3deg] hover:scale-110 transition-transform cursor-default z-0 animate-[float_4s_ease-in-out_infinite_0.5s]">
-                                                    <span className="material-symbols-outlined text-purple-400">video_file</span>
-                                                </div>
-                                                <div className="absolute bottom-2 md:bottom-8 right-6 p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[8deg] hover:scale-110 transition-transform cursor-default z-10 animate-[float_6s_ease-in-out_infinite_2s]">
-                                                    <span className="material-symbols-outlined text-green-400">chat</span>
+
+                                                {/* Bottom row - 1 icon centered */}
+                                                <div className="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2">
+                                                    <div className="p-3 bg-[#1e2329] border border-[#30363d] rounded-lg shadow-lg rotate-[3deg] hover:scale-110 transition-transform cursor-default animate-[float_4s_ease-in-out_infinite_1s]">
+                                                        <span className="material-symbols-outlined text-green-400 text-[20px] md:text-[24px]">chat</span>
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -368,6 +387,30 @@ export default function Home() {
                             </div>
                         </div>
                         <p className="text-[#637588] text-xs">Export your blueprints directly to your IDE workflow</p>
+                    </div>
+                </div>
+            </section>
+
+            {/* Social Proof Stats Section */}
+            <section className="py-16 px-6 lg:px-20 bg-[#0d1117]">
+                <div className="max-w-[1000px] mx-auto">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                        <div className="flex flex-col gap-2">
+                            <span className="text-3xl md:text-4xl font-black text-white">500+</span>
+                            <span className="text-sm text-[#9dabb9]">Blueprints Created</span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-3xl md:text-4xl font-black text-[#137fec]">10x</span>
+                            <span className="text-sm text-[#9dabb9]">Faster Planning</span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-3xl md:text-4xl font-black text-white">98%</span>
+                            <span className="text-sm text-[#9dabb9]">Less Rework</span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <span className="text-3xl md:text-4xl font-black text-white">AI-First</span>
+                            <span className="text-sm text-[#9dabb9]">Built for Builders</span>
+                        </div>
                     </div>
                 </div>
             </section>

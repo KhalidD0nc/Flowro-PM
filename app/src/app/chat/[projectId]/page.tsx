@@ -313,10 +313,12 @@ export default function ChatPage() {
         return () => clearInterval(timer)
     }, [isGenerating])
 
-    // Redirect if not logged in
+    // Redirect if not logged in or email not verified
     useEffect(() => {
         if (!loading && !user) {
             router.push("/auth")
+        } else if (!loading && user && !user.emailVerified) {
+            router.push("/auth?verify=true")
         }
     }, [user, loading, router])
 

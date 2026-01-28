@@ -31,10 +31,13 @@ export default function DashboardPage() {
     const [totalSavedVersions, setTotalSavedVersions] = useState(0)
 
 
-    // Redirect if not logged in
+    // Redirect if not logged in or email not verified
     useEffect(() => {
         if (!loading && !user) {
             router.push("/auth")
+        } else if (!loading && user && !user.emailVerified) {
+            // Redirect to auth page to verify email
+            router.push("/auth?verify=true")
         }
     }, [user, loading, router])
 

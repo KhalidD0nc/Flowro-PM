@@ -7,6 +7,7 @@ import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     sendPasswordResetEmail,
+    sendEmailVerification,
     updateProfile,
     UserCredential
 } from "firebase/auth"
@@ -145,6 +146,9 @@ export async function signUp(
         await updateProfile(result.user, { displayName: sanitizedDisplayName })
     }
 
+    // Send email verification
+    await sendEmailVerification(result.user)
+
     // Store user data in Firestore
     await storeUserInFirestore(result, sanitizedDisplayName)
 
@@ -208,4 +212,20 @@ async function storeUserInFirestore(
  */
 export async function signOutUser(): Promise<void> {
     await firebaseSignOut(auth)
+}
+
+/**
+ * Resends verification email to the current user
+ * @returns Promise that resolves when email is sent
+ * @throws Error if sending fails or no user is logged in
+ */
+export async function resendVerificationEmail(): Promise<void> {
+    const user = auth.currentUser
+    if (!user) {
+        throw new Error("No user is currently logged in")
+    }
+    if (user.emailVerified) {
+        throw new Error("Email is already verified")
+    }
+    await sendEmailVerification(user)
 }

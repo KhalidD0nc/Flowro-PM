@@ -1,14 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/Providers"
-import { useEffect } from "react"
-import { signInWithGoogle, signIn, signUp, resetPassword } from "./actions"
+import { signInWithGoogle, signIn, signUp, resetPassword, resendVerificationEmail } from "./actions"
 import { analytics } from "@/lib/analytics"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 
-type AuthMode = "signIn" | "signUp" | "resetPassword"
+type AuthMode = "signIn" | "signUp" | "resetPassword" | "verifyEmail"
 
 export default function AuthPage() {
     const router = useRouter()
@@ -24,13 +23,29 @@ export default function AuthPage() {
     const [successMessage, setSuccessMessage] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+    const [resendCooldown, setResendCooldown] = useState(0)
+    const [pendingEmail, setPendingEmail] = useState<string | null>(null)
 
-    // Redirect if already logged in - use replace to prevent back navigation
+    // Redirect if already logged in and email is verified
     useEffect(() => {
         if (user && !loading) {
-            router.replace("/dashboard")
+            if (user.emailVerified) {
+                router.replace("/dashboard")
+            } else {
+                // Show verification pending screen
+                setAuthMode("verifyEmail")
+                setPendingEmail(user.email)
+            }
         }
     }, [user, loading, router])
+
+    // Cooldown timer for resend button
+    useEffect(() => {
+        if (resendCooldown > 0) {
+            const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000)
+            return () => clearTimeout(timer)
+        }
+    }, [resendCooldown])
 
     const handleGoogleSignIn = async () => {
         try {
@@ -64,7 +79,10 @@ export default function AuthPage() {
                 analytics.signupStarted("email")
                 await signUp(email, password, displayName || undefined)
                 analytics.signupCompleted("email")
-                router.push("/dashboard")
+                // Switch to verification pending mode
+                setPendingEmail(email)
+                setAuthMode("verifyEmail")
+                setResendCooldown(60) // 60 second cooldown before resend
             } else {
                 analytics.signupStarted("email")
                 await signIn(email, password)
@@ -108,21 +126,45 @@ export default function AuthPage() {
         setSuccessMessage(null)
     }
 
+    const handleResendVerification = async () => {
+        if (resendCooldown > 0) return
+        setError(null)
+        setSuccessMessage(null)
+        setIsSubmitting(true)
+
+        try {
+            await resendVerificationEmail()
+            setSuccessMessage("Verification email sent! Check your inbox.")
+            setResendCooldown(60)
+        } catch (error) {
+            console.error("Resend verification error:", error)
+            setError("Failed to resend verification email. Please try again.")
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    const handleRefreshVerification = () => {
+        // Reload the page to check if email is now verified
+        window.location.reload()
+    }
+
     const getHeading = () => {
         switch (authMode) {
             case "signUp": return "Create your account"
             case "resetPassword": return "Reset your password"
+            case "verifyEmail": return "Verify your email"
             default: return "Welcome back"
         }
     }
 
-    // Show loading state while checking auth or redirecting authenticated user
-    if (loading || user) {
+    // Show loading state while checking auth
+    if (loading) {
         return (
             <div className="min-h-screen bg-[#101922] flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4 animate-pulse">
                     <span className="material-symbols-outlined text-[#137fec] animate-spin text-4xl">hourglass_top</span>
-                    <span className="text-slate-400 text-sm">{user ? "Redirecting to dashboard..." : ""}</span>
+                    <span className="text-slate-400 text-sm">Loading...</span>
                 </div>
             </div>
         )
@@ -151,7 +193,9 @@ export default function AuthPage() {
                             <p className="text-slate-400 text-sm font-normal leading-normal mt-2">
                                 {authMode === "resetPassword"
                                     ? "Enter your email and we'll send you a reset link."
-                                    : "Turn your docs into a Unified Blueprint."}
+                                    : authMode === "verifyEmail"
+                                        ? "We've sent a verification link to your email."
+                                        : "Turn your docs into a Unified Blueprint."}
                             </p>
                         </div>
                     </div>
@@ -172,8 +216,8 @@ export default function AuthPage() {
                             </div>
                         )}
 
-                        {/* Google Button (hide on reset password) */}
-                        {authMode !== "resetPassword" && (
+                        {/* Google Button (hide on reset password and verifyEmail) */}
+                        {authMode !== "resetPassword" && authMode !== "verifyEmail" && (
                             <>
                                 <button
                                     onClick={handleGoogleSignIn}
@@ -209,95 +253,149 @@ export default function AuthPage() {
                             </>
                         )}
 
-                        {/* Email/Password Form */}
-                        <form onSubmit={handleEmailAuth} className="flex flex-col gap-4">
-                            {/* Display Name Field (Sign Up only) */}
-                            {authMode === "signUp" && (
-                                <div className="flex flex-col gap-2">
-                                    <label className="text-white text-sm font-medium leading-normal">Name</label>
-                                    <div className="relative flex w-full flex-1 items-stretch rounded-lg">
-                                        <input
-                                            type="text"
-                                            value={displayName}
-                                            onChange={(e) => setDisplayName(e.target.value)}
-                                            className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-[#137fec]/50 focus:border-[#137fec] border border-slate-600 bg-[#101922] h-12 placeholder:text-slate-500 px-4 text-base font-normal leading-normal transition-all"
-                                            placeholder="Your name"
-                                            maxLength={100}
-                                        />
-                                    </div>
+                        {/* Email Verification Pending UI */}
+                        {authMode === "verifyEmail" && (
+                            <div className="flex flex-col items-center gap-6 py-4">
+                                {/* Email Icon */}
+                                <div className="w-16 h-16 rounded-full bg-[#137fec]/20 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-[#137fec]" style={{ fontSize: '32px' }}>mark_email_unread</span>
                                 </div>
-                            )}
 
-                            {/* Email Field */}
-                            <div className="flex flex-col gap-2">
-                                <label className="text-white text-sm font-medium leading-normal">Email</label>
-                                <div className="relative flex w-full flex-1 items-stretch rounded-lg">
-                                    <input
-                                        type="email"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        required
-                                        className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-[#137fec]/50 focus:border-[#137fec] border border-slate-600 bg-[#101922] h-12 placeholder:text-slate-500 px-4 text-base font-normal leading-normal transition-all"
-                                        placeholder="name@company.com"
-                                        maxLength={320}
-                                    />
+                                {/* Email Display */}
+                                <div className="text-center">
+                                    <p className="text-white font-medium">{pendingEmail}</p>
+                                    <p className="text-slate-400 text-sm mt-2">Click the link in the email to verify your account.</p>
                                 </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex flex-col gap-3 w-full">
+                                    <button
+                                        onClick={handleRefreshVerification}
+                                        className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 bg-[#137fec] hover:bg-[#137fec]/90 text-white gap-2 text-base font-bold leading-normal tracking-wide transition-all shadow-lg shadow-[#137fec]/20"
+                                    >
+                                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>refresh</span>
+                                        <span>I&apos;ve Verified My Email</span>
+                                    </button>
+
+                                    <button
+                                        onClick={handleResendVerification}
+                                        disabled={resendCooldown > 0 || isSubmitting}
+                                        className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 bg-[#283039] hover:bg-[#343e49] text-white gap-2 text-base font-medium leading-normal transition-colors border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isSubmitting ? (
+                                            <>
+                                                <LoadingSpinner size="sm" color="#ffffff" />
+                                                <span>Sending...</span>
+                                            </>
+                                        ) : resendCooldown > 0 ? (
+                                            <span>Resend in {resendCooldown}s</span>
+                                        ) : (
+                                            <>
+                                                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>send</span>
+                                                <span>Resend Verification Email</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+
+                                {/* Tip */}
+                                <p className="text-slate-500 text-xs text-center">
+                                    Don&apos;t see the email? Check your spam folder.
+                                </p>
                             </div>
+                        )}
 
-                            {/* Password Field (hide on reset) */}
-                            {authMode !== "resetPassword" && (
+                        {/* Email/Password Form (hide on verifyEmail) */}
+                        {authMode !== "verifyEmail" && (
+                            <form onSubmit={handleEmailAuth} className="flex flex-col gap-4">
+                                {/* Display Name Field (Sign Up only) */}
+                                {authMode === "signUp" && (
+                                    <div className="flex flex-col gap-2">
+                                        <label className="text-white text-sm font-medium leading-normal">Name</label>
+                                        <div className="relative flex w-full flex-1 items-stretch rounded-lg">
+                                            <input
+                                                type="text"
+                                                value={displayName}
+                                                onChange={(e) => setDisplayName(e.target.value)}
+                                                className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-[#137fec]/50 focus:border-[#137fec] border border-slate-600 bg-[#101922] h-12 placeholder:text-slate-500 px-4 text-base font-normal leading-normal transition-all"
+                                                placeholder="Your name"
+                                                maxLength={100}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Email Field */}
                                 <div className="flex flex-col gap-2">
-                                    <label className="text-white text-sm font-medium leading-normal">Password</label>
+                                    <label className="text-white text-sm font-medium leading-normal">Email</label>
                                     <div className="relative flex w-full flex-1 items-stretch rounded-lg">
                                         <input
-                                            type={showPassword ? "text" : "password"}
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
+                                            type="email"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
                                             required
-                                            minLength={6}
-                                            className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-[#137fec]/50 focus:border-[#137fec] border border-slate-600 bg-[#101922] h-12 placeholder:text-slate-500 px-4 pr-12 text-base font-normal leading-normal transition-all"
-                                            placeholder="••••••••"
+                                            className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-[#137fec]/50 focus:border-[#137fec] border border-slate-600 bg-[#101922] h-12 placeholder:text-slate-500 px-4 text-base font-normal leading-normal transition-all"
+                                            placeholder="name@company.com"
+                                            maxLength={320}
                                         />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-0 top-0 h-full w-12 flex items-center justify-center text-slate-400 cursor-pointer hover:text-[#137fec] transition-colors"
-                                        >
-                                            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                                                {showPassword ? "visibility" : "visibility_off"}
-                                            </span>
-                                        </button>
                                     </div>
-                                    {authMode === "signIn" && (
-                                        <div className="flex justify-end mt-1">
+                                </div>
+
+                                {/* Password Field (hide on reset) */}
+                                {authMode !== "resetPassword" && (
+                                    <div className="flex flex-col gap-2">
+                                        <label className="text-white text-sm font-medium leading-normal">Password</label>
+                                        <div className="relative flex w-full flex-1 items-stretch rounded-lg">
+                                            <input
+                                                type={showPassword ? "text" : "password"}
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                required
+                                                minLength={6}
+                                                className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-[#137fec]/50 focus:border-[#137fec] border border-slate-600 bg-[#101922] h-12 placeholder:text-slate-500 px-4 pr-12 text-base font-normal leading-normal transition-all"
+                                                placeholder="••••••••"
+                                            />
                                             <button
                                                 type="button"
-                                                onClick={() => switchMode("resetPassword")}
-                                                className="text-sm font-medium text-[#137fec] hover:text-[#137fec]/80 transition-colors"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-0 top-0 h-full w-12 flex items-center justify-center text-slate-400 cursor-pointer hover:text-[#137fec] transition-colors"
                                             >
-                                                Forgot password?
+                                                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                                                    {showPassword ? "visibility" : "visibility_off"}
+                                                </span>
                                             </button>
                                         </div>
-                                    )}
-                                </div>
-                            )}
+                                        {authMode === "signIn" && (
+                                            <div className="flex justify-end mt-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => switchMode("resetPassword")}
+                                                    className="text-sm font-medium text-[#137fec] hover:text-[#137fec]/80 transition-colors"
+                                                >
+                                                    Forgot password?
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
-                            {/* Submit Button */}
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 bg-[#137fec] hover:bg-[#137fec]/90 text-white gap-2 text-base font-bold leading-normal tracking-wide transition-all shadow-lg shadow-[#137fec]/20 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
-                            >
-                                <span className="truncate">
-                                    {isSubmitting
-                                        ? "Please wait..."
-                                        : authMode === "signUp" ? "Create Account"
-                                            : authMode === "resetPassword" ? "Send Reset Link"
-                                                : "Sign In"
-                                    }
-                                </span>
-                            </button>
-                        </form>
+                                {/* Submit Button */}
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 bg-[#137fec] hover:bg-[#137fec]/90 text-white gap-2 text-base font-bold leading-normal tracking-wide transition-all shadow-lg shadow-[#137fec]/20 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+                                >
+                                    <span className="truncate">
+                                        {isSubmitting
+                                            ? "Please wait..."
+                                            : authMode === "signUp" ? "Create Account"
+                                                : authMode === "resetPassword" ? "Send Reset Link"
+                                                    : "Sign In"
+                                        }
+                                    </span>
+                                </button>
+                            </form>
+                        )}
                     </div>
 
                     {/* Footer */}
