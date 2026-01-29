@@ -4,6 +4,8 @@ import { useAuth } from "@/components/Providers"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, useMemo } from "react"
 import CreateProjectModal from "@/components/CreateProjectModal"
+import RenameProjectModal from "@/components/RenameProjectModal"
+import DeleteProjectModal from "@/components/DeleteProjectModal"
 import { SkeletonCardGrid, SkeletonStat } from "@/components/ui/Skeleton"
 import { analytics } from "@/lib/analytics"
 
@@ -29,6 +31,14 @@ export default function DashboardPage() {
     const [showCreateModal, setShowCreateModal] = useState(false)
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [totalSavedVersions, setTotalSavedVersions] = useState(0)
+
+    // Project Actions State
+    const [activeProject, setActiveProject] = useState<Project | null>(null)
+    const [showRenameModal, setShowRenameModal] = useState(false)
+    const [showDeleteModal, setShowDeleteModal] = useState(false)
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+    const [isRenaming, setIsRenaming] = useState(false)
+    const [isDeleting, setIsDeleting] = useState(false)
 
 
     // Redirect if not logged in or email not verified
@@ -61,10 +71,23 @@ export default function DashboardPage() {
             }
         }
 
+
+
         if (user) {
             fetchProjects()
         }
     }, [user])
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (openMenuId && !(e.target as Element).closest('.project-menu-trigger') && !(e.target as Element).closest('.project-menu-dropdown')) {
+                setOpenMenuId(null)
+            }
+        }
+        document.addEventListener('click', handleClickOutside)
+        return () => document.removeEventListener('click', handleClickOutside)
+    }, [openMenuId])
 
     // Calculate stats from real data
     const stats = useMemo(() => {
@@ -112,9 +135,91 @@ export default function DashboardPage() {
         // Track project creation
         analytics.projectCreated(newProject.id)
 
-        // Close modal and redirect immediately for a smooth flow
         setShowCreateModal(false)
         router.push(`/chat/${newProject.id}`)
+    }
+
+    const handleRenameProject = async (newName: string) => {
+        if (!activeProject || !user) return
+
+        setIsRenaming(true)
+        try {
+            const token = await user.getIdToken()
+            const res = await fetch(`/api/projects/${activeProject.id}`, {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ projectName: newName }),
+            })
+
+            if (!res.ok) {
+                const errorData = await res.json()
+                throw new Error(errorData.error || "Failed to rename project")
+            }
+
+            // Update local state
+            setProjects(prev => prev.map(p =>
+                p.id === activeProject.id ? { ...p, projectName: newName } : p
+            ))
+
+            setShowRenameModal(false)
+            setActiveProject(null)
+        } catch (error) {
+            console.error("Error renaming project:", error)
+            throw error
+        } finally {
+            setIsRenaming(false)
+        }
+    }
+
+    const handleDeleteProject = async () => {
+        if (!activeProject || !user) return
+
+        setIsDeleting(true)
+        try {
+            const token = await user.getIdToken()
+            const res = await fetch(`/api/projects/${activeProject.id}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+            })
+
+            if (!res.ok) {
+                const errorData = await res.json()
+                throw new Error(errorData.error || "Failed to delete project")
+            }
+
+            // Update local state
+            setProjects(prev => prev.filter(p => p.id !== activeProject.id))
+
+            setShowDeleteModal(false)
+            setActiveProject(null)
+        } catch (error) {
+            console.error("Error deleting project:", error)
+            throw error // Let the modal handle the error display
+        } finally {
+            setIsDeleting(false)
+        }
+    }
+
+    const toggleMenu = (e: React.MouseEvent, projectId: string) => {
+        e.stopPropagation() // Prevent navigation
+        setOpenMenuId(openMenuId === projectId ? null : projectId)
+    }
+
+    const openRenameModal = (e: React.MouseEvent, project: Project) => {
+        e.stopPropagation()
+        setOpenMenuId(null)
+        setActiveProject(project)
+        setShowRenameModal(true)
+    }
+
+    const openDeleteModal = (e: React.MouseEvent, project: Project) => {
+        e.stopPropagation()
+        setOpenMenuId(null)
+        setActiveProject(project)
+        setShowDeleteModal(true)
     }
 
     const getStatusColor = (status?: string) => {
@@ -404,9 +509,36 @@ export default function DashboardPage() {
                                                         <p className="text-xs text-[#9dabb9]">v{project.latestBlueprint?.version || "0.1"}</p>
                                                     </div>
                                                 </div>
-                                                <button className="rounded p-1 text-slate-400 hover:bg-white/10">
+                                            </div>
+
+                                            {/* Context Menu */}
+                                            <div className="relative">
+                                                <button
+                                                    onClick={(e) => toggleMenu(e, project.id)}
+                                                    className="project-menu-trigger rounded p-1 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+                                                >
                                                     <span className="material-symbols-outlined text-[20px]">more_vert</span>
                                                 </button>
+
+                                                {/* Dropdown */}
+                                                {openMenuId === project.id && (
+                                                    <div className="project-menu-dropdown absolute right-0 top-8 z-10 w-48 rounded-lg border border-[#283039] bg-[#18212b] py-1 shadow-xl">
+                                                        <button
+                                                            onClick={(e) => openRenameModal(e, project)}
+                                                            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#9dabb9] hover:bg-[#283039] hover:text-white text-left"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[18px]">edit</span>
+                                                            Rename
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => openDeleteModal(e, project)}
+                                                            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-[#283039] hover:text-red-300 text-left"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Project preview - show chat history count */}
@@ -442,7 +574,27 @@ export default function DashboardPage() {
                 onCreateProject={handleCreateProject}
             />
 
+            {/* Rename Project Modal */}
+            {activeProject && (
+                <RenameProjectModal
+                    isOpen={showRenameModal}
+                    onClose={() => setShowRenameModal(false)}
+                    onRename={handleRenameProject}
+                    currentName={activeProject.projectName}
+                    isRenaming={isRenaming}
+                />
+            )}
 
+            {/* Delete Project Modal */}
+            {activeProject && (
+                <DeleteProjectModal
+                    isOpen={showDeleteModal}
+                    onClose={() => setShowDeleteModal(false)}
+                    onDelete={handleDeleteProject}
+                    projectName={activeProject.projectName}
+                    isDeleting={isDeleting}
+                />
+            )}
         </div>
     )
 }

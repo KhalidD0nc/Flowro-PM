@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../../blueprints/auth"
-import { getProjectById, verifyProjectOwnership, getLatestBlueprint, updateProjectName, deleteProject } from "../../blueprints/service"
+import { getProjectById, verifyProjectOwnership, getLatestBlueprint, updateProjectName, deleteProject, updateProjectChatHistory, ChatMessage } from "../../blueprints/service"
 
 // GET /api/projects/[projectId] - Get a single project with its latest blueprint
 export async function GET(
@@ -40,7 +40,7 @@ export async function GET(
     }
 }
 
-// PATCH /api/projects/[projectId] - Update project details (rename)
+// PATCH /api/projects/[projectId] - Update project details (rename, append chat)
 export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ projectId: string }> }
@@ -54,19 +54,40 @@ export async function PATCH(
 
         const { projectId } = await params
         const body = await request.json()
-        const { projectName } = body
-
-        if (!projectName || !projectName.trim()) {
-            return NextResponse.json({ error: "Project name is required" }, { status: 400 })
-        }
+        const { projectName, appendChat } = body
 
         // Verify ownership
         await verifyProjectOwnership(projectId, authResult.userId)
 
-        // Update name
-        await updateProjectName(projectId, projectName.trim())
+        // Handle appendChat - append messages to chat history
+        if (appendChat && Array.isArray(appendChat)) {
+            // Filter out undefined values - Firestore rejects them
+            const messages: ChatMessage[] = appendChat.map((msg: ChatMessage) => {
+                const cleanMsg: ChatMessage = {
+                    role: msg.role,
+                    content: msg.content,
+                    timestamp: msg.timestamp || new Date().toISOString(),
+                }
+                // Only add optional fields if they have values
+                if (msg.intent !== undefined && msg.intent !== null) {
+                    cleanMsg.intent = msg.intent
+                }
+                if (msg.proposedChanges !== undefined && msg.proposedChanges !== null) {
+                    cleanMsg.proposedChanges = msg.proposedChanges
+                }
+                return cleanMsg
+            })
+            await updateProjectChatHistory(projectId, messages)
+            return NextResponse.json({ success: true, appended: messages.length })
+        }
 
-        return NextResponse.json({ success: true, projectName: projectName.trim() })
+        // Handle projectName update
+        if (projectName && projectName.trim()) {
+            await updateProjectName(projectId, projectName.trim())
+            return NextResponse.json({ success: true, projectName: projectName.trim() })
+        }
+
+        return NextResponse.json({ error: "No valid update fields provided" }, { status: 400 })
     } catch (error) {
         console.error("Update project error:", error)
         const message = error instanceof Error ? error.message : "Failed to update project"

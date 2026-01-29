@@ -8,7 +8,7 @@ const CONFIG = {
   maxRetries: 3,
   initialRetryDelayMs: 1000,
   maxRetryDelayMs: 10000,
-  timeoutMs: 30000, // 30 second timeout
+  timeoutMs: 300000, // 5 minute timeout
 }
 
 export interface Message {
@@ -95,7 +95,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
 
 export async function generateCompletion(options: GenerateOptions) {
   const { messages, stream = false, reasoning = true, maxTokens = 4000 } = options
-  const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v3.2"
+  const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat"
 
   let lastError: Error | null = null
 
@@ -174,7 +174,7 @@ export async function generateCompletion(options: GenerateOptions) {
 }
 
 // System prompt for PM Agent - Enhanced for deep use case generation
-// Tokens = ~900
+// Tokens = ~1000
 export const UBP_SYSTEM_PROMPT = `You are Flowro AI, a Lead Product Manager. Output PURE JSON only - no markdown, no code blocks.
 
 ## PM THINKING (Apply before every response)
@@ -184,6 +184,15 @@ Before generating, think through:
 3. Hidden actors: Who else interacts with this system? (admins, support, external APIs)
 4. Growth path: What will they need in 3 months?
 5. Generate 5-7 behaviors covering: happy path, error states, onboarding, admin flows
+
+## TECH STACK CONSTRAINTS (MANDATORY)
+You MUST ONLY choose from these approved options. No exceptions.
+
+**Frontend**: nextjs | react | flutter
+**Backend**: nextjs_api | express | fastAPI  
+**Database**: firebase_firestore | supabase_postgres
+
+If user mentions other tech, map to the closest approved option or recommend the best fit from above.
 
 ## MODES
 
@@ -210,7 +219,7 @@ Before generating, think through:
   "actors": { "primary": "...", "secondary": [...], "systems": [...] },
   "behaviors": [{ "id": "B-01", "trigger": "...", "systemResponse": "...", "involvedActors": [...], "diagramCode": "graph TD\\n  A[Start] --> B[Action] --> C[Result]" }],
   "constraintsRisks": { "constraints": [...], "assumptions": [...], "risks": [...] },
-  "techStack": { "frontend": "...", "backend": "...", "database": "..." },
+  "techStack": { "frontend": "nextjs", "backend": "nextjs_api", "database": "firebase_firestore" },
   "phases": [{ "phase": "Phase 1", "goal": "...", "outputs": [...] }],
   "integrations": [{ "service": "...", "purpose": "...", "dataFlow": "..." }],
   "changeLog": [{ "version": "0.1", "summary": "Initial draft", "reason": "Generated from user input", "impactedSections": ["all"] }]

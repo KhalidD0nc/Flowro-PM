@@ -3,6 +3,10 @@ import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../blueprint
 import { getProjectById, updateProjectChatHistory, getLatestBlueprint, updateBlueprintContent, ChatMessage, updateProjectName } from "../blueprints/service"
 import { generateFromMessage } from "./service"
 import { OpenRouterError } from "@/lib/openrouter"
+import { log, logInfo, logError, logWarn } from "@/lib/logger"
+import { sanitizeInputForLLM, detectPII } from "@/lib/sanitize"
+import { estimateMessageTokens } from "@/lib/tokenCounter"
+import { checkBudgetLimit, recordUsage } from "@/lib/costTracking"
 
 // =============================================================================
 // Simple In-Memory Rate Limiting
@@ -63,17 +67,25 @@ function checkRateLimit(userId: string): number | null {
 // =============================================================================
 
 export async function POST(request: NextRequest) {
+    const startTime = Date.now()
+    let userId = "unknown"
+    let projectId: string | undefined
+
     try {
         // 1. Verify Firebase token
         const authResult = await verifyAuthToken(request)
 
         if (isAuthError(authResult)) {
+            logWarn("auth_failed", { reason: authResult.error })
             return unauthorizedResponse(authResult)
         }
+
+        userId = authResult.userId
 
         // 2. Check rate limit
         const rateLimitSeconds = checkRateLimit(authResult.userId)
         if (rateLimitSeconds !== null) {
+            logWarn("rate_limited", { userId, retryAfter: rateLimitSeconds })
             return NextResponse.json(
                 {
                     error: `Too many requests. Please wait ${rateLimitSeconds} seconds before trying again.`,
@@ -90,7 +102,8 @@ export async function POST(request: NextRequest) {
 
         // 3. Parse request body
         const body = await request.json()
-        const { message, projectId, context } = body
+        const { message, context } = body
+        projectId = body.projectId
 
         if (!message) {
             return NextResponse.json({ error: "Message required" }, { status: 400 })
@@ -98,13 +111,63 @@ export async function POST(request: NextRequest) {
 
         // Validate message length (prevent abuse)
         if (typeof message !== "string" || message.length > 10000) {
+            logWarn("message_too_long", { userId, length: message?.length })
             return NextResponse.json(
                 { error: "Message too long. Please keep messages under 10,000 characters." },
                 { status: 400 }
             )
         }
 
-        // 4. Get current blueprint if projectId provided (for context)
+        // 4. Sanitize input and check for PII
+        const sanitizedMessage = sanitizeInputForLLM(message)
+        const piiResult = detectPII(message)
+
+        if (piiResult.hasPII) {
+            logWarn("pii_detected", {
+                userId,
+                projectId,
+                types: piiResult.types
+            })
+            // We continue but log the warning - PII was already redacted by sanitizeInputForLLM
+        }
+
+        // 5. Estimate tokens and check budget
+        const estimatedTokens = estimateMessageTokens([
+            { role: "system", content: "" }, // System prompt ~900 tokens
+            { role: "user", content: sanitizedMessage }
+        ]) + 1500 // Add buffer for system prompt and expected response
+
+        const budgetCheck = await checkBudgetLimit(userId, estimatedTokens)
+        if (!budgetCheck.allowed) {
+            logWarn("budget_exceeded", {
+                userId,
+                projectId,
+                reason: budgetCheck.reason
+            })
+            return NextResponse.json(
+                {
+                    error: budgetCheck.reason,
+                    budgetExceeded: true
+                },
+                { status: 429 }
+            )
+        }
+
+        // 6. Log request start
+        log({
+            level: "info",
+            action: "generate_request",
+            userId,
+            projectId,
+            details: {
+                messageLength: sanitizedMessage.length,
+                estimatedTokens,
+                hasContext: !!context,
+                contextLength: context?.length || 0
+            }
+        })
+
+        // 7. Get current blueprint if projectId provided (for context)
         let currentBlueprint = null
         if (projectId) {
             const latestBp = await getLatestBlueprint(projectId)
@@ -113,10 +176,21 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 5. Generate response from LLM with full context
-        const result = await generateFromMessage({ message, context, currentBlueprint })
+        // 8. Generate response from LLM with full context
+        const result = await generateFromMessage({
+            message: sanitizedMessage,
+            context,
+            currentBlueprint
+        })
 
-        // 6. Save chat history to Project (not Blueprint) if projectId provided
+        // 9. Record usage for cost tracking
+        const responseTokens = estimateMessageTokens([
+            { role: "assistant", content: result.rawContent }
+        ])
+        const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v3.2"
+        await recordUsage(userId, estimatedTokens, responseTokens, model)
+
+        // 10. Save chat history to Project (not Blueprint) if projectId provided
         if (projectId) {
             const project = await getProjectById(projectId)
 
@@ -140,13 +214,18 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Always add the assistant response with metadata
-                newMessages.push({
+                const assistantMessage: ChatMessage = {
                     role: "assistant",
                     content: result.rawContent,
                     timestamp: new Date().toISOString(),
-                    intent: result.intent,
-                    proposedChanges: result.proposedChanges,
-                })
+                    ...(result.intent && { intent: result.intent }),
+                }
+
+                if (result.proposedChanges) {
+                    assistantMessage.proposedChanges = result.proposedChanges
+                }
+
+                newMessages.push(assistantMessage)
 
                 // Save chat history to project (continues even when blueprints are locked)
                 await updateProjectChatHistory(projectId, newMessages)
@@ -160,7 +239,7 @@ export async function POST(request: NextRequest) {
                             await updateBlueprintContent(latestBlueprint.id, result.content)
                         } catch {
                             // Blueprint might be locked, that's okay - chat still saved to project
-                            console.log("Blueprint is locked, chat history saved to project only")
+                            logInfo("blueprint_locked", { projectId, blueprintId: latestBlueprint.id })
                         }
                     }
                 }
@@ -170,14 +249,32 @@ export async function POST(request: NextRequest) {
             if (result.intent === 'initial' && result.productName) {
                 try {
                     await updateProjectName(projectId, result.productName)
-                    console.log(`Updated project name to: ${result.productName}`)
+                    logInfo("project_name_updated", { projectId, name: result.productName })
                 } catch (err) {
-                    console.error("Failed to update project name:", err)
+                    logError("project_name_update_failed", {
+                        projectId,
+                        error: err instanceof Error ? err.message : "Unknown"
+                    })
                 }
             }
         }
 
-        // 7. Return the full response with intent for frontend handling
+        // 11. Log success
+        const duration = Date.now() - startTime
+        log({
+            level: "info",
+            action: "generate_success",
+            userId,
+            projectId,
+            details: {
+                intent: result.intent,
+                responseLength: result.rawContent.length,
+                durationMs: duration,
+                hasProposedChanges: !!result.proposedChanges
+            }
+        })
+
+        // 12. Return the full response with intent for frontend handling
         return NextResponse.json({
             intent: result.intent,
             message: result.message,
@@ -187,7 +284,14 @@ export async function POST(request: NextRequest) {
         })
 
     } catch (error) {
-        console.error("Generate error:", error)
+        const duration = Date.now() - startTime
+
+        logError("generate_failed", {
+            userId,
+            projectId,
+            error: error instanceof Error ? error.message : "Unknown error",
+            durationMs: duration
+        })
 
         // Handle OpenRouterError with user-friendly messages
         if (error instanceof OpenRouterError) {

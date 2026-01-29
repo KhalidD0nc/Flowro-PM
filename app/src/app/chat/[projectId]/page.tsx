@@ -208,20 +208,56 @@ interface DisplayInfo {
 }
 
 function getDisplayMessage(content: string | object, msgIntent?: Intent, msgProposedChanges?: ProposedChanges): DisplayInfo {
+    // Helper to extract message from parsed object
+    const extractMessage = (obj: Record<string, unknown>, fallbackIntent: Intent): string => {
+        // Try to get message field
+        if (obj.message && typeof obj.message === "string" && obj.message.trim().length > 0) {
+            return obj.message
+        }
+        // Provide friendly fallback based on intent
+        if (fallbackIntent === 'initial') {
+            return "I've created your Unified Blueprint! Check it out and let me know what you think."
+        }
+        if (fallbackIntent === 'proposal') {
+            return "I have some suggested changes for your blueprint."
+        }
+        return "Let me know what you'd like to explore!"
+    }
+
+    // Helper to check if string looks like raw JSON (should not be displayed)
+    const isRawJson = (str: string): boolean => {
+        const trimmed = str.trim()
+        return (trimmed.startsWith('{') && trimmed.includes('"intent"')) ||
+               (trimmed.startsWith('{') && trimmed.includes('"message"')) ||
+               (trimmed.startsWith('```'))  // Markdown code block
+    }
+
+    // Helper to clean JSON from markdown code blocks
+    const cleanJsonString = (str: string): string => {
+        let clean = str.trim()
+        if (clean.startsWith('```')) {
+            clean = clean.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
+        }
+        return clean
+    }
+
     // If we have stored intent/proposedChanges from the message, use them
     if (msgIntent) {
         let parsed: unknown = content
         if (typeof content === "string") {
             try {
-                parsed = JSON.parse(content)
+                const cleanContent = cleanJsonString(content)
+                parsed = JSON.parse(cleanContent)
             } catch {
-                // Not JSON
+                // Not JSON - check if it looks like broken JSON
+                if (isRawJson(content)) {
+                    return { text: extractMessage({}, msgIntent), intent: msgIntent, proposedChanges: msgProposedChanges }
+                }
             }
         }
         const obj = parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : null
-        const text = obj?.message && typeof obj.message === "string"
-            ? obj.message
-            : typeof content === "string" ? content : "Check out the Blueprint!"
+        const text = obj ? extractMessage(obj, msgIntent) :
+            (typeof content === "string" && !isRawJson(content)) ? content : extractMessage({}, msgIntent)
 
         return {
             text,
@@ -235,9 +271,15 @@ function getDisplayMessage(content: string | object, msgIntent?: Intent, msgProp
 
     if (typeof content === "string") {
         try {
-            parsed = JSON.parse(content)
+            const cleanContent = cleanJsonString(content)
+            parsed = JSON.parse(cleanContent)
         } catch {
-            // Not JSON, return as discussion
+            // Not valid JSON
+            // If it looks like raw JSON that failed to parse, don't show it
+            if (isRawJson(content)) {
+                return { text: "Let me know what you'd like to explore!", intent: 'discussion' }
+            }
+            // Plain text response
             return { text: content, intent: 'discussion' }
         }
     }
@@ -250,11 +292,7 @@ function getDisplayMessage(content: string | object, msgIntent?: Intent, msgProp
             ? obj.intent as Intent
             : isUBPContent(obj) ? 'initial' : 'discussion'
 
-        const text = obj.message && typeof obj.message === "string" && obj.message.trim().length > 0
-            ? obj.message
-            : intent === 'initial'
-                ? "🎯 I've created your Unified Blueprint! Check it out and let me know what you think."
-                : "Let me know what you'd like to explore!"
+        const text = extractMessage(obj, intent)
 
         // Extract proposedChanges if present
         let proposedChanges: ProposedChanges | undefined
@@ -271,7 +309,60 @@ function getDisplayMessage(content: string | object, msgIntent?: Intent, msgProp
         return { text, intent, proposedChanges }
     }
 
-    return { text: String(content), intent: 'discussion' }
+    // Final fallback - never show raw JSON
+    const contentStr = String(content)
+    if (isRawJson(contentStr)) {
+        return { text: "Let me know what you'd like to explore!", intent: 'discussion' }
+    }
+    return { text: contentStr, intent: 'discussion' }
+}
+
+// Optimized helper to extract message content from streaming JSON
+function parseStreamedContent(raw: string): string {
+    if (!raw) return ""
+
+    // Check if it's already a complete valid JSON
+    try {
+        const parsed = JSON.parse(raw)
+        if (parsed.message && typeof parsed.message === 'string') {
+            return parsed.message
+        }
+    } catch {
+        // Not complete JSON yet, continue with extraction
+    }
+
+    // Try multiple patterns to find the message field
+    // Pattern 1: "message": "content" (standard)
+    // Pattern 2: Handle message anywhere in the JSON
+    const patterns = [
+        /"message"\s*:\s*"((?:[^"\\]|\\.)*)"/,  // Complete message with closing quote
+        /"message"\s*:\s*"((?:[^"\\]|\\.)*)/,   // Partial message (streaming)
+    ]
+
+    for (const pattern of patterns) {
+        const match = raw.match(pattern)
+        if (match && match[1]) {
+            // Unescape the content
+            return match[1]
+                .replace(/\\"/g, '"')
+                .replace(/\\n/g, '\n')
+                .replace(/\\t/g, '\t')
+                .replace(/\\r/g, '\r')
+        }
+    }
+
+    // If we see "message": " but no content captured yet, show nothing (waiting)
+    if (raw.includes('"message"') && raw.includes('":"')) {
+        return ""
+    }
+
+    // If it looks like JSON (starts with {), don't show raw - return empty
+    if (raw.trim().startsWith('{')) {
+        return ""
+    }
+
+    // For plain text responses (non-JSON), show as-is
+    return raw
 }
 
 
@@ -296,6 +387,10 @@ export default function ChatPage() {
     const [selectionContext, setSelectionContext] = useState<{ section: string; text: string } | null>(null)
     const [isLaunchPlanGenerating, setIsLaunchPlanGenerating] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
+
+    // Streaming state for real-time responses
+    const [isStreaming, setIsStreaming] = useState(false)
+    const [streamedContent, setStreamedContent] = useState("")
 
     // Thinking states for animated loading indicator
     const [thinkingPhase, setThinkingPhase] = useState(0)
@@ -372,15 +467,199 @@ export default function ChatPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [project?.chatHistory])
 
-    // Helper to generate response from AI
+    // Helper to generate response from AI with streaming
     const generateResponse = async (currentHistory: ChatMessage[], usersMessage: string) => {
         if (!user) return
 
         setIsGenerating(true)
+        setIsStreaming(true)
+        setStreamedContent("") // Reset streamed content
         setError(null)
 
         try {
             const token = await user.getIdToken()
+
+            // Prepare messages for streaming - use comprehensive system prompt
+            const systemPrompt = `You are Flowro AI, a Lead Product Manager. Output PURE JSON only - no markdown, no code blocks.
+
+CRITICAL: The 'message' property MUST be the FIRST property in your JSON object for streaming to work correctly.
+
+RESPONSE FORMAT:
+- For conversations: {"message": "your response here", "intent": "discussion"}
+- For blueprint creation: {"message": "brief intro", "intent": "initial", "productVision": {...}, ...}
+- For changes: {"message": "summary", "intent": "proposal", "proposedChanges": {...}}
+
+Keep messages concise (2-4 sentences). Be helpful and friendly.`
+
+            const messages = [
+                { role: "system", content: systemPrompt },
+                ...currentHistory.slice(-5).map(m => ({
+                    role: m.role as "user" | "assistant",
+                    content: m.content
+                })),
+                { role: "user", content: usersMessage }
+            ]
+
+            // Save user message to DB first (fire and forget)
+            // Note: Don't include undefined fields - Firestore rejects them
+            fetch(`/api/projects/${projectId}`, {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    appendChat: [{
+                        role: "user",
+                        content: usersMessage,
+                        timestamp: new Date().toISOString(),
+                        // Explicitly set intent to null for user messages (not undefined)
+                        intent: null,
+                    }],
+                }),
+            }).catch(err => console.error("Failed to save user message:", err))
+
+            // Use streaming endpoint
+            const res = await fetch("/api/generate/stream", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ messages }),
+            })
+
+            if (!res.ok) {
+                // Fall back to non-streaming endpoint on error
+                console.warn("Stream failed, falling back to non-streaming")
+                await generateResponseNonStreaming(usersMessage, currentHistory, token)
+                return
+            }
+
+            // Read SSE stream
+            const reader = res.body?.getReader()
+            const decoder = new TextDecoder()
+            let accumulated = ""
+
+            if (!reader) {
+                throw new Error("No stream reader available")
+            }
+
+            // Process streaming chunks
+            while (true) {
+                const { done, value } = await reader.read()
+
+                if (done) break
+
+                const chunk = decoder.decode(value)
+                const lines = chunk.split('\n').filter(line => line.trim())
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue
+
+                    const data = line.slice(6)
+
+                    try {
+                        const parsed = JSON.parse(data)
+
+                        if (parsed.type === "chunk" && parsed.content) {
+                            // Real-time UI update
+                            accumulated += parsed.content
+                            setStreamedContent(accumulated)
+                        } else if (parsed.type === "done") {
+                            // Stream complete - add optimistic assistant message BEFORE hiding streaming UI
+                            console.log("=== Stream Complete ===")
+                            console.log("Accumulated length:", accumulated.length)
+                            console.log("Accumulated preview:", accumulated.substring(0, 500))
+
+                            // Parse intent and extract message from accumulated content
+                            let parsedIntent: Intent = 'discussion'
+                            let extractedMessage = "Check out your Blueprint!"
+                            let ubpContent: unknown = null
+
+                            try {
+                                // Clean up accumulated content - remove markdown code blocks if present
+                                let cleanJson = accumulated.trim()
+                                if (cleanJson.startsWith('```')) {
+                                    // Remove markdown code block wrapper
+                                    cleanJson = cleanJson.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
+                                }
+
+                                const fullParsed = JSON.parse(cleanJson)
+                                console.log("Parsed JSON keys:", Object.keys(fullParsed))
+
+                                if (fullParsed.intent === 'initial' || fullParsed.intent === 'discussion' || fullParsed.intent === 'proposal') {
+                                    parsedIntent = fullParsed.intent
+                                }
+                                if (fullParsed.message && typeof fullParsed.message === 'string') {
+                                    extractedMessage = fullParsed.message
+                                }
+
+                                // Extract UBP content for initial intent
+                                if (parsedIntent === 'initial') {
+                                    const { intent: _i, message: _m, proposedChanges: _pc, metadata: _meta, ...rest } = fullParsed
+                                    ubpContent = rest
+                                    console.log("Extracted UBP content keys:", Object.keys(rest))
+
+                                    // Immediately update UBP viewer if we have valid content
+                                    if (isUBPContent(ubpContent)) {
+                                        console.log("Valid UBP content detected, updating viewer")
+                                        setCurrentUBP(transformApiToUBP(ubpContent))
+                                    }
+                                }
+                            } catch (parseErr) {
+                                console.error("Failed to parse accumulated JSON:", parseErr)
+                                // Try to extract message with regex as fallback
+                                const msgMatch = accumulated.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)/)
+                                if (msgMatch) {
+                                    extractedMessage = msgMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n')
+                                }
+                            }
+
+                            // Add assistant message to chat immediately (optimistic)
+                            const optimisticAssistantMsg: ChatMessage = {
+                                role: "assistant",
+                                content: accumulated,
+                                timestamp: new Date().toISOString(),
+                                intent: parsedIntent,
+                            }
+
+                            setProject(prev => prev ? {
+                                ...prev,
+                                chatHistory: [...prev.chatHistory, optimisticAssistantMsg]
+                            } : prev)
+
+                            // NOW hide streaming UI (message is already in chat)
+                            setIsStreaming(false)
+                            setStreamedContent("")
+
+                            // Save to backend in background (will sync state)
+                            await saveCompleteResponse(accumulated, currentHistory, token)
+                        } else if (parsed.type === "error") {
+                            throw new Error(parsed.error)
+                        }
+                    } catch (e) {
+                        // Not complete JSON yet, show as text
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("Error streaming response:", err)
+            const errorMessage = err instanceof Error ? err.message : "Failed to generate response. Please try again."
+            setError(errorMessage)
+        } finally {
+            setIsGenerating(false)
+            setIsStreaming(false)
+        }
+    }
+
+    // Fallback: Non-streaming response (if streaming fails)
+    const generateResponseNonStreaming = async (
+        usersMessage: string,
+        currentHistory: ChatMessage[],
+        token: string
+    ) => {
+        try {
             const res = await fetch("/api/generate", {
                 method: "POST",
                 headers: {
@@ -397,21 +676,11 @@ export default function ChatPage() {
             const data = await res.json()
 
             if (!res.ok) {
-                // Handle structured error responses
                 const errorMessage = data.error || "Failed to generate response"
-
-                if (res.status === 429) {
-                    // Rate limited - show retry time
-                    throw new Error(`⏳ ${errorMessage}`)
-                } else if (data.retryable) {
-                    throw new Error(`${errorMessage} Please try again.`)
-                } else {
-                    throw new Error(errorMessage)
-                }
+                throw new Error(res.status === 429 ? `⏳ ${errorMessage}` : errorMessage)
             }
 
-            // Refetch project to get updated chat history from backend (single source of truth)
-            // This prevents duplicate messages that occur when frontend adds messages that backend already saved
+            // Refetch project to get updated chat history
             const projectRes = await fetch(`/api/projects/${projectId}`, {
                 headers: { Authorization: `Bearer ${token}` },
             })
@@ -420,33 +689,157 @@ export default function ChatPage() {
                 const updatedProject = await projectRes.json()
                 setProject(updatedProject)
 
-                // Update UBP if the latest blueprint content changed
                 if (updatedProject.latestBlueprint?.content) {
                     setCurrentUBP(transformApiToUBP(updatedProject.latestBlueprint.content))
                     setSelectedBlueprint(updatedProject.latestBlueprint)
                 }
             }
 
-            // Only update current UBP on initial intent (new project)
-            if (data.intent === 'initial' && data.content && typeof data.content === "object" && isUBPContent(data.content)) {
+            if (data.intent === 'initial' && data.content && isUBPContent(data.content)) {
                 setCurrentUBP(transformApiToUBP(data.content))
-
-                // Auto-generate launch plan in background after blueprint is created
                 generateLaunchPlanInBackground()
             }
 
-            // Project name is already updated via refetch, but we can double-check
-            // This handles edge case where project name updates faster than full refetch
             if (data.productName && projectRes.ok) {
                 setProject((prev) => prev ? { ...prev, projectName: data.productName } : prev)
             }
         } catch (err) {
-            console.error("Error generating response:", err)
-            // Use the error message if it's an Error, otherwise generic message
-            const errorMessage = err instanceof Error ? err.message : "Failed to generate response. Please try again."
-            setError(errorMessage)
-        } finally {
-            setIsGenerating(false)
+            throw err
+        }
+    }
+
+    // Helper to save complete response to backend after streaming
+    // This saves ONLY the assistant message without regenerating a response
+    const saveCompleteResponse = async (
+        rawContent: string,
+        _currentHistory: ChatMessage[], // Keep for API compatibility
+        token: string
+    ) => {
+        try {
+            // Parse accumulated content to extract intent and content
+            let parsedIntent: Intent = 'discussion'
+            let parsedContent: unknown = null
+            let proposedChanges: ProposedChanges | undefined
+            let productName: string | undefined
+
+            try {
+                // Clean up raw content - remove markdown code blocks if present
+                let cleanJson = rawContent.trim()
+                if (cleanJson.startsWith('```')) {
+                    cleanJson = cleanJson.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
+                }
+
+                const parsed = JSON.parse(cleanJson)
+                if (parsed.intent === 'initial' || parsed.intent === 'discussion' || parsed.intent === 'proposal') {
+                    parsedIntent = parsed.intent
+                }
+                if (parsed.intent === 'initial') {
+                    // Extract UBP content (everything except meta fields)
+                    const { intent: _i, message: _m, proposedChanges: _pc, metadata, ...ubpContent } = parsed
+                    parsedContent = ubpContent
+
+                    // Extract product name from metadata
+                    if (metadata && typeof metadata === 'object' && metadata.productName) {
+                        productName = metadata.productName
+                    }
+                }
+                if (parsed.proposedChanges) {
+                    proposedChanges = parsed.proposedChanges
+                }
+            } catch {
+                // Keep defaults
+            }
+
+            // Save assistant message to chat history via PATCH to project
+            // (User message was already saved when streaming started)
+            const assistantMsg: ChatMessage = {
+                role: "assistant",
+                content: rawContent,
+                timestamp: new Date().toISOString(),
+                intent: parsedIntent,
+                proposedChanges,
+            }
+
+            // Use the projects API to save chat history
+            const res = await fetch(`/api/projects/${projectId}`, {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    appendChat: [assistantMsg], // Only append assistant message (user msg already saved)
+                }),
+            })
+
+            // Update blueprint if this was an initial UBP generation
+            if (parsedIntent === 'initial' && parsedContent && isUBPContent(parsedContent)) {
+                const bpRes = await fetch(`/api/blueprints?projectId=${projectId}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                })
+
+                if (bpRes.ok) {
+                    const bpData = await bpRes.json()
+                    const latestBp = bpData.blueprints?.[0]
+
+                    if (latestBp && latestBp.status === 'draft') {
+                        await fetch("/api/blueprints", {
+                            method: "PATCH",
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({
+                                blueprintId: latestBp.id,
+                                content: parsedContent,
+                            }),
+                        })
+
+                        setCurrentUBP(transformApiToUBP(parsedContent))
+                        setSelectedBlueprint({ ...latestBp, content: parsedContent })
+                    }
+                }
+
+                // Update project name if AI suggested one
+                if (productName) {
+                    console.log("Updating project name to:", productName)
+                    await fetch(`/api/projects/${projectId}`, {
+                        method: "PATCH",
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ projectName: productName }),
+                    })
+
+                    // Update local state
+                    setProject(prev => prev ? { ...prev, projectName: productName } : prev)
+                }
+
+                generateLaunchPlanInBackground()
+            }
+
+            // Sync project state silently (don't flash)
+            if (res.ok) {
+                const projectRes = await fetch(`/api/projects/${projectId}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                })
+
+                if (projectRes.ok) {
+                    const updatedProject = await projectRes.json()
+                    // Only update if chat history is newer/longer
+                    setProject(prev => {
+                        if (!prev) return updatedProject
+                        // Keep the local state if it has more messages (avoid flash)
+                        if (prev.chatHistory.length >= updatedProject.chatHistory.length) {
+                            return prev
+                        }
+                        return updatedProject
+                    })
+                }
+            }
+        } catch (error) {
+            console.error("Failed to save response:", error)
         }
     }
 
@@ -499,11 +892,17 @@ export default function ChatPage() {
     }
 
     // Effect: Check for dangling user message on project load (e.g. initial prompt from creation)
+    // Only triggers for NEW projects with exactly 1 user message and no assistant response yet
     useEffect(() => {
-        if (!loadingProject && project && project.chatHistory.length > 0) {
-            const lastMsg = project.chatHistory[project.chatHistory.length - 1]
-            if (lastMsg.role === 'user' && !isGenerating) {
-                generateResponse(project.chatHistory.slice(0, -1), lastMsg.content)
+        if (!loadingProject && project && project.chatHistory.length === 1) {
+            const firstMsg = project.chatHistory[0]
+            // Only auto-generate if:
+            // 1. There's exactly 1 message (initial prompt from project creation)
+            // 2. That message is from the user
+            // 3. We're not already generating
+            if (firstMsg.role === 'user' && !isGenerating) {
+                console.log("Auto-generating for initial project prompt")
+                generateResponse([], firstMsg.content)
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -520,9 +919,21 @@ export default function ChatPage() {
         setIsGenerating(true)
         setError(null)
 
-        // Call generation - messages will be added after successful API call
-        // This prevents duplicate messages between optimistic UI and backend persistence
-        await generateResponse(project?.chatHistory || [], userMessage)
+        // OPTIMISTIC UI: Add user message immediately so it appears in chat
+        const optimisticUserMsg: ChatMessage = {
+            role: "user",
+            content: userMessage,
+            timestamp: new Date().toISOString(),
+        }
+
+        const currentHistory = project?.chatHistory || []
+        setProject(prev => prev ? {
+            ...prev,
+            chatHistory: [...prev.chatHistory, optimisticUserMsg]
+        } : prev)
+
+        // Call generation with the previous history (before optimistic update)
+        await generateResponse(currentHistory, userMessage)
     }
 
     const handleBackToDashboard = () => {
@@ -1140,26 +1551,47 @@ Return the updated blueprint JSON with the changes applied to that section.`
                         })
                     )}
 
-                    {isGenerating && (
-                        <div className="flex justify-start">
-                            <div className="bg-[#18212b] border border-[#283039] rounded-2xl px-4 py-3">
+                    {/* Streaming response in progress */}
+                    {isStreaming && (
+                        <div className="flex justify-start animate-slide-in-left">
+                            <div className="max-w-[90%] sm:max-w-[75%] rounded-xl sm:rounded-2xl rounded-tl-sm px-4 py-3 glass-message text-white shadow-lg">
+                                <div className="flex items-start gap-3">
+                                    <div className="flex size-6 sm:size-7 items-center justify-center rounded-lg bg-[#137fec]/20 border border-[#137fec]/30 shrink-0 mt-0.5">
+                                        <div className="w-1.5 h-1.5 bg-[#137fec] rounded-full animate-pulse" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-[#137fec] text-[10px] font-bold uppercase tracking-wider">Flowro AI</span>
+                                            <span className="text-[#9dabb9] text-[10px] animate-pulse">Generating...</span>
+                                        </div>
+                                        <p className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base text-white/90 font-light">
+                                            {parseStreamedContent(streamedContent) && (
+                                                <span className="mr-0.5">{parseStreamedContent(streamedContent)}</span>
+                                            )}
+                                            <span className="inline-block w-1.5 h-4 bg-[#137fec] animate-pulse align-middle ml-0.5" />
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {isGenerating && !streamedContent && (
+                        <div className="flex justify-start animate-slide-in-left">
+                            <div className="bg-[#18212b]/80 border border-[#283039] rounded-2xl rounded-tl-sm px-4 py-3 shadow-lg backdrop-blur-sm">
                                 <div className="flex items-center gap-3">
-                                    <span className="material-symbols-outlined text-[#137fec] animate-spin">hourglass_top</span>
-                                    <span className="text-[#9dabb9] text-sm">
+                                    <div className="flex gap-1">
+                                        <div className="w-1.5 h-1.5 bg-[#137fec] rounded-full typing-dot" />
+                                        <div className="w-1.5 h-1.5 bg-[#137fec] rounded-full typing-dot" />
+                                        <div className="w-1.5 h-1.5 bg-[#137fec] rounded-full typing-dot" />
+                                    </div>
+                                    <span className="text-[#9dabb9] text-xs font-medium tracking-wide">
                                         {thinkingMessages[thinkingPhase]}
                                     </span>
                                 </div>
                             </div>
                         </div>
                     )}
-
-                    {/* Hourglass flip animation */}
-                    <style jsx>{`
-@keyframes hourglass - flip {
-    0 %, 100 % { transform: rotate(0deg); }
-    50 % { transform: rotate(180deg); }
-}
-`}</style>
 
                     <div ref={messagesEndRef} />
                 </div>

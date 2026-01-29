@@ -607,59 +607,121 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Features Section */}
-            <section id="features" className="py-24 px-6 lg:px-40 bg-[#0d1117] border-b border-[#30363d] scroll-mt-20">
-                <div className="layout-content-container max-w-[1200px] mx-auto flex flex-col gap-12">
-                    <div className="flex flex-col gap-4 text-center items-center">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-[#137fec]/30 bg-[#137fec]/10 px-3 py-1 w-fit">
-                            <span className="material-symbols-outlined text-[14px] text-[#137fec]">feature_search</span>
-                            <span className="text-xs font-bold text-[#137fec]">Features</span>
+            {/* Features Section - Bento Grid Style */}
+            <section id="features" className="py-32 px-6 lg:px-40 bg-[#0d1117] relative overflow-hidden scroll-mt-20">
+                {/* Background Glows */}
+                <div className="absolute top-1/2 left-0 w-[500px] h-[500px] bg-[#137fec]/5 blur-[120px] rounded-full pointer-events-none -translate-y-1/2"></div>
+                <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-purple-500/5 blur-[120px] rounded-full pointer-events-none translate-y-1/3"></div>
+
+                <div className="layout-content-container max-w-[1240px] mx-auto flex flex-col gap-16 relative z-10">
+                    <div className="flex flex-col gap-6 text-center items-center max-w-[800px] mx-auto">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-[#137fec]/40 bg-[#137fec]/10 px-4 py-1.5 shadow-[0_0_15px_rgba(19,127,236,0.2)]">
+                            <span className="material-symbols-outlined text-[16px] text-[#137fec] animate-pulse">auto_awesome</span>
+                            <span className="text-sm font-bold text-[#137fec] tracking-wide">Flowro Powers</span>
                         </div>
-                        <h2 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight text-white">
-                            Powering the next generation of <br />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#137fec] to-blue-300">product development.</span>
+                        <h2 className="text-4xl md:text-6xl font-black leading-[1.1] tracking-tight text-white">
+                            Everything you <span className="text-[#9dabb9] line-through decoration-red-500/50 decoration-4">hate</span> doing, <br />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#137fec] via-blue-400 to-purple-400">automated.</span>
                         </h2>
-                        <p className="text-[#9dabb9] text-lg max-w-[600px]">
-                            Flowro handles the tedious parts of product management so you can focus on building.
-                        </p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div className="group flex flex-col gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6 hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300">
-                            <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                <span className="material-symbols-outlined text-[24px]">input</span>
+
+                    {/* Bento Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[320px]">
+
+                        {/* Card 1: Chaos Ingestion (Large, spans 2 cols) */}
+                        <div className="group md:col-span-2 relative overflow-hidden rounded-3xl border border-[#30363d] bg-[#161b22]/60 backdrop-blur-xl transition-all duration-500 hover:border-[#137fec]/50 hover:shadow-[0_0_30px_rgba(19,127,236,0.15)]">
+                            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                            <div className="absolute top-8 left-8 z-20 max-w-[340px]">
+                                <div className="size-12 rounded-2xl bg-gradient-to-br from-[#137fec] to-[#0b4ba0] flex items-center justify-center text-white shadow-lg mb-4 group-hover:scale-110 transition-transform duration-300">
+                                    <span className="material-symbols-outlined text-[28px]">input</span>
+                                </div>
+                                <h3 className="text-2xl font-bold text-white mb-2">Zero-Friction Ingestion</h3>
+                                <p className="text-[#9dabb9] leading-relaxed">Throw anything at it. Messy notes, Loom transcripts, PDF specs. Flowro turns noise into signal instantly.</p>
                             </div>
-                            <div className="flex flex-col gap-2">
-                                <h3 className="text-lg font-bold text-white">Zero-Friction Discovery</h3>
-                                <p className="text-[#9dabb9] text-sm leading-relaxed">Dump any document, transcript, or rough note. Flowro ingests chaotic inputs without requiring manual formatting.</p>
-                            </div>
-                        </div>
-                        <div className="group flex flex-col gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6 hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300">
-                            <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                <span className="material-symbols-outlined text-[24px]">architecture</span>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <h3 className="text-lg font-bold text-white">Auto-Drafting Engine</h3>
-                                <p className="text-[#9dabb9] text-sm leading-relaxed">Instantly generate a standardized Unified Blueprint (UBP) from your scattered inputs, ready for review.</p>
-                            </div>
-                        </div>
-                        <div className="group flex flex-col gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6 hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300">
-                            <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                <span className="material-symbols-outlined text-[24px]">psychology_alt</span>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <h3 className="text-lg font-bold text-white">Proactive Suggestions</h3>
-                                <p className="text-[#9dabb9] text-sm leading-relaxed">AI identifies gaps and conflicts in logic before you write code, saving weeks of rework.</p>
-                            </div>
-                        </div>
-                        <div className="group flex flex-col gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6 hover:border-[#137fec]/50 transition-all hover:-translate-y-1 duration-300">
-                            <div className="size-12 rounded-lg bg-[#283039] flex items-center justify-center text-white group-hover:bg-[#137fec] group-hover:text-white transition-colors">
-                                <span className="material-symbols-outlined text-[24px]">terminal</span>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <h3 className="text-lg font-bold text-white">Code-Ready Export</h3>
-                                <p className="text-[#9dabb9] text-sm leading-relaxed">Export locked blueprints into technical specs, Mermaid diagrams, and boilerplate code.</p>
+
+                            {/* Visual: Floating Documents to Structured Stack */}
+                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1/2 h-full hidden md:block">
+                                {/* Simulated messy docs */}
+                                <div className="absolute top-[20%] right-[30%] w-24 h-32 bg-[#283039] rounded-lg border border-white/5 rotate-[-12deg] opacity-60 group-hover:translate-x-4 group-hover:rotate-0 group-hover:opacity-0 transition-all duration-700"></div>
+                                <div className="absolute top-[30%] right-[15%] w-24 h-32 bg-[#283039] rounded-lg border border-white/5 rotate-[8deg] opacity-70 group-hover:-translate-x-4 group-hover:rotate-0 group-hover:opacity-0 transition-all duration-700"></div>
+
+                                {/* The "Result" Stack that appears */}
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-40 bg-[#0d1117] rounded-xl border border-[#137fec] shadow-[0_0_20px_rgba(19,127,236,0.2)] scale-50 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-500 delay-100 flex flex-col items-center justify-center gap-2">
+                                    <span className="material-symbols-outlined text-[#137fec] text-4xl">article</span>
+                                    <div className="h-1.5 w-16 bg-[#137fec]/20 rounded-full"></div>
+                                    <div className="h-1.5 w-12 bg-[#137fec]/20 rounded-full"></div>
+                                    <div className="absolute -top-2 -right-2 bg-green-500 rounded-full p-1 shadow-lg animate-bounce">
+                                        <span className="material-symbols-outlined text-black text-xs font-bold">check</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+
+                        {/* Card 2: AI Logic Check (Tall, spans 1 col) */}
+                        <div className="group relative overflow-hidden rounded-3xl border border-[#30363d] bg-[#161b22]/60 backdrop-blur-xl transition-all duration-500 hover:border-purple-500/50 hover:shadow-[0_0_30px_rgba(168,85,247,0.15)] flex flex-col justify-between">
+                            <div className="absolute inset-0 bg-gradient-to-bl from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                            <div className="p-8 z-10">
+                                <div className="size-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-lg mb-4 group-hover:rotate-12 transition-transform duration-300">
+                                    <span className="material-symbols-outlined text-[28px]">psychology_alt</span>
+                                </div>
+                                <h3 className="text-2xl font-bold text-white mb-2">Self-Healing Specs</h3>
+                                <p className="text-[#9dabb9] text-sm">It detects logic gaps before you build.</p>
+                            </div>
+
+                            {/* Visual: Radar Scan */}
+                            <div className="relative h-32 w-full mt-auto overflow-hidden">
+                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[120%] h-[120%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-purple-500/10 via-transparent to-transparent opacity-50 animate-pulse"></div>
+                                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-4">
+                                    <span className="px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium group-hover:bg-green-500/10 group-hover:border-green-500/20 group-hover:text-green-400 transition-all duration-500">
+                                        <span className="group-hover:hidden">Gap Found</span>
+                                        <span className="hidden group-hover:inline">Resolved</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Card 3: Code Export (Span 1 col) */}
+                        <div className="group relative overflow-hidden rounded-3xl border border-[#30363d] bg-[#161b22]/60 backdrop-blur-xl transition-all duration-500 hover:border-green-500/50 hover:shadow-[0_0_30px_rgba(34,197,94,0.15)]">
+                            <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                            <div className="p-8 z-10">
+                                <div className="size-12 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white shadow-lg mb-4 group-hover:scale-110 transition-transform duration-300">
+                                    <span className="material-symbols-outlined text-[28px]">terminal</span>
+                                </div>
+                                <h3 className="text-2xl font-bold text-white mb-2">Dev-Ready Export</h3>
+                                <p className="text-[#9dabb9] text-sm">JSON, Markdown, or Cursor Rules. Done.</p>
+                            </div>
+
+                            {/* Visual: Code Lines */}
+                            <div className="absolute bottom-6 right-6 flex flex-col gap-2 items-end opacity-30 group-hover:opacity-80 transition-opacity duration-500">
+                                <div className="h-2 w-24 bg-green-500/40 rounded-full"></div>
+                                <div className="h-2 w-16 bg-green-500/40 rounded-full"></div>
+                                <div className="h-2 w-20 bg-green-500/40 rounded-full"></div>
+                            </div>
+                        </div>
+
+                        {/* Card 4: Speed (Span 2 cols) */}
+                        <div className="group md:col-span-2 relative overflow-hidden rounded-3xl border border-[#30363d] bg-[#161b22]/60 backdrop-blur-xl transition-all duration-500 hover:border-orange-500/50 hover:shadow-[0_0_30px_rgba(249,115,22,0.15)] flex items-center justify-between p-8">
+                            <div className="max-w-[340px] z-10">
+                                <h3 className="text-2xl font-bold text-white mb-2 flex items-center gap-3">
+                                    <span className="material-symbols-outlined text-orange-500 text-3xl animate-[spin_3s_linear_infinite]">hourglass_empty</span>
+                                    10x Faster Planning
+                                </h3>
+                                <p className="text-[#9dabb9]">Skip the "blank page" paralysis. Go from idea to implementation plan in minutes, not days.</p>
+                            </div>
+
+                            {/* Visual: Speed Lines / Graph */}
+                            <div className="hidden md:flex h-full items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+                                <div className="w-2 h-8 bg-orange-500/20 rounded-full group-hover:h-12 transition-all duration-300"></div>
+                                <div className="w-2 h-12 bg-orange-500/30 rounded-full group-hover:h-20 transition-all duration-300 delay-75"></div>
+                                <div className="w-2 h-6 bg-orange-500/20 rounded-full group-hover:h-16 transition-all duration-300 delay-100"></div>
+                                <div className="w-2 h-16 bg-orange-500/50 rounded-full group-hover:h-24 transition-all duration-300 delay-150"></div>
+                                <div className="w-2 h-24 bg-orange-500 rounded-full shadow-[0_0_10px_#f97316] group-hover:h-32 transition-all duration-500"></div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </section>

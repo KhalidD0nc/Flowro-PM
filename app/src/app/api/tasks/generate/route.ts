@@ -3,6 +3,9 @@ import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../../bluepr
 import { verifyProjectOwnership, getLatestBlueprint } from "../../blueprints/service"
 import { createTask, CreateTaskInput } from "../service"
 import { generateLaunchPlan } from "../../generate/service"
+import { log, logInfo, logError } from "@/lib/logger"
+import { estimateTokens } from "@/lib/tokenCounter"
+import { checkBudgetLimit, recordUsage } from "@/lib/costTracking"
 
 /**
  * POST /api/tasks/generate
@@ -10,6 +13,7 @@ import { generateLaunchPlan } from "../../generate/service"
  * Body: { projectId: string }
  */
 export async function POST(request: NextRequest) {
+    const startTime = Date.now()
     const auth = await verifyAuthToken(request)
     if (isAuthError(auth)) {
         return unauthorizedResponse(auth)
@@ -38,21 +42,49 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        console.log("=== Generating Launch Plan ===")
-        console.log("Project ID:", projectId)
-        console.log("Blueprint ID:", blueprint.id)
+        // Estimate tokens and check budget
+        const blueprintText = JSON.stringify(blueprint.content)
+        const estimatedTokens = estimateTokens(blueprintText) + 2000 // Buffer for prompt + response
+
+        const budgetCheck = await checkBudgetLimit(auth.userId, estimatedTokens)
+        if (!budgetCheck.allowed) {
+            logError("budget_exceeded_tasks", {
+                userId: auth.userId,
+                projectId,
+                reason: budgetCheck.reason
+            })
+            return NextResponse.json(
+                {
+                    error: budgetCheck.reason,
+                    budgetExceeded: true
+                },
+                { status: 429 }
+            )
+        }
+
+        log({
+            level: "info",
+            action: "launch_plan_start",
+            userId: auth.userId,
+            projectId,
+            details: {
+                blueprintId: blueprint.id,
+                estimatedTokens
+            }
+        })
 
         // Generate launch plan from UBP using LangChain
         const launchPlan = await generateLaunchPlan(blueprint.content)
 
-        console.log("Generated tasks:", launchPlan.tasks.length)
+        logInfo("launch_plan_generated", {
+            projectId,
+            taskCount: launchPlan.tasks.length
+        })
 
-        // Map category to status (currently unused - all tasks go to backlog)
-        const categoryToStatus: Record<string, string> = {
-            feature: "backlog",
-            marketing: "backlog",
-            operations: "backlog",
-        }
+        // Record usage
+        const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v3.2"
+        const responseTokens = estimateTokens(JSON.stringify(launchPlan))
+        await recordUsage(auth.userId, estimatedTokens, responseTokens, model)
 
         // Create tasks in Firestore
         const createdTasks = []
@@ -77,6 +109,18 @@ export async function POST(request: NextRequest) {
             createdTasks.push(created)
         }
 
+        const duration = Date.now() - startTime
+        log({
+            level: "info",
+            action: "launch_plan_success",
+            userId: auth.userId,
+            projectId,
+            details: {
+                tasksCreated: createdTasks.length,
+                durationMs: duration
+            }
+        })
+
         return NextResponse.json({
             success: true,
             summary: launchPlan.summary,
@@ -84,8 +128,14 @@ export async function POST(request: NextRequest) {
             tasks: createdTasks,
         })
     } catch (error) {
-        console.error("Generate launch plan error:", error)
+        const duration = Date.now() - startTime
         const message = error instanceof Error ? error.message : "Failed to generate launch plan"
+
+        logError("launch_plan_failed", {
+            userId: auth.userId,
+            error: message,
+            durationMs: duration
+        })
 
         if (message.includes("not found")) {
             return NextResponse.json({ error: message }, { status: 404 })
