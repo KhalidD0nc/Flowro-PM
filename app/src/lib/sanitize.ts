@@ -196,3 +196,92 @@ export function sanitizeShareEmail(email: string | undefined | null): string | n
   }
   return sanitized.toLowerCase()
 }
+
+/**
+ * PII Detection - Detect sensitive information patterns in text
+ * @param input - Text to check for PII
+ * @returns Object with hasPII flag and detected types
+ */
+export function detectPII(input: string): { hasPII: boolean; types: string[] } {
+  const patterns = {
+    email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+    phone: /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g,
+    ssn: /\b\d{3}[-.]?\d{2}[-.]?\d{4}\b/g,
+    creditCard: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g,
+    apiKey: /\b(sk-|pk-|api_)[A-Za-z0-9_]{20,}\b/g,
+    secret: /\b(secret|password|token|api_key|private_key):\s*[^\s\n]{8,}/gi
+  }
+
+  const detected: string[] = []
+
+  for (const [type, pattern] of Object.entries(patterns)) {
+    if (pattern.test(input)) {
+      detected.push(type)
+    }
+  }
+
+  return {
+    hasPII: detected.length > 0,
+    types: detected
+  }
+}
+
+/**
+ * PII Redaction - Redact detected sensitive information
+ * @param input - Text with potential PII
+ * @returns Text with PII redacted
+ */
+export function redactPII(input: string): string {
+  let redacted = input
+
+  // Email addresses
+  redacted = redacted.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, "[EMAIL]")
+
+  // Phone numbers
+  redacted = redacted.replace(/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g, "[PHONE]")
+
+  // API keys (sk-, pk-, api_*)
+  redacted = redacted.replace(/\b(sk-|pk-|api_)[A-Za-z0-9_]{20,}\b/g, "[API_KEY]")
+
+  // Secret tokens
+  redacted = redacted.replace(/\b(secret|password|token|api_key|private_key):\s*[^\s\n]{8,}/gi, "$1: [REDACTED]")
+
+  // Credit cards (basic pattern)
+  redacted = redacted.replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, "[CREDIT_CARD]")
+
+  return redacted
+}
+
+/**
+ * Enhanced input sanitization for LLM prompts
+ * Combines XSS protection with PII redaction
+ * @param input - Raw user input
+ * @param maxLength - Maximum length (default 10000)
+ * @returns Sanitized input
+ */
+export function sanitizeInputForLLM(input: string, maxLength = 10000): string {
+  if (!input) return ""
+
+  // First, apply basic sanitization
+  let sanitized = sanitizeString(input, maxLength) || ""
+
+  // Remove script tags
+  sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+
+  // Remove dangerous HTML attributes
+  sanitized = sanitized.replace(/on\w+="[^"]*"/gi, "")
+  sanitized = sanitized.replace(/javascript:/gi, "")
+
+  // Remove SQL injection patterns
+  sanitized = sanitized.replace(/(--|;|\b(ALTER|CREATE|DELETE|DROP|EXEC(UTE){0,1}|INSERT( +INTO){0,1}|MERGE|SELECT|UPDATE|UNION( +ALL){0,1})\b)/gi, "")
+
+  // Detect and redact PII
+  const piiCheck = detectPII(sanitized)
+  if (piiCheck.hasPII) {
+    console.warn("⚠️ PII detected in user input:", piiCheck.types)
+    sanitized = redactPII(sanitized)
+  }
+
+  return sanitized.trim()
+}
+

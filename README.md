@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-16.1-black?logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/Firebase-12.7-orange?logo=firebase" alt="Firebase" />
-  <img src="https://img.shields.io/badge/TypeScript-5-blue?logo=typescript" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/React-19-blue?logo=react" alt="React" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?logo=tailwind-css" alt="Tailwind CSS" />
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License" />
 </p>
@@ -84,15 +84,15 @@ Export blueprints in formats optimized for AI coding agents:
 - **Auto-Enhance**: One-click professional refinement of your requirements using "Consultant Logic".
 - **Contextual Ask**: Instruct Flowro AI to rewrite specific parts of your blueprint while maintaining global consistency.
 
-### 🚀 Product Launch Plan & Task Management
-- **Automated Roadmap**: AI transforms your UBP into a granular, actionable implementation plan.
-- **Backlog Board**: Drag-and-drop task management (Backlog → In Progress → Launched) powered by `@dnd-kit`.
-- **Feature-Focused**: Focus on high-value user-facing milestones (MVP, Core Features) rather than generic setup tasks.
+### 🚀 Launch Plan & Task Management
+- **Automated Roadmap**: AI transforms your UBP into a granular implementation plan.
+- **Kanban Board**: Drag-and-drop task management (`@dnd-kit`) to track progress from Backlog to Launch.
+- **Launch Readiness**: Track remaining tasks, blockers, and launch checklists.
 
-### 🌐 Shareable Links
-- Generate secure public URLs with unique sharing IDs
-- Read-only view with premium Flowro branding
-- Perfect for sharing with stakeholders or including in pitch decks
+### 🌐 Shareable Links & Workspaces
+- **Public Links**: Generate secure, read-only links for stakeholders.
+- **Workspaces**: Organize projects into shared workspaces (Beta).
+- **Export Options**: Download as JSON, Markdown, or copy directly as Cursor Rules.
 
 ---
 
@@ -132,8 +132,8 @@ flowchart LR
 
 | Layer | Technology | Justification |
 |-------|------------|---------------|
-| **Framework** | Next.js 16 (App Router) | Full-stack React with Turbopack, server components |
-| **Language** | TypeScript | Type safety, better DX, refactoring support |
+| **Framework** | Next.js 16.1 (App Router) | Full-stack React 19, Turbopack, Server Actions |
+| **Language** | TypeScript 5 | Type safety, better DX, refactoring support |
 | **Auth** | Firebase Auth | Zero-friction Google OAuth, no password management |
 | **Database** | Firebase Firestore | NoSQL perfect for JSON-based UBPs, real-time sync |
 | **AI Orchestration** | LangChain & OpenRouter | Structured AI outputs and multi-model flexibility |
@@ -163,7 +163,7 @@ cd Flowro-PM/app
 npm install
 
 # Set up environment variables
-cp .env.example .env.local
+cp env.example .env.local
 ```
 
 ### Environment Variables
@@ -237,47 +237,42 @@ npm start
 
 ```
 Flowro-PM/
-├── Docs/                            # Project documentation
+├── Docs/                            # Project documentation & specs
+│   ├── Pre-Launch-Checklist.md     # Launch readiness tracker
 │   ├── Unified-Blueprint.md        # UBP specification
-│   ├── The UBP Core Philosophy.md  # Design principles
-│   ├── Agent Execution Guide.md    # AI agent instructions
-│   └── Flowro-PM_Execution_Report.md
+│   ├── Brand-Guidelines.md         # Design system & brand rules
+│   └── ...
 │
 ├── app/                             # Next.js application
 │   ├── public/                      # Static assets
-│   ├── next.config.ts               # Security headers configured
+│   ├── next.config.ts               # Security headers & config
 │   ├── env.example                  # Environment template
 │   └── src/
 │       ├── app/
-│       │   ├── api/
-│       │   │   ├── blueprints/      # Blueprint CRUD + auth
-│       │   │   │   ├── auth.ts      # Token verification
-│       │   │   │   ├── route.ts     # API endpoints
-│       │   │   │   └── service.ts   # Business logic + transactions
+│       │   ├── api/                 # API Routes
+│       │   │   ├── blueprints/      # Blueprint CRUD
 │       │   │   ├── generate/        # AI generation service
-│       │   │   └── projects/        # Project CRUD
-│       │   ├── auth/                # Sign in / Sign up
-│       │   │   ├── page.tsx         # Auth UI
-│       │   │   └── actions.ts       # Auth actions (with input sanitization)
+│       │   │   ├── projects/        # Project CRUD
+│       │   │   └── workspaces/      # Workspace management
+│       │   ├── auth/                # Authentication pages
 │       │   ├── chat/[projectId]/    # Chat interface
 │       │   ├── dashboard/           # Project dashboard
+│       │   ├── demo/                # Public demo routes
+│       │   ├── share/               # Public shared blueprints
 │       │   └── page.tsx             # Landing page
 │       │
 │       ├── components/
-│       │   ├── UBPViewer.tsx        # Blueprint viewer panel
-│       │   ├── LaunchPlanViewer.tsx # AI Roadmap & Task viewer
-│       │   ├── BacklogBoard.tsx     # Kanban board with @dnd-kit
-│       │   ├── AIFloatingMenu.tsx   # Premium AI editing menu
-│       │   ├── UBPEditModals.tsx    # Manual section editors
-│       │   ├── CreateProjectModal.tsx # New project modal
-│       │   ├── PricingSection.tsx   # Pricing page component
-│       │   └── Providers.tsx        # Auth context provider
+│       │   ├── KanbanBoard/         # Task management board
+│       │   ├── onboarding/          # User onboarding flow
+│       │   ├── ui/                  # Reusable UI components
+│       │   ├── UBPViewer.tsx        # Blueprint display
+│       │   ├── LaunchPlanViewer.tsx # Roadmap & tasks
+│       │   └── PricingSection.tsx   # Pricing UI
 │       │
 │       └── lib/
-│           ├── firebase.ts          # Client SDK initialization
-│           ├── firebase-admin.ts    # Admin SDK initialization
-│           ├── openrouter.ts        # LLM API client
-│           └── exportBlueprint.ts   # JSON/Markdown export utilities
+│           ├── firebase.ts          # Client SDK
+│           ├── openrouter.ts        # LLM client
+│           └── events.ts            # Analytics events
 │
 └── README.md
 ```
@@ -319,29 +314,29 @@ The Unified Blueprint is built on four core principles:
 ## 🗺️ Roadmap
 
 ### Phase 1: Inference Engine ✅
-- Chat interface for idea input
-- Auto-generation of 9-section UBP
-- Blueprint versioning and locking
+- Chat interface & UBP Generation
+- Versioning & Locking
+- Streamlined Ingestion
 
 ### Phase 2: Diagram Layer ✅
-- Real-time Mermaid diagram rendering
-- Visual behavior flow diagrams
-- Entity relationship diagrams
+- Real-time Mermaid diagrams
+- Visual behavior flows
+- Sequence Diagrams
 
 ### Phase 3: Handoff Bridge ✅
-- Optimized export for specific Code Agents (JSON + Markdown)
-- Download blueprints in agent-ready formats
-- PDF export for stakeholders (planned)
+- Optimized Export (One-click Copy)
+- IDE Integration (Cursor Rules, Markdown, JSON)
+- PDF Export (Coming Soon)
 
 ### Phase 4: Execution Layer ✅
-- AI-generated Launch Plans from blueprints
-- Interactive Kanban board for task tracking
-- Feature-focused roadmap prioritization
+- AI Launch Plans
+- Interactive Kanban Board
+- Task Management
 
-### Phase 5: Team Collaboration 🔮
-- Multi-user editing & conflict resolution
-- Shared project workspaces
-- Comments and suggestion mode
+### Phase 5: Team Collaboration 🚧 (In Progress)
+- Shared Workspaces (Beta)
+- Multi-user permissions
+- Real-time presence (Coming Soon)
 
 ---
 

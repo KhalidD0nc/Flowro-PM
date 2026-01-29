@@ -1,4 +1,6 @@
 import { generateCompletion, UBP_SYSTEM_PROMPT, Message } from "@/lib/openrouter"
+import { validateTechStack, getSafeDefaults, FRONTEND_OPTIONS, BACKEND_OPTIONS, DATABASE_OPTIONS } from "@/lib/validateTechStack"
+import { logInfo, logWarn } from "@/lib/logger"
 
 // Types
 interface ChatMessage {
@@ -230,6 +232,32 @@ export async function callLLM(messages: Message[]): Promise<GenerateResult> {
     if (intent === 'initial') {
         // Remove meta fields, keep UBP content
         const { intent: _i, message: _m, proposedChanges: _pc, ...ubpContent } = parsed
+
+        // Validate and correct tech stack if present
+        if (ubpContent.techStack && typeof ubpContent.techStack === 'object') {
+            const techStackValidation = validateTechStack(ubpContent.techStack)
+
+            if (!techStackValidation.valid) {
+                // Log the violation and apply safe defaults
+                logWarn("tech_stack_invalid", {
+                    original: ubpContent.techStack,
+                    error: techStackValidation.error,
+                    fallback: getSafeDefaults()
+                })
+
+                // Replace with safe defaults
+                ubpContent.techStack = getSafeDefaults()
+
+                console.warn("⚠️ Tech stack validation failed - using safe defaults")
+            } else {
+                logInfo("tech_stack_valid", { techStack: techStackValidation.data })
+            }
+        } else {
+            // No tech stack provided - add safe defaults
+            logInfo("tech_stack_missing", { fallback: getSafeDefaults() })
+            ubpContent.techStack = getSafeDefaults()
+        }
+
         content = ubpContent
     }
 
