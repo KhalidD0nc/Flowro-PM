@@ -355,7 +355,7 @@ export function truncateBlueprintByPriority(
     // Build result, keeping sections until we hit the budget
     const result: string[] = []
     let currentTokens = 0
-    let droppedSections: string[] = []
+    const droppedSections: string[] = []
     
     for (const section of sections) {
         if (currentTokens + section.tokens <= maxTokens) {

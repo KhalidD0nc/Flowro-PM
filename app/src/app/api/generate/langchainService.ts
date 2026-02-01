@@ -151,7 +151,7 @@ function convertToGenerateResult(
     originalMessage: string
 ): GenerateResult {
     // Validate and fix tech stack if present
-    let content = langChainResult.content
+    const content = langChainResult.content
     if (content && typeof content === 'object' && 'techStack' in content) {
         const techStackValidation = validateTechStack((content as Record<string, unknown>).techStack)
         if (!techStackValidation.valid) {

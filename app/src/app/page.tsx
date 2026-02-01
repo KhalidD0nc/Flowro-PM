@@ -709,7 +709,7 @@ export default function Home() {
                                     <span className="material-symbols-outlined text-orange-500 text-3xl animate-[spin_3s_linear_infinite]">hourglass_empty</span>
                                     10x Faster Planning
                                 </h3>
-                                <p className="text-[#9dabb9]">Skip the "blank page" paralysis. Go from idea to implementation plan in minutes, not days.</p>
+                                <p className="text-[#9dabb9]">Skip the &quot;blank page&quot; paralysis. Go from idea to implementation plan in minutes, not days.</p>
                             </div>
 
                             {/* Visual: Speed Lines / Graph */}

@@ -22,7 +22,7 @@ export default function PricingSection() {
                         <h3 className="text-[#9dabb9] text-xl font-medium">Limited Time Offer.</h3>
                     </div>
                     <p className="text-[#9dabb9] text-lg font-normal leading-relaxed max-w-2xl">
-                        We're currently in open beta. That means <span className="text-white font-bold">everything</span> is unlocked for early adopters. Build your blueprints and ship your ideas without hitting a paywall.
+                        We&apos;re currently in open beta. That means <span className="text-white font-bold">everything</span> is unlocked for early adopters. Build your blueprints and ship your ideas without hitting a paywall.
                     </p>
                 </div>
 

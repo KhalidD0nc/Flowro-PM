@@ -671,4 +671,5 @@ async function main(): Promise<void> {
 main()
 
 // Export for programmatic use
-export { runAllTests, TestResult, TestSection }
+export { runAllTests }
+export type { TestResult, TestSection }

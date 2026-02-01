@@ -111,11 +111,13 @@ export default function BlueprintTour({ isOpen, onComplete, onSkip }: BlueprintT
     useEffect(() => {
         if (!isOpen) return
 
-        updateTooltipPosition()
+        // Call update on mount and when dependencies change
+        const timeoutId = setTimeout(updateTooltipPosition, 0)
         window.addEventListener("resize", updateTooltipPosition)
         window.addEventListener("scroll", updateTooltipPosition)
 
         return () => {
+            clearTimeout(timeoutId)
             window.removeEventListener("resize", updateTooltipPosition)
             window.removeEventListener("scroll", updateTooltipPosition)
         }

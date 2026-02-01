@@ -3,17 +3,18 @@
  * 
  * Phase 2: LangChain Integration
  * 
- * Improved intent detection with:
- * - Keyword-based classification
+ * Hybrid intent detection with:
+ * - Fast keyword-based classification (primary)
+ * - LLM fallback for low-confidence cases
  * - Context awareness (has blueprint, last message)
  * - Confidence scoring
- * - Fallback handling
  * 
  * @module langchain/intentDetector
- * @version 2.0.0
+ * @version 2.1.0
  */
 
-import { logInfo, logDebug } from "../logger"
+import { ChatOpenAI } from "@langchain/openai"
+import { logInfo, logDebug, logError } from "../logger"
 
 // =============================================================================
 // Types
@@ -26,6 +27,7 @@ export interface IntentResult {
     confidence: number  // 0-1
     reason: string
     matchedKeywords: string[]
+    usedLLM?: boolean
 }
 
 export interface IntentContext {
@@ -256,6 +258,304 @@ export function isAmbiguous(message: string): boolean {
     if (lowerMsg.includes(' or ') && lowerMsg.includes('?')) return true
 
     return false
+}
+
+// =============================================================================
+// LLM-Based Intent Detection
+// =============================================================================
+
+/** Confidence threshold below which we use LLM */
+const LLM_FALLBACK_THRESHOLD = 0.55
+
+/** Configuration for the LLM classifier */
+const CLASSIFIER_CONFIG = {
+    timeoutMs: 5000,              // 5 second timeout
+    maxRetries: 1,                // Single retry
+    retryDelayMs: 500,
+    circuitBreakerThreshold: 3,   // Open after 3 consecutive failures
+    circuitBreakerResetMs: 60000, // Reset after 1 minute
+}
+
+// Circuit breaker state
+let classifierFailures = 0
+let circuitOpenUntil = 0
+
+/**
+ * Check if the LLM-based intent detection is enabled via feature flag.
+ */
+export function isIntentLLMEnabled(): boolean {
+    return process.env.INTENT_LLM_ENABLED !== 'false'
+}
+
+/**
+ * Get current classifier metrics for monitoring.
+ */
+export function getClassifierMetrics(): {
+    consecutiveFailures: number
+    circuitOpen: boolean
+    circuitResetMs: number
+} {
+    const now = Date.now()
+    const circuitOpen = circuitOpenUntil > now
+    return {
+        consecutiveFailures: classifierFailures,
+        circuitOpen,
+        circuitResetMs: circuitOpen ? circuitOpenUntil - now : 0,
+    }
+}
+
+/**
+ * Reset the circuit breaker manually (for testing or recovery).
+ */
+export function resetClassifierCircuit(): void {
+    classifierFailures = 0
+    circuitOpenUntil = 0
+    logInfo('intent_circuit_reset', { manual: true })
+}
+
+/**
+ * Creates a lightweight model for intent classification.
+ * Uses minimal tokens for fast, cheap classification.
+ */
+function createIntentClassifierModel(): ChatOpenAI {
+    return new ChatOpenAI({
+        modelName: process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat",
+        temperature: 0.1, // Very deterministic
+        maxTokens: 50,    // Only need one word
+        configuration: {
+            baseURL: "https://openrouter.ai/api/v1",
+            defaultHeaders: {
+                "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+                "X-Title": "Flowro-PM-IntentDetector",
+            },
+        },
+        apiKey: process.env.OPENROUTER_API_KEY,
+    })
+}
+
+/**
+ * LLM-based intent detection for ambiguous messages.
+ * Only called when keyword detection has low confidence.
+ */
+async function detectIntentWithLLM(
+    message: string,
+    context: IntentContext
+): Promise<IntentResult> {
+    try {
+        logDebug('intent_llm_start', { messageLength: message.length })
+
+        const model = createIntentClassifierModel()
+
+        const systemPrompt = `You are an intent classifier for a product management AI assistant. 
+Classify user messages into exactly one of these intents:
+
+- "initial": User wants to start a NEW project or generate a NEW blueprint. They're describing an app/product idea.
+- "discussion": User is asking questions, exploring options, or wants information. NOT making changes.
+- "proposal": User is CONFIRMING a previous suggestion or explicitly asking to ADD/UPDATE/REMOVE something.
+
+Context:
+- Has existing blueprint: ${context.hasBlueprint}
+- Previous messages: ${context.messageCount}
+${context.lastAssistantMessage ? `- Last AI message: "${context.lastAssistantMessage.substring(0, 100)}..."` : ''}
+
+Reply with ONLY one word: initial, discussion, or proposal`
+
+        const response = await model.invoke([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: message }
+        ])
+
+        const responseText = typeof response.content === 'string' 
+            ? response.content.toLowerCase().trim()
+            : ''
+
+        // Parse the response
+        let intent: Intent = 'discussion' // Default
+        if (responseText.includes('initial')) {
+            intent = 'initial'
+        } else if (responseText.includes('proposal')) {
+            intent = 'proposal'
+        } else if (responseText.includes('discussion')) {
+            intent = 'discussion'
+        }
+
+        logInfo('intent_llm_success', {
+            intent,
+            rawResponse: responseText.substring(0, 50),
+            messageLength: message.length,
+        })
+
+        return {
+            intent,
+            confidence: 0.9, // High confidence from LLM
+            reason: `LLM classified as ${intent}`,
+            matchedKeywords: [],
+            usedLLM: true,
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        logError('intent_llm_failed', { error: errorMessage })
+        throw error // Re-throw for safe wrapper to handle
+    }
+}
+
+/**
+ * Safe wrapper for LLM-based intent detection with timeout, retry, and circuit breaker.
+ * Returns the keyword-based fallback on failure (NOT discussion default).
+ *
+ * @param message - User message to classify
+ * @param context - Intent context
+ * @param keywordFallback - The keyword-based result to return on failure
+ */
+async function detectIntentWithLLMSafe(
+    message: string,
+    context: IntentContext,
+    keywordFallback: IntentResult
+): Promise<IntentResult> {
+    // Check circuit breaker
+    const now = Date.now()
+    if (circuitOpenUntil > now) {
+        logDebug('intent_circuit_open', {
+            resetIn: circuitOpenUntil - now,
+            fallbackIntent: keywordFallback.intent,
+        })
+        return {
+            ...keywordFallback,
+            reason: keywordFallback.reason + ' (LLM circuit open)',
+        }
+    }
+
+    // Retry loop
+    for (let attempt = 0; attempt <= CLASSIFIER_CONFIG.maxRetries; attempt++) {
+        try {
+            // Create timeout promise
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), CLASSIFIER_CONFIG.timeoutMs)
+
+            // Race between LLM call and timeout
+            const result = await Promise.race([
+                detectIntentWithLLM(message, context),
+                new Promise<never>((_, reject) => {
+                    controller.signal.addEventListener('abort', () => {
+                        reject(new Error('Intent LLM timeout'))
+                    })
+                }),
+            ])
+
+            clearTimeout(timeoutId)
+
+            // Success - reset circuit breaker
+            if (classifierFailures > 0) {
+                logInfo('intent_circuit_recovered', { previousFailures: classifierFailures })
+            }
+            classifierFailures = 0
+
+            logInfo('intent_llm_success', {
+                intent: result.intent,
+                attempt: attempt + 1,
+            })
+
+            return result
+
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+            logError('intent_llm_attempt_failed', {
+                error: errorMessage,
+                attempt: attempt + 1,
+                maxRetries: CLASSIFIER_CONFIG.maxRetries,
+            })
+
+            // Wait before retry (if not last attempt)
+            if (attempt < CLASSIFIER_CONFIG.maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, CLASSIFIER_CONFIG.retryDelayMs))
+            }
+        }
+    }
+
+    // All attempts failed - update circuit breaker
+    classifierFailures++
+
+    if (classifierFailures >= CLASSIFIER_CONFIG.circuitBreakerThreshold) {
+        circuitOpenUntil = Date.now() + CLASSIFIER_CONFIG.circuitBreakerResetMs
+        logError('intent_circuit_opened', {
+            failures: classifierFailures,
+            resetAt: new Date(circuitOpenUntil).toISOString(),
+        })
+    }
+
+    // CRITICAL: Return keyword fallback, NOT discussion default
+    logInfo('intent_llm_fallback_to_keyword', {
+        fallbackIntent: keywordFallback.intent,
+        fallbackConfidence: keywordFallback.confidence,
+        consecutiveFailures: classifierFailures,
+    })
+
+    return {
+        ...keywordFallback,
+        reason: keywordFallback.reason + ' (LLM fallback)',
+    }
+}
+
+/**
+ * Hybrid intent detection: keywords first, LLM for low-confidence ambiguous cases.
+ * This is the recommended entry point for intent detection.
+ *
+ * LLM is only called when:
+ * - Feature flag is enabled (INTENT_LLM_ENABLED !== 'false')
+ * - Keyword confidence < 0.55
+ * - Message is ambiguous (short, multiple questions, etc.)
+ * - Circuit breaker is closed
+ *
+ * @example
+ * const result = await detectIntentHybrid("redesign it with modern styling", context)
+ * // Keywords: low confidence + ambiguous → calls LLM → returns "initial" with 0.9 confidence
+ */
+export async function detectIntentHybrid(
+    message: string,
+    context: IntentContext
+): Promise<IntentResult> {
+    // Step 1: Try keyword-based detection (instant, free)
+    const keywordResult = detectIntent(message, context)
+
+    // Step 2: If high confidence, return immediately
+    if (keywordResult.confidence >= LLM_FALLBACK_THRESHOLD) {
+        logDebug('intent_hybrid_keyword_sufficient', {
+            intent: keywordResult.intent,
+            confidence: keywordResult.confidence,
+        })
+        return keywordResult
+    }
+
+    // Step 3: Check if LLM should be used
+    const llmEnabled = isIntentLLMEnabled()
+    const messageIsAmbiguous = isAmbiguous(message)
+
+    if (!llmEnabled) {
+        logDebug('intent_hybrid_llm_disabled', {
+            keywordIntent: keywordResult.intent,
+            keywordConfidence: keywordResult.confidence,
+        })
+        return keywordResult
+    }
+
+    if (!messageIsAmbiguous) {
+        logDebug('intent_hybrid_not_ambiguous', {
+            keywordIntent: keywordResult.intent,
+            keywordConfidence: keywordResult.confidence,
+            messageLength: message.length,
+        })
+        return keywordResult
+    }
+
+    // Step 4: Low confidence + ambiguous - use LLM with safe wrapper
+    logDebug('intent_hybrid_using_llm', {
+        keywordIntent: keywordResult.intent,
+        keywordConfidence: keywordResult.confidence,
+        reason: 'Below threshold and ambiguous, using LLM',
+    })
+
+    const llmResult = await detectIntentWithLLMSafe(message, context, keywordResult)
+    return llmResult
 }
 
 // =============================================================================

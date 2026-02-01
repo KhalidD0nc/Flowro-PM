@@ -51,8 +51,12 @@ export {
 // Intent Detector
 export {
     detectIntent,
+    detectIntentHybrid,
     detectIntentSimple,
     isAmbiguous,
+    isIntentLLMEnabled,
+    getClassifierMetrics,
+    resetClassifierCircuit,
     PROPOSAL_KEYWORDS,
     DISCUSSION_KEYWORDS,
     INITIAL_KEYWORDS,
@@ -87,7 +91,7 @@ export {
 // High-Level API
 // =============================================================================
 
-import { detectIntent, type IntentContext } from './intentDetector'
+import { detectIntentHybrid, type IntentContext } from './intentDetector'
 import { runChainForIntent, runFallbackChain, runRelaxedInitialChain, type ChainInput, type ChainResult, type InitialOutput, type DiscussionOutput, type ProposalOutput, type RelaxedInitialOutput } from './chains'
 import { buildOptimizedContext, type UBP, type ChatMessage as ContextChatMessage } from '../contextBuilder'
 import { logInfo, logError } from '../logger'
@@ -160,12 +164,13 @@ export async function generateWithLangChain(
     }
 
     const intentResult = forceIntent
-        ? { intent: forceIntent, confidence: 1, reason: 'Forced', matchedKeywords: [] }
-        : detectIntent(message, intentContext)
+        ? { intent: forceIntent, confidence: 1, reason: 'Forced', matchedKeywords: [], usedLLM: false }
+        : await detectIntentHybrid(message, intentContext)
 
     logInfo('langchain_generate_start', {
         intent: intentResult.intent,
         confidence: intentResult.confidence,
+        usedLLM: intentResult.usedLLM || false,
         hasBlueprint: !!currentBlueprint,
         historyLength: chatHistory.length,
     })
