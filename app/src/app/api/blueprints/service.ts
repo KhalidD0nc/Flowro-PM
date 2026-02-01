@@ -109,15 +109,28 @@ export async function getUserProjects(userId: string): Promise<UserProjectsRespo
 
     // Fetch all blueprints for these projects in bulk
     const projectIds = projects.map(p => p.id)
-    const blueprintsSnapshot = await db
-        .collection("blueprints")
-        .where("projectId", "in", projectIds)
-        .get()
 
-    const blueprints = blueprintsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-    })) as Blueprint[]
+    // Firestore 'IN' query limit is 30. We must chunk the request.
+    const chunks = []
+    const CHUNK_SIZE = 30
+    for (let i = 0; i < projectIds.length; i += CHUNK_SIZE) {
+        chunks.push(projectIds.slice(i, i + CHUNK_SIZE))
+    }
+
+    const blueprintsSnapshots = await Promise.all(
+        chunks.map(chunk =>
+            db.collection("blueprints")
+                .where("projectId", "in", chunk)
+                .get()
+        )
+    )
+
+    const blueprints = blueprintsSnapshots.flatMap(snapshot =>
+        snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+        }))
+    ) as Blueprint[]
 
     // Count saved versions (locked or approved blueprints)
     const totalSavedVersions = blueprints.filter(
