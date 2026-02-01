@@ -2,17 +2,31 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if user is authenticated
+    // =========================================================================
+    // Helper Functions
+    // =========================================================================
+
+    // Check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Helper function to check if user owns the resource
+    // Check if user owns the resource (by userId field)
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Projects collection
+    // Check if user owns a project by projectId
+    function isProjectOwner(projectId) {
+      return isAuthenticated()
+             && exists(/databases/$(database)/documents/projects/$(projectId))
+             && get(/databases/$(database)/documents/projects/$(projectId)).data.userId == request.auth.uid;
+    }
+
+    // =========================================================================
+    // Projects Collection (with messages subcollection)
+    // =========================================================================
+
     match /projects/{projectId} {
       // Allow read if user owns the project
       allow read: if isOwner(resource.data.userId);
@@ -21,14 +35,34 @@ service cloud.firestore {
       allow create: if isAuthenticated()
                     && request.resource.data.userId == request.auth.uid;
 
-      // Allow update if user owns the project
-      allow update: if isOwner(resource.data.userId);
+      // Allow update if user owns the project AND userId is not being changed
+      allow update: if isOwner(resource.data.userId)
+                    && request.resource.data.userId == resource.data.userId;
 
       // Allow delete if user owns the project
       allow delete: if isOwner(resource.data.userId);
+
+      // ----- Messages Subcollection -----
+      // Stores chat history (unlimited messages, avoids 1MB limit)
+      match /messages/{messageId} {
+        // Inherit access from parent project
+        allow read: if isProjectOwner(projectId);
+
+        // Allow create if user owns the parent project
+        allow create: if isProjectOwner(projectId);
+
+        // Messages are immutable (no updates allowed)
+        allow update: if false;
+
+        // Allow delete if user owns the parent project
+        allow delete: if isProjectOwner(projectId);
+      }
     }
 
-    // Blueprints collection
+    // =========================================================================
+    // Blueprints Collection (with history subcollection)
+    // =========================================================================
+
     match /blueprints/{blueprintId} {
       // Helper to get parent project
       function getProject() {
@@ -45,24 +79,52 @@ service cloud.firestore {
                   && getProject().data.userId == request.auth.uid;
 
       // Allow create if user owns the parent project
+      // Enforce 1:1: blueprintId MUST equal projectId (prevents duplicate blueprints)
       allow create: if isAuthenticated()
+                    && blueprintId == request.resource.data.projectId
                     && exists(/databases/$(database)/documents/projects/$(request.resource.data.projectId))
                     && getProjectForCreate().data.userId == request.auth.uid;
 
-      // Allow update if user owns parent project and blueprint is not approved
-      // (locked blueprints can be updated to change status, but approved cannot)
+      // Allow update if user owns parent project
+      // Note: Status checks moved to application layer for flexibility
       allow update: if isAuthenticated()
                     && exists(/databases/$(database)/documents/projects/$(resource.data.projectId))
-                    && getProject().data.userId == request.auth.uid
-                    && resource.data.status != 'approved';
+                    && getProject().data.userId == request.auth.uid;
 
-      // Blueprints should not be deleted directly (cascade delete from project)
+      // Allow delete if user owns the parent project
       allow delete: if isAuthenticated()
                     && exists(/databases/$(database)/documents/projects/$(resource.data.projectId))
                     && getProject().data.userId == request.auth.uid;
+
+      // ----- History Subcollection -----
+      // Stores version snapshots (auto-created on blueprint changes)
+      match /history/{snapshotId} {
+        // Allow read if user owns the parent project
+        allow read: if isAuthenticated()
+                    && exists(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId))
+                    && get(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId)).data.userId == request.auth.uid;
+
+        // Allow create if user owns the parent project
+        allow create: if isAuthenticated()
+                      && exists(/databases/$(database)/documents/blueprints/$(blueprintId))
+                      && exists(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId))
+                      && get(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId)).data.userId == request.auth.uid;
+
+        // History snapshots are immutable (no updates)
+        allow update: if false;
+
+        // Allow delete if user owns the parent project (for cascade delete)
+        allow delete: if isAuthenticated()
+                      && exists(/databases/$(database)/documents/blueprints/$(blueprintId))
+                      && exists(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId))
+                      && get(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId)).data.userId == request.auth.uid;
+      }
     }
 
-    // Tasks collection
+    // =========================================================================
+    // Tasks Collection
+    // =========================================================================
+
     match /tasks/{taskId} {
       // Helper to get parent project
       function getProject() {
@@ -86,7 +148,10 @@ service cloud.firestore {
                             && getProject().data.userId == request.auth.uid;
     }
 
-    // Users collection
+    // =========================================================================
+    // Users Collection
+    // =========================================================================
+
     match /Users/{userId} {
       // Users can only read their own document
       allow read: if isOwner(userId);
@@ -101,7 +166,10 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Share tokens (public read for valid tokens, authenticated write)
+    // =========================================================================
+    // Share Tokens (public read for valid tokens, authenticated write)
+    // =========================================================================
+
     match /shareTokens/{tokenId} {
       // Anyone with the token can read (for public share links)
       allow read: if true;
@@ -114,7 +182,10 @@ service cloud.firestore {
                             && resource.data.createdBy == request.auth.uid;
     }
 
-    // Project shares (email-based sharing)
+    // =========================================================================
+    // Project Shares (email-based sharing)
+    // =========================================================================
+
     match /projectShares/{shareId} {
       // Allow read if user is the owner or the shared recipient
       allow read: if isAuthenticated()
