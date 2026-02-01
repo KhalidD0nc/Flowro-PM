@@ -99,23 +99,23 @@ function getSectionTitle(id: string) {
 function FormContent({ section, data, onChange }: { section: string, data: UBPSectionData, onChange: (d: UBPSectionData) => void }) {
     switch (section) {
         case "vision":
-            return <VisionForm data={data} onChange={onChange} />
+            return <VisionForm data={data as UBPContent["productVision"]} onChange={onChange as (d: UBPContent["productVision"]) => void} />
         case "scope":
-            return <ScopeForm data={data} onChange={onChange} />
+            return <ScopeForm data={data as UBPContent["scope"]} onChange={onChange as (d: UBPContent["scope"]) => void} />
         case "actors":
-            return <ActorsForm data={data} onChange={onChange} />
+            return <ActorsForm data={data as UBPContent["actors"]} onChange={onChange as (d: UBPContent["actors"]) => void} />
         case "behaviors":
-            return <BehaviorsForm data={data} onChange={onChange} />
+            return <BehaviorsForm data={data as UBPContent["behaviors"]} onChange={onChange as (d: UBPContent["behaviors"]) => void} />
         case "constraints":
-            return <ConstraintsForm data={data} onChange={onChange} />
+            return <ConstraintsForm data={data as UBPContent["constraints"]} onChange={onChange as (d: UBPContent["constraints"]) => void} />
         case "tech":
-            return <TechForm data={data} onChange={onChange} />
+            return <TechForm data={data as UBPContent["techDecisions"]} onChange={onChange as (d: UBPContent["techDecisions"]) => void} />
         case "phases":
-            return <PhasesForm data={data} onChange={onChange} />
+            return <PhasesForm data={data as UBPContent["phases"]} onChange={onChange as (d: UBPContent["phases"]) => void} />
         case "integration":
-            return <IntegrationsForm data={data} onChange={onChange} />
+            return <IntegrationsForm data={data as UBPContent["integrations"]} onChange={onChange as (d: UBPContent["integrations"]) => void} />
         case "changelog":
-            return <ChangelogForm data={data} onChange={onChange} />
+            return <ChangelogForm data={data as UBPContent["changelog"]} onChange={onChange as (d: UBPContent["changelog"]) => void} />
         default:
             return <div className="text-red-400">Form not implemented for {section}</div>
     }
