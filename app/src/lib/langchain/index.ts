@@ -68,13 +68,16 @@ export {
     runProposalChain,
     runChainForIntent,
     runFallbackChain,
+    runRelaxedInitialChain,
     validateChainSchemas,
     InitialOutputSchema,
+    RelaxedInitialOutputSchema,
     DiscussionOutputSchema,
     ProposalOutputSchema,
     type ChainInput,
     type ChainResult,
     type InitialOutput,
+    type RelaxedInitialOutput,
     type DiscussionOutput,
     type ProposalOutput,
     type ChatMessage,
@@ -85,7 +88,7 @@ export {
 // =============================================================================
 
 import { detectIntent, type IntentContext } from './intentDetector'
-import { runChainForIntent, runFallbackChain, type ChainInput, type ChainResult, type InitialOutput, type DiscussionOutput, type ProposalOutput } from './chains'
+import { runChainForIntent, runFallbackChain, runRelaxedInitialChain, type ChainInput, type ChainResult, type InitialOutput, type DiscussionOutput, type ProposalOutput, type RelaxedInitialOutput } from './chains'
 import { buildOptimizedContext, type UBP, type ChatMessage as ContextChatMessage } from '../contextBuilder'
 import { logInfo, logError } from '../logger'
 import { formatMessage } from '../messageFormatter'
@@ -109,6 +112,10 @@ export interface GenerateWithLangChainResult {
     }
     confidence: number
     usedFallback: boolean
+    /** True when initial intent returned partial/relaxed UBP or fell back to discussion */
+    degraded: boolean
+    /** Original intent before any fallback occurred */
+    originalIntent: 'initial' | 'discussion' | 'proposal'
 }
 
 /**
@@ -183,34 +190,83 @@ export async function generateWithLangChain(
         topicSummary: optimizedContext.topicSummary,
     }
 
-    // Step 4: Run the appropriate chain
-    let chainResult: ChainResult<InitialOutput | DiscussionOutput | ProposalOutput>
+    // Step 4: Run the appropriate chain with multi-stage fallback
+    let chainResult: ChainResult<InitialOutput | DiscussionOutput | ProposalOutput | RelaxedInitialOutput>
     let usedFallback = false
+    let degraded = false
+    const originalIntent = intentResult.intent
 
     try {
         chainResult = await runChainForIntent(intentResult.intent, chainInput)
 
-        // If chain failed, try fallback
+        // If chain failed, try staged fallback
         if (!chainResult.success) {
-            logInfo('langchain_fallback', {
+            logInfo('langchain_primary_failed', {
                 reason: chainResult.error,
                 intent: intentResult.intent,
             })
 
-            const fallbackResult = await runFallbackChain(chainInput, intentResult.intent)
-            usedFallback = true
-
-            if (fallbackResult.success) {
-                chainResult = {
-                    success: true,
-                    data: {
-                        intent: 'discussion',
-                        message: fallbackResult.message,
-                    } as DiscussionOutput,
-                    intent: 'discussion',
+            // For initial intent, try relaxed schema before falling back to discussion
+            if (intentResult.intent === 'initial') {
+                logInfo('langchain_trying_relaxed_initial', { originalError: chainResult.error })
+                
+                const relaxedResult = await runRelaxedInitialChain(chainInput)
+                
+                if (relaxedResult.success) {
+                    logInfo('langchain_relaxed_initial_success', {
+                        hasProductName: !!relaxedResult.data?.metadata?.productName,
+                        hasBehaviors: !!relaxedResult.data?.behaviors?.length,
+                    })
+                    
+                    chainResult = {
+                        success: true,
+                        data: relaxedResult.data as InitialOutput, // Cast since it's compatible
+                        intent: 'initial',
+                    }
+                    usedFallback = true
+                    degraded = true // Partial UBP generated
+                } else {
+                    // Relaxed also failed, fall back to discussion
+                    logInfo('langchain_relaxed_failed_to_discussion', { 
+                        relaxedError: relaxedResult.error 
+                    })
+                    
+                    const discussionResult = await runFallbackChain(chainInput, 'discussion')
+                    usedFallback = true
+                    degraded = true
+                    
+                    if (discussionResult.success) {
+                        chainResult = {
+                            success: true,
+                            data: {
+                                intent: 'discussion',
+                                message: discussionResult.message + 
+                                    "\n\n> ⚠️ *I wasn't able to generate a complete blueprint. Please try describing your project in more detail, or let me know what specific aspects you'd like to focus on.*",
+                            } as DiscussionOutput,
+                            intent: 'discussion',
+                        }
+                    } else {
+                        throw new Error(discussionResult.error || 'All fallback attempts failed')
+                    }
                 }
             } else {
-                throw new Error(fallbackResult.error || 'Both chain and fallback failed')
+                // For non-initial intents, use standard fallback
+                const fallbackResult = await runFallbackChain(chainInput, intentResult.intent)
+                usedFallback = true
+
+                if (fallbackResult.success) {
+                    chainResult = {
+                        success: true,
+                        data: {
+                            intent: 'discussion',
+                            message: fallbackResult.message,
+                        } as DiscussionOutput,
+                        intent: 'discussion',
+                    }
+                    degraded = intentResult.intent !== 'discussion' // Degraded if we changed intent
+                } else {
+                    throw new Error(fallbackResult.error || 'Both chain and fallback failed')
+                }
             }
         }
     } catch (error) {
@@ -224,6 +280,8 @@ export async function generateWithLangChain(
             content: null,
             confidence: 0,
             usedFallback: true,
+            degraded: true,
+            originalIntent,
         }
     }
 
@@ -244,12 +302,20 @@ export async function generateWithLangChain(
         proposedChanges = (data as ProposalOutput).proposedChanges
     }
 
+    // Adjust confidence when fallback occurred
+    const finalConfidence = usedFallback 
+        ? Math.min(intentResult.confidence * 0.5, 0.6) // Cap at 0.6, reduce by 50%
+        : intentResult.confidence
+
     logInfo('langchain_generate_success', {
         intent: data.intent,
+        originalIntent,
         messageLength: formattedMessage.length,
         hasContent: !!content,
         hasProposedChanges: !!proposedChanges,
         usedFallback,
+        degraded,
+        confidence: finalConfidence,
     })
 
     return {
@@ -257,8 +323,10 @@ export async function generateWithLangChain(
         message: formattedMessage,
         content,
         proposedChanges,
-        confidence: intentResult.confidence,
+        confidence: finalConfidence,
         usedFallback,
+        degraded,
+        originalIntent,
     }
 }
 

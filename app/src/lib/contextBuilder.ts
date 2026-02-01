@@ -128,6 +128,23 @@ const SECTION_KEYWORDS: Record<keyof UBP, string[]> = {
     changeLog: ['change', 'update', 'version', 'history', 'modification'],
 }
 
+/**
+ * Section priority for truncation (higher = keep first).
+ * productVision and scope are always prioritized.
+ */
+const SECTION_PRIORITY: Record<string, number> = {
+    productVision: 100,  // Always keep
+    scope: 90,           // Critical for context
+    techStack: 80,       // Usually needed
+    actors: 70,
+    behaviors: 60,       // Can be large, truncate if needed
+    integrations: 50,
+    phases: 40,
+    metadata: 30,
+    constraintsRisks: 20,
+    changeLog: 10,       // Drop first
+}
+
 // =============================================================================
 // Core Functions
 // =============================================================================
@@ -150,7 +167,7 @@ export function buildOptimizedContext(
     config: Partial<ContextConfig> = {}
 ): ContextWindow {
     const mergedConfig = { ...DEFAULT_CONFIG, ...config }
-    const { maxRecentMessages, includeTopicSummary } = mergedConfig
+    const { maxRecentMessages, maxBlueprintTokens, includeTopicSummary } = mergedConfig
 
     // Get recent messages (full content)
     const recent = messages.slice(-maxRecentMessages)
@@ -162,14 +179,24 @@ export function buildOptimizedContext(
         : ''
 
     // Only include relevant UBP sections based on query
-    const blueprintContext = blueprint
+    let blueprintContext = blueprint
         ? selectRelevantSections(blueprint, currentQuery)
         : ''
+
+    // Enforce maxBlueprintTokens with priority-based truncation
+    let blueprintTokens = Math.ceil(blueprintContext.length / 4)
+    if (blueprintTokens > maxBlueprintTokens && blueprintContext.length > 0) {
+        logDebug('blueprint_over_budget', {
+            currentTokens: blueprintTokens,
+            maxTokens: maxBlueprintTokens,
+        })
+        blueprintContext = truncateBlueprintByPriority(blueprintContext, maxBlueprintTokens)
+        blueprintTokens = Math.ceil(blueprintContext.length / 4)
+    }
 
     // Estimate token count (rough: 4 chars = 1 token)
     const recentTokens = recent.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0)
     const summaryTokens = Math.ceil(topicSummary.length / 4)
-    const blueprintTokens = Math.ceil(blueprintContext.length / 4)
     const tokenEstimate = recentTokens + summaryTokens + blueprintTokens
 
     logDebug('context_built', {
@@ -273,6 +300,81 @@ export function selectRelevantSections(ubp: UBP, query: string): string {
     })
 
     return sections.join('\n')
+}
+
+/**
+ * Truncates blueprint context by removing low-priority sections first.
+ * Uses SECTION_PRIORITY to determine which sections to drop.
+ * 
+ * @example
+ * // Input: 3000 tokens of blueprint context
+ * // maxTokens: 2000
+ * // Output: Drops changeLog, constraintsRisks until under budget
+ */
+export function truncateBlueprintByPriority(
+    blueprintContext: string,
+    maxTokens: number
+): string {
+    if (!blueprintContext) return ''
+    
+    // Parse sections from the context string
+    const lines = blueprintContext.split('\n')
+    const sections: Array<{ name: string; content: string; priority: number; tokens: number }> = []
+    
+    for (const line of lines) {
+        // Extract section name (format: "SectionName: {...}")
+        const colonIndex = line.indexOf(':')
+        if (colonIndex === -1) continue
+        
+        const rawName = line.substring(0, colonIndex).trim()
+        // Normalize section name (Vision -> productVision, Tech Stack -> techStack, etc.)
+        const normalizedName = rawName
+            .replace('Vision', 'productVision')
+            .replace('Tech Stack', 'techStack')
+            .replace('Key Behaviors', 'behaviors')
+            .replace(/\s+/g, '')
+            .toLowerCase()
+        
+        const priority = SECTION_PRIORITY[normalizedName] ?? 
+            SECTION_PRIORITY[rawName.toLowerCase()] ?? 
+            50 // Default priority for unknown sections
+        
+        const tokens = Math.ceil(line.length / 4)
+        
+        sections.push({
+            name: rawName,
+            content: line,
+            priority,
+            tokens,
+        })
+    }
+    
+    // Sort by priority (highest first)
+    sections.sort((a, b) => b.priority - a.priority)
+    
+    // Build result, keeping sections until we hit the budget
+    const result: string[] = []
+    let currentTokens = 0
+    let droppedSections: string[] = []
+    
+    for (const section of sections) {
+        if (currentTokens + section.tokens <= maxTokens) {
+            result.push(section.content)
+            currentTokens += section.tokens
+        } else {
+            droppedSections.push(section.name)
+        }
+    }
+    
+    if (droppedSections.length > 0) {
+        logInfo('blueprint_truncated', {
+            keptTokens: currentTokens,
+            maxTokens,
+            droppedSections,
+        })
+    }
+    
+    return result.join('\n')
 }
 
 /**

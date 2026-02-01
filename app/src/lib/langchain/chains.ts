@@ -121,6 +121,71 @@ export const InitialOutputSchema = z.object({
 })
 
 /**
+ * Relaxed schema for initial UBP when full schema fails.
+ * Contains only essential fields for a minimal viable blueprint.
+ */
+export const RelaxedInitialOutputSchema = z.object({
+    intent: z.literal('initial'),
+    message: z.string().describe("Brief conversational message"),
+    metadata: z.object({
+        productName: z.string().describe("Product name"),
+        version: z.string().default("0.1"),
+        status: z.string().default("draft"),
+    }),
+    productVision: z.object({
+        problem: z.string().describe("The core problem being solved"),
+        targetActor: z.string().describe("Primary target user"),
+        successSignal: z.string().describe("Key success metric"),
+    }),
+    scope: z.object({
+        inScope: z.array(z.string()).describe("Features in MVP"),
+        outOfScope: z.array(z.string()).default([]),
+        deferred: z.array(z.string()).default([]),
+    }),
+    // Optional fields for relaxed validation
+    actors: z.object({
+        primary: z.string(),
+        secondary: z.array(z.string()).default([]),
+        systems: z.array(z.string()).default([]),
+    }).optional(),
+    behaviors: z.array(z.object({
+        id: z.string(),
+        trigger: z.string(),
+        systemResponse: z.string(),
+        involvedActors: z.array(z.string()).default([]),
+        diagramCode: z.string().default(""),
+    })).optional(),
+    techStack: z.object({
+        frontend: z.string(),
+        backend: z.string(),
+        database: z.string(),
+    }).optional(),
+    phases: z.array(z.object({
+        phase: z.string(),
+        goal: z.string(),
+        outputs: z.array(z.string()).default([]),
+    })).optional(),
+    integrations: z.array(z.object({
+        service: z.string(),
+        purpose: z.string(),
+        dataFlow: z.string().optional(),
+    })).optional(),
+    constraintsRisks: z.object({
+        constraints: z.array(z.string()).default([]),
+        assumptions: z.array(z.string()).default([]),
+        risks: z.array(z.string()).default([]),
+    }).optional(),
+    changeLog: z.array(z.object({
+        version: z.string(),
+        summary: z.string(),
+        reason: z.string().optional(),
+        impactedSections: z.array(z.string()).default([]),
+    })).optional(),
+})
+
+export type RelaxedInitialOutput = z.infer<typeof RelaxedInitialOutputSchema>
+
+/**
  * Schema for discussion responses.
  */
 export const DiscussionOutputSchema = z.object({
@@ -175,27 +240,44 @@ function toLangChainMessages(messages: ChatMessage[]): BaseMessage[] {
 
 /**
  * Creates the prompt template for initial UBP generation.
+ * Note: blueprintContext is conditionally added in runInitialChain.
  */
-function createInitialPrompt() {
-    return ChatPromptTemplate.fromMessages([
+function createInitialPrompt(includeContext: boolean = false) {
+    const messages: Array<[string, string] | MessagesPlaceholder> = [
         ["system", INITIAL_SYSTEM_PROMPT],
-        ["system", "{{#if blueprintContext}}### EXISTING CONTEXT\n{blueprintContext}{{/if}}"],
-        new MessagesPlaceholder("history"),
-        ["human", "{input}"],
-    ])
+    ]
+    
+    if (includeContext) {
+        messages.push(["system", "### EXISTING CONTEXT\n{blueprintContext}"])
+    }
+    
+    messages.push(new MessagesPlaceholder("history"))
+    messages.push(["human", "{input}"])
+    
+    return ChatPromptTemplate.fromMessages(messages)
 }
 
 /**
  * Creates the prompt template for discussions.
+ * Context is added dynamically via buildSystemPrompt in runDiscussionChain.
  */
-function createDiscussionPrompt() {
-    return ChatPromptTemplate.fromMessages([
+function createDiscussionPrompt(options: { hasTopicSummary?: boolean; hasBlueprint?: boolean } = {}) {
+    const messages: Array<[string, string] | MessagesPlaceholder> = [
         ["system", DISCUSSION_SYSTEM_PROMPT],
-        ["system", "{{#if topicSummary}}### CONVERSATION CONTEXT\n{topicSummary}{{/if}}"],
-        ["system", "{{#if blueprintContext}}### CURRENT BLUEPRINT\n{blueprintContext}{{/if}}"],
-        new MessagesPlaceholder("history"),
-        ["human", "{input}"],
-    ])
+    ]
+    
+    if (options.hasTopicSummary) {
+        messages.push(["system", "### CONVERSATION CONTEXT\n{topicSummary}"])
+    }
+    
+    if (options.hasBlueprint) {
+        messages.push(["system", "### CURRENT BLUEPRINT\n{blueprintContext}"])
+    }
+    
+    messages.push(new MessagesPlaceholder("history"))
+    messages.push(["human", "{input}"])
+    
+    return ChatPromptTemplate.fromMessages(messages)
 }
 
 /**
@@ -235,8 +317,14 @@ export async function runInitialChain(
 
         const model = createStructuredModelForIntent(InitialOutputSchema, 'initial')
 
+        // Include blueprintContext if provided (for "restart with context" scenarios)
+        const hasContext = chainInput.blueprintContext && chainInput.blueprintContext.trim().length > 0
+        const contextPrompt = hasContext
+            ? `\n\n### EXISTING CONTEXT (use as reference if relevant)\n{blueprintContext}`
+            : ''
+
         const prompt = ChatPromptTemplate.fromMessages([
-            ["system", INITIAL_SYSTEM_PROMPT],
+            ["system", INITIAL_SYSTEM_PROMPT + contextPrompt],
             new MessagesPlaceholder("history"),
             ["human", "{input}"],
         ])
@@ -473,6 +561,71 @@ export async function runFallbackChain(
             success: false,
             message: '',
             error: error instanceof Error ? error.message : 'Unknown error',
+        }
+    }
+}
+
+/**
+ * Relaxed initial chain with fewer required fields.
+ * Used as fallback when full InitialOutputSchema validation fails.
+ * Returns a partial UBP instead of falling back to discussion-only.
+ */
+export async function runRelaxedInitialChain(
+    chainInput: ChainInput
+): Promise<ChainResult<RelaxedInitialOutput>> {
+    try {
+        logInfo('chain_start', { intent: 'initial', mode: 'relaxed', inputLength: chainInput.input.length })
+
+        const model = createStructuredModelForIntent(RelaxedInitialOutputSchema, 'initial')
+
+        const hasContext = chainInput.blueprintContext && chainInput.blueprintContext.trim().length > 0
+        const contextPrompt = hasContext
+            ? `\n\n### EXISTING CONTEXT (use as reference if relevant)\n{blueprintContext}`
+            : ''
+
+        const relaxedInstructions = `\n\nIMPORTANT: Focus on generating the core blueprint fields (productVision, scope, metadata). 
+Other fields like behaviors, techStack, and phases are optional - include them if you can, but don't fail if you cannot fully populate them.`
+
+        const prompt = ChatPromptTemplate.fromMessages([
+            ["system", INITIAL_SYSTEM_PROMPT + contextPrompt + relaxedInstructions],
+            new MessagesPlaceholder("history"),
+            ["human", "{input}"],
+        ])
+
+        const chain = prompt.pipe(model)
+
+        const history = chainInput.history
+            ? toLangChainMessages(chainInput.history)
+            : []
+
+        const response = await chain.invoke({
+            input: chainInput.input,
+            history,
+            blueprintContext: chainInput.blueprintContext || '',
+        })
+
+        const typedResponse = response as RelaxedInitialOutput
+
+        logInfo('chain_success', {
+            intent: 'initial',
+            mode: 'relaxed',
+            hasProductName: !!typedResponse.metadata?.productName,
+            hasBehaviors: !!typedResponse.behaviors?.length,
+        })
+
+        return {
+            success: true,
+            data: typedResponse,
+            intent: 'initial',
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        logError('chain_failed', { intent: 'initial', mode: 'relaxed', error: errorMessage })
+
+        return {
+            success: false,
+            error: errorMessage,
+            intent: 'initial',
         }
     }
 }
