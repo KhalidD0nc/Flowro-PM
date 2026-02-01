@@ -1,15 +1,25 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import { useState } from "react"
 import { UBPContent } from "./UBPViewer"
 
+type UBPSectionData = 
+    | UBPContent["productVision"]
+    | UBPContent["scope"]
+    | UBPContent["actors"]
+    | UBPContent["behaviors"]
+    | UBPContent["constraints"]
+    | UBPContent["techDecisions"]
+    | UBPContent["phases"]
+    | UBPContent["integrations"]
+    | UBPContent["changelog"]
+
 interface UBPEditModalProps {
     isOpen: boolean
     onClose: () => void
     section: string
-    data: any
-    onSave: (section: string, newData: any) => void
+    data: UBPSectionData
+    onSave: (section: string, newData: UBPSectionData) => void
 }
 
 export default function UBPEditModal(props: UBPEditModalProps) {
@@ -23,8 +33,7 @@ function UBPEditModalContent({
     data,
     onSave,
 }: UBPEditModalProps) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [formData, setFormData] = useState<any>(data)
+    const [formData, setFormData] = useState<UBPSectionData>(data)
 
     const handleSave = () => {
         onSave(section, formData)
@@ -87,26 +96,26 @@ function getSectionTitle(id: string) {
 }
 
 // Dynamic Form Content based on section
-function FormContent({ section, data, onChange }: { section: string, data: any, onChange: (d: any) => void }) {
+function FormContent({ section, data, onChange }: { section: string, data: UBPSectionData, onChange: (d: UBPSectionData) => void }) {
     switch (section) {
         case "vision":
-            return <VisionForm data={data} onChange={onChange} />
+            return <VisionForm data={data as UBPContent["productVision"]} onChange={onChange as (d: UBPContent["productVision"]) => void} />
         case "scope":
-            return <ScopeForm data={data} onChange={onChange} />
+            return <ScopeForm data={data as UBPContent["scope"]} onChange={onChange as (d: UBPContent["scope"]) => void} />
         case "actors":
-            return <ActorsForm data={data} onChange={onChange} />
+            return <ActorsForm data={data as UBPContent["actors"]} onChange={onChange as (d: UBPContent["actors"]) => void} />
         case "behaviors":
-            return <BehaviorsForm data={data} onChange={onChange} />
+            return <BehaviorsForm data={data as UBPContent["behaviors"]} onChange={onChange as (d: UBPContent["behaviors"]) => void} />
         case "constraints":
-            return <ConstraintsForm data={data} onChange={onChange} />
+            return <ConstraintsForm data={data as UBPContent["constraints"]} onChange={onChange as (d: UBPContent["constraints"]) => void} />
         case "tech":
-            return <TechForm data={data} onChange={onChange} />
+            return <TechForm data={data as UBPContent["techDecisions"]} onChange={onChange as (d: UBPContent["techDecisions"]) => void} />
         case "phases":
-            return <PhasesForm data={data} onChange={onChange} />
+            return <PhasesForm data={data as UBPContent["phases"]} onChange={onChange as (d: UBPContent["phases"]) => void} />
         case "integration":
-            return <IntegrationsForm data={data} onChange={onChange} />
+            return <IntegrationsForm data={data as UBPContent["integrations"]} onChange={onChange as (d: UBPContent["integrations"]) => void} />
         case "changelog":
-            return <ChangelogForm data={data} onChange={onChange} />
+            return <ChangelogForm data={data as UBPContent["changelog"]} onChange={onChange as (d: UBPContent["changelog"]) => void} />
         default:
             return <div className="text-red-400">Form not implemented for {section}</div>
     }
@@ -115,7 +124,7 @@ function FormContent({ section, data, onChange }: { section: string, data: any, 
 // --- Specific Forms ---
 
 // 1. Vision
-function VisionForm({ data, onChange }: { data: UBPContent["productVision"], onChange: (d: any) => void }) {
+function VisionForm({ data, onChange }: { data: UBPContent["productVision"], onChange: (d: UBPContent["productVision"]) => void }) {
     return (
         <div className="space-y-4">
             <Field label="Description / Problem Statement">
@@ -147,7 +156,7 @@ function VisionForm({ data, onChange }: { data: UBPContent["productVision"], onC
 }
 
 // 2. Scope
-function ScopeForm({ data, onChange }: { data: UBPContent["scope"], onChange: (d: any) => void }) {
+function ScopeForm({ data, onChange }: { data: UBPContent["scope"], onChange: (d: UBPContent["scope"]) => void }) {
     return (
         <div className="grid md:grid-cols-2 gap-6">
             <ListEditor
@@ -167,7 +176,7 @@ function ScopeForm({ data, onChange }: { data: UBPContent["scope"], onChange: (d
 }
 
 // 3. Actors
-function ActorsForm({ data, onChange }: { data: UBPContent["actors"], onChange: (d: any) => void }) {
+function ActorsForm({ data, onChange }: { data: UBPContent["actors"], onChange: (d: UBPContent["actors"]) => void }) {
     const actors = data || []
 
     const updateActor = (index: number, field: string, value: string) => {
@@ -230,7 +239,7 @@ function ActorsForm({ data, onChange }: { data: UBPContent["actors"], onChange: 
 }
 
 // 4. Behaviors
-function BehaviorsForm({ data, onChange }: { data: UBPContent["behaviors"], onChange: (d: any) => void }) {
+function BehaviorsForm({ data, onChange }: { data: UBPContent["behaviors"], onChange: (d: UBPContent["behaviors"]) => void }) {
     const behaviors = data || []
 
     // Simplification for prototype: edit generic fields easily, maybe specialized inputs for GWT
@@ -307,7 +316,7 @@ function BehaviorsForm({ data, onChange }: { data: UBPContent["behaviors"], onCh
 }
 
 // 5. Constraints
-function ConstraintsForm({ data, onChange }: { data: UBPContent["constraints"], onChange: (d: any) => void }) {
+function ConstraintsForm({ data, onChange }: { data: UBPContent["constraints"], onChange: (d: UBPContent["constraints"]) => void }) {
     const items = data || []
 
     // This pattern repeats, could extract "ArrayItemEditor" but fields vary too much
@@ -321,7 +330,7 @@ function ConstraintsForm({ data, onChange }: { data: UBPContent["constraints"], 
                                 value={item.type}
                                 onChange={e => {
                                     const newItems = [...items]
-                                    newItems[i] = { ...item, type: e.target.value as any }
+                                    newItems[i] = { ...item, type: e.target.value as "warning" | "risk" | "constraint" }
                                     onChange(newItems)
                                 }}
                                 className="bg-[#111418] border border-[#374151] rounded px-3 py-2 text-white text-sm"
@@ -365,7 +374,7 @@ function ConstraintsForm({ data, onChange }: { data: UBPContent["constraints"], 
 }
 
 // 6. Tech Decisions
-function TechForm({ data, onChange }: { data: UBPContent["techDecisions"], onChange: (d: any) => void }) {
+function TechForm({ data, onChange }: { data: UBPContent["techDecisions"], onChange: (d: UBPContent["techDecisions"]) => void }) {
     const items = data || []
     return (
         <div className="space-y-3">
@@ -405,7 +414,7 @@ function TechForm({ data, onChange }: { data: UBPContent["techDecisions"], onCha
 }
 
 // 7. Implementation Phases
-function PhasesForm({ data, onChange }: { data: UBPContent["phases"], onChange: (d: any) => void }) {
+function PhasesForm({ data, onChange }: { data: UBPContent["phases"], onChange: (d: UBPContent["phases"]) => void }) {
     const items = data || []
     return (
         <div className="space-y-4">
@@ -417,7 +426,7 @@ function PhasesForm({ data, onChange }: { data: UBPContent["phases"], onChange: 
                                 value={phase.status || "upcoming"}
                                 onChange={e => {
                                     const newItems = [...items]
-                                    newItems[i] = { ...phase, status: e.target.value as any }
+                                    newItems[i] = { ...phase, status: e.target.value as "completed" | "current" | "upcoming" }
                                     onChange(newItems)
                                 }}
                                 className="bg-[#111418] border border-[#374151] rounded px-3 py-2 text-white text-sm"
@@ -472,7 +481,7 @@ function PhasesForm({ data, onChange }: { data: UBPContent["phases"], onChange: 
 }
 
 // 8. Integrations
-function IntegrationsForm({ data, onChange }: { data: UBPContent["integrations"], onChange: (d: any) => void }) {
+function IntegrationsForm({ data, onChange }: { data: UBPContent["integrations"], onChange: (d: UBPContent["integrations"]) => void }) {
     const items = data || []
     return (
         <div className="space-y-3">
@@ -524,7 +533,7 @@ function IntegrationsForm({ data, onChange }: { data: UBPContent["integrations"]
 }
 
 // 9. Changelog
-function ChangelogForm({ data, onChange }: { data: UBPContent["changelog"], onChange: (d: any) => void }) {
+function ChangelogForm({ data, onChange }: { data: UBPContent["changelog"], onChange: (d: UBPContent["changelog"]) => void }) {
     const items = data || []
     return (
         <div className="space-y-4">

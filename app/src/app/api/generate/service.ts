@@ -122,17 +122,18 @@ export async function callLLM(messages: Message[]): Promise<GenerateResult> {
 
     // Some models (like xiaomi/mimo-v2-flash) put content in the reasoning field
     // Check for content in this order: content -> reasoning -> reasoning_details[0].text
-    let rawContent = choice.content || ""
-
-    if (!rawContent && choice.reasoning) {
-        console.log("📥 Content was empty, using reasoning field instead")
-        rawContent = choice.reasoning
-    }
-
-    if (!rawContent && choice.reasoning_details?.[0]?.text) {
-        console.log("📥 Content was empty, using reasoning_details[0].text instead")
-        rawContent = choice.reasoning_details[0].text
-    }
+    const rawContent = (() => {
+        if (choice.content) return choice.content
+        if (choice.reasoning) {
+            console.log("📥 Content was empty, using reasoning field instead")
+            return choice.reasoning
+        }
+        if (choice.reasoning_details?.[0]?.text) {
+            console.log("📥 Content was empty, using reasoning_details[0].text instead")
+            return choice.reasoning_details[0].text
+        }
+        return ""
+    })()
 
     console.log("Raw content length:", rawContent.length)
     console.log("Raw content preview:", rawContent.substring(0, 300))

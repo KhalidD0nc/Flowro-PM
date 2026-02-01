@@ -22,10 +22,17 @@ export default function RenameProjectModal({
     const inputRef = useRef<HTMLInputElement>(null)
     const modalRef = useRef<HTMLDivElement>(null)
 
+    // Sync name when currentName prop changes or modal opens
     useEffect(() => {
         if (isOpen) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setName(currentName)
-            setError(null)
+            setError(null) // Reset error state to prevent stale errors
+        }
+    }, [isOpen, currentName])
+
+    useEffect(() => {
+        if (isOpen) {
             // Use a small timeout to ensure the modal is rendered before focusing
             setTimeout(() => {
                 if (inputRef.current) {
@@ -34,7 +41,7 @@ export default function RenameProjectModal({
                 }
             }, 50)
         }
-    }, [isOpen, currentName])
+    }, [isOpen])
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {

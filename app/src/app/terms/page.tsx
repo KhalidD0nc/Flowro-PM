@@ -1,4 +1,5 @@
 import { Metadata } from "next"
+import Link from "next/link"
 
 export const metadata: Metadata = {
     title: "Terms & Conditions | Flowro AI",
@@ -11,10 +12,10 @@ export default function TermsPage() {
             {/* Header */}
             <header className="border-b border-slate-700/50 bg-[#101922]/80 backdrop-blur-sm sticky top-0 z-50">
                 <div className="max-w-4xl mx-auto px-6 py-4">
-                    <a href="/" className="flex items-center gap-2 w-fit">
+                    <Link href="/" className="flex items-center gap-2 w-fit">
                         <span className="material-symbols-outlined text-[#137fec]" style={{ fontSize: '28px' }}>hourglass_top</span>
                         <span className="text-lg font-bold tracking-tight text-white">Flowro AI</span>
-                    </a>
+                    </Link>
                 </div>
             </header>
 
@@ -149,9 +150,9 @@ export default function TermsPage() {
 
                 {/* Footer Links */}
                 <div className="mt-12 pt-8 border-t border-slate-700/50 flex flex-wrap gap-4 text-sm text-slate-400">
-                    <a href="/privacy" className="hover:text-[#137fec] transition-colors">Privacy Policy</a>
+                    <Link href="/privacy" className="hover:text-[#137fec] transition-colors">Privacy Policy</Link>
                     <span>•</span>
-                    <a href="/" className="hover:text-[#137fec] transition-colors">Back to Home</a>
+                    <Link href="/" className="hover:text-[#137fec] transition-colors">Back to Home</Link>
                 </div>
             </main>
         </div>

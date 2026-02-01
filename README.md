@@ -137,10 +137,12 @@ flowchart LR
 | **Auth** | Firebase Auth | Zero-friction Google OAuth, no password management |
 | **Database** | Firebase Firestore | NoSQL perfect for JSON-based UBPs, real-time sync |
 | **AI Orchestration** | LangChain & OpenRouter | Structured AI outputs and multi-model flexibility |
-| **Task Engine** | @dnd-kit | High-performance, accessible drag-and-drop toolkit |
+| **Task Engine** | @dnd-kit 6.3 | High-performance, accessible drag-and-drop toolkit |
 | **Styling** | Tailwind CSS 4 | Utility-first, rapid UI development with CSS variables |
-| **Diagrams** | Mermaid.js | Text-to-diagram for agent compatibility |
+| **Diagrams** | Mermaid.js 11 | Text-to-diagram for agent compatibility |
+| **Validation** | Zod 4.3 | Runtime type validation for API responses |
 | **Deployment** | Vercel | Zero-config Next.js deployment, edge functions |
+| **Monitoring** | Sentry (Optional) | Error tracking and performance monitoring |
 
 ---
 
@@ -177,16 +179,19 @@ NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
-NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
+NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abc123
 
 # Firebase Admin SDK (Server-side)
 FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxx@your-project.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n"
 
-# LLM Provider
-OPENROUTER_API_KEY=your-openrouter-api-key
-OPENROUTER_MODEL=google/gemini-2.0-flash-exp:free  # Optional, defaults to gemini-2.0-flash
+# OpenRouter
+OPENROUTER_API_KEY=sk-or-your-api-key-here
+OPENROUTER_MODEL=openai/gpt-oss-120b:free  # Optional, defaults to openai/gpt-oss-120b:free
+
+# App
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 ### Development
@@ -196,6 +201,18 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+### Code Quality
+
+```bash
+# Run ESLint to check for issues
+npm run lint
+
+# Build the project (runs type checking)
+npm run build
+```
+
+The project maintains zero ESLint errors and follows strict TypeScript typing practices.
 
 ### Production Build
 
@@ -216,6 +233,10 @@ npm start
 | `/api/projects` | `POST` | Create new project |
 | `/api/projects/[projectId]` | `GET` | Get project details with chat history |
 | `/api/projects/[projectId]` | `PATCH` | Update project (add messages, update blueprint) |
+| `/api/projects/[projectId]` | `DELETE` | Delete project and all associated data |
+| `/api/projects/[projectId]/share` | `GET` | Get public share link details |
+| `/api/projects/[projectId]/share` | `POST` | Create or update public share link |
+| `/api/projects/[projectId]/share` | `DELETE` | Revoke public share link |
 
 ### Blueprints
 
@@ -230,6 +251,47 @@ npm start
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/generate` | `POST` | Generate AI response & update blueprint |
+| `/api/generate/stream` | `POST` | Stream AI response in real-time (SSE) |
+
+### Tasks
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/tasks?projectId=xxx` | `GET` | List tasks for a project |
+| `/api/tasks` | `POST` | Create new task |
+| `/api/tasks/[id]` | `GET` | Get task details |
+| `/api/tasks/[id]` | `PATCH` | Update task |
+| `/api/tasks/[id]` | `DELETE` | Delete task |
+| `/api/tasks/[id]/move` | `POST` | Move task between columns |
+| `/api/tasks/generate` | `POST` | Generate tasks from blueprint |
+
+### Sharing
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/share` | `POST` | Create shareable link |
+| `/api/share` | `DELETE` | Revoke shareable link |
+| `/api/share/[token]` | `GET` | Get shared content |
+
+### Workspaces
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/workspaces` | `GET` | List user's workspaces |
+| `/api/workspaces` | `POST` | Create new workspace |
+
+### Admin
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/admin/logs` | `GET` | View system logs (admin only) |
+| `/api/admin/logs` | `PATCH` | Update log entries |
+
+### Account
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/account` | `DELETE` | Delete user account and all data |
 
 ---
 
@@ -238,27 +300,37 @@ npm start
 ```
 Flowro-PM/
 ├── Docs/                            # Project documentation & specs
-│   ├── Pre-Launch-Checklist.md     # Launch readiness tracker
-│   ├── Unified-Blueprint.md        # UBP specification
-│   ├── Brand-Guidelines.md         # Design system & brand rules
-│   └── ...
+│   ├── 2-Phase-Production-Plan.md   # Production roadmap
+│   ├── Agent-Enhancement-Roadmap.md # AI agent improvements
+│   ├── Unified-Blueprint.md         # UBP specification
+│   ├── Brand-Guidelines.md          # Design system & brand rules
+│   └── Architecture-Benchmarks.md   # Competitive analysis
 │
 ├── app/                             # Next.js application
 │   ├── public/                      # Static assets
 │   ├── next.config.ts               # Security headers & config
+│   ├── eslint.config.mjs            # ESLint configuration
+│   ├── sentry.*.config.ts           # Sentry monitoring (optional)
 │   ├── env.example                  # Environment template
 │   └── src/
 │       ├── app/
 │       │   ├── api/                 # API Routes
+│       │   │   ├── account/         # Account management
+│       │   │   ├── admin/           # Admin endpoints
 │       │   │   ├── blueprints/      # Blueprint CRUD
 │       │   │   ├── generate/        # AI generation service
 │       │   │   ├── projects/        # Project CRUD
+│       │   │   ├── share/           # Public sharing
+│       │   │   ├── tasks/           # Task management
 │       │   │   └── workspaces/      # Workspace management
 │       │   ├── auth/                # Authentication pages
 │       │   ├── chat/[projectId]/    # Chat interface
 │       │   ├── dashboard/           # Project dashboard
 │       │   ├── demo/                # Public demo routes
 │       │   ├── share/               # Public shared blueprints
+│       │   ├── settings/            # User settings
+│       │   ├── privacy/             # Privacy policy
+│       │   ├── terms/               # Terms & conditions
 │       │   └── page.tsx             # Landing page
 │       │
 │       ├── components/
@@ -266,16 +338,47 @@ Flowro-PM/
 │       │   ├── onboarding/          # User onboarding flow
 │       │   ├── ui/                  # Reusable UI components
 │       │   ├── UBPViewer.tsx        # Blueprint display
+│       │   ├── UBPEditModals.tsx    # Blueprint editing
 │       │   ├── LaunchPlanViewer.tsx # Roadmap & tasks
-│       │   └── PricingSection.tsx   # Pricing UI
+│       │   ├── ShareModal.tsx       # Sharing interface
+│       │   ├── PricingSection.tsx   # Pricing UI
+│       │   └── AIFloatingMenu.tsx   # AI enhancement menu
 │       │
-│       └── lib/
-│           ├── firebase.ts          # Client SDK
-│           ├── openrouter.ts        # LLM client
-│           └── events.ts            # Analytics events
+│       ├── lib/
+│       │   ├── firebase.ts          # Client SDK
+│       │   ├── firebaseAdmin.ts     # Server SDK
+│       │   ├── openrouter.ts        # LLM client
+│       │   ├── analytics.ts         # Event tracking
+│       │   ├── contextBuilder.ts    # Context management
+│       │   ├── costTracking.ts      # Cost monitoring
+│       │   ├── exportBlueprint.ts   # Export utilities
+│       │   └── langchain/           # LangChain integration
+│       │       ├── chains.ts        # AI chains
+│       │       ├── client.ts        # LangChain client
+│       │       └── intentDetector.ts # Intent classification
+│       │
+│       ├── hooks/
+│       │   └── useToast.ts          # Toast notifications
+│       │
+│       └── types/
+│           └── index.ts             # TypeScript definitions
 │
 └── README.md
 ```
+
+---
+
+## 🔐 Security Features
+
+Flowro AI implements enterprise-grade security measures:
+
+- **Content Security Policy (CSP)**: Strict CSP headers prevent XSS attacks
+- **Security Headers**: HSTS, X-Frame-Options, X-Content-Type-Options enabled
+- **Firebase Auth**: Industry-standard authentication with Google OAuth
+- **Server-side Validation**: All API routes validate authentication tokens
+- **Input Sanitization**: PII protection and content filtering
+- **HTTPS Enforcement**: Strict transport security with preload
+- **No Credentials in Code**: Environment-based configuration only
 
 ---
 

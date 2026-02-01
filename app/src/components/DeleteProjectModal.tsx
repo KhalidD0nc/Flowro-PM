@@ -24,6 +24,8 @@ export default function DeleteProjectModal({
 
     useEffect(() => {
         if (isOpen) {
+            // Reset state when modal opens to prevent accidental deletion
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setConfirmName("")
             setError(null)
             // Use a small timeout to ensure the modal is rendered before focusing
@@ -80,7 +82,7 @@ export default function DeleteProjectModal({
 
                 <div className="mb-6">
                     <p className="text-[#9dabb9] mb-4">
-                        This action cannot be undone. This will permanently delete the project <span className="font-bold text-white">"{projectName}"</span> and all associated blueprints and chat history.
+                        This action cannot be undone. This will permanently delete the project <span className="font-bold text-white">&quot;{projectName}&quot;</span> and all associated blueprints and chat history.
                     </p>
                     <p className="text-sm text-[#9dabb9]">
                         Please type <span className="font-bold text-white select-user">{projectName}</span> to confirm.

@@ -76,12 +76,13 @@ export async function signInWithGoogle(): Promise<void> {
         // Store user in Firestore if first time
         await storeUserInFirestore(result)
         console.log('User stored in Firestore successfully')
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const err = error as { code?: string; message?: string; stack?: string; customData?: unknown }
         console.error('Google Sign-In Error Details:', {
-            code: error.code,
-            message: error.message,
-            stack: error.stack,
-            customData: error.customData
+            code: err.code,
+            message: err.message,
+            stack: err.stack,
+            customData: err.customData
         })
         throw error
     }

@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useState, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { applyActionCode, getAuth } from "firebase/auth"
 import app from "@/lib/firebase"
@@ -13,22 +13,7 @@ function AuthActionContent() {
     const [status, setStatus] = useState<VerificationStatus>("verifying")
     const [errorMessage, setErrorMessage] = useState("")
 
-    useEffect(() => {
-        const mode = searchParams.get("mode")
-        const oobCode = searchParams.get("oobCode")
-
-        if (mode === "verifyEmail" && oobCode) {
-            handleVerifyEmail(oobCode)
-        } else if (mode === "resetPassword") {
-            // Redirect to password reset page with the code
-            router.push(`/auth?mode=resetPassword&oobCode=${oobCode}`)
-        } else {
-            setStatus("error")
-            setErrorMessage("Invalid action link")
-        }
-    }, [searchParams, router])
-
-    const handleVerifyEmail = async (oobCode: string) => {
+    const handleVerifyEmail = useCallback(async (oobCode: string) => {
         try {
             const auth = getAuth(app)
             await applyActionCode(auth, oobCode)
@@ -51,7 +36,23 @@ function AuthActionContent() {
                 setErrorMessage("An unexpected error occurred.")
             }
         }
-    }
+    }, [router])
+
+    useEffect(() => {
+        const mode = searchParams.get("mode")
+        const oobCode = searchParams.get("oobCode")
+
+        if (mode === "verifyEmail" && oobCode) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            handleVerifyEmail(oobCode)
+        } else if (mode === "resetPassword") {
+            // Redirect to password reset page with the code
+            router.push(`/auth?mode=resetPassword&oobCode=${oobCode}`)
+        } else {
+            setStatus("error")
+            setErrorMessage("Invalid action link")
+        }
+    }, [searchParams, router, handleVerifyEmail])
 
     return (
         <>

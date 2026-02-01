@@ -1,12 +1,35 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../blueprints/auth"
 import { getProjectById, updateProjectChatHistory, getLatestBlueprint, updateBlueprintContent, ChatMessage, updateProjectName } from "../blueprints/service"
-import { generateFromMessage } from "./service"
+import { generateFromMessage as originalGenerateFromMessage } from "./service"
+import { generateFromMessageWithLangChain, shouldUseLangChain } from "./langchainService"
 import { OpenRouterError } from "@/lib/openrouter"
 import { log, logInfo, logError, logWarn } from "@/lib/logger"
 import { sanitizeInputForLLM, detectPII } from "@/lib/sanitize"
 import { estimateMessageTokens } from "@/lib/tokenCounter"
 import { checkBudgetLimit, recordUsage } from "@/lib/costTracking"
+
+// =============================================================================
+// Dynamic Service Selection (Phase 2: LangChain Integration)
+// =============================================================================
+
+/**
+ * Selects the appropriate generation service based on feature flags.
+ * 
+ * When USE_LANGCHAIN=true or LANGCHAIN_ROLLOUT_PERCENT > 0:
+ * - Uses LangChain-based service with intent detection
+ * - Falls back to original service on errors
+ * 
+ * Otherwise uses original OpenRouter service directly.
+ */
+function getGenerateService(userId: string) {
+    if (shouldUseLangChain(userId)) {
+        logInfo('using_langchain_service', { userId })
+        return (input: Parameters<typeof originalGenerateFromMessage>[0]) =>
+            generateFromMessageWithLangChain(input, { userId })
+    }
+    return originalGenerateFromMessage
+}
 
 // =============================================================================
 // Simple In-Memory Rate Limiting
@@ -177,6 +200,8 @@ export async function POST(request: NextRequest) {
         }
 
         // 8. Generate response from LLM with full context
+        // Phase 2: Uses LangChain service when enabled via feature flag
+        const generateFromMessage = getGenerateService(userId)
         const result = await generateFromMessage({
             message: sanitizedMessage,
             context,

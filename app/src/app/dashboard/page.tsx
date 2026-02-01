@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/components/Providers"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useEffect, useState, useMemo } from "react"
 import CreateProjectModal from "@/components/CreateProjectModal"
 import RenameProjectModal from "@/components/RenameProjectModal"
@@ -475,13 +476,13 @@ export default function DashboardPage() {
                                                     <span className="material-symbols-outlined text-[20px]">add</span>
                                                     Create Your First Project
                                                 </button>
-                                                <a
+                                                <Link
                                                     href="/demo"
                                                     className="flex items-center justify-center gap-2 bg-[#283039] hover:bg-[#3d4a56] text-white font-medium py-3 px-6 rounded-lg transition-colors"
                                                 >
                                                     <span className="material-symbols-outlined text-[20px]">science</span>
                                                     View Demo
-                                                </a>
+                                                </Link>
                                             </div>
                                         </div>
                                     </div>
