@@ -1,33 +1,20 @@
 /**
- * Firebase Collection Helper Functions
+ * Firebase Collection Helper Functions (Server-Side)
  * 
  * Provides CRUD operations for the subcollection-based schema:
  * - Projects: Root collection with messages subcollection
  * - Blueprints: Root collection with history subcollection
  * - Automatic versioning on blueprint updates
  * 
+ * IMPORTANT: This module uses firebase-admin SDK for server-side operations.
+ * Firestore security rules do NOT apply - authorization must be enforced
+ * in application code (API routes) before calling these functions.
+ * 
  * @see /Docs/Architecture-Simplification-Plan.md
  */
 
-import {
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    setDoc,
-    addDoc,
-    updateDoc,
-    deleteDoc,
-    query,
-    where,
-    orderBy,
-    limit,
-    startAfter,
-    Timestamp,
-    writeBatch,
-    type CollectionReference,
-} from "firebase/firestore"
-import { db } from "../firebase"
+import { getAdminDb } from "../firebase-admin"
+import { Timestamp } from "firebase-admin/firestore"
 import {
     COLLECTIONS,
     type ProjectDocument,
@@ -55,6 +42,13 @@ import {
  */
 const BATCH_CHUNK_SIZE = 450
 
+/**
+ * Get the admin Firestore instance
+ */
+function getDb() {
+    return getAdminDb()
+}
+
 function normalizeNonEmptyString(value?: string): string | undefined {
     if (value === undefined || value === null) {
         return undefined
@@ -68,14 +62,15 @@ function normalizeNonEmptyString(value?: string): string | undefined {
  * Handles unlimited subcollection documents safely without loading all refs at once.
  */
 async function deleteCollectionDocs(
-    collectionRef: CollectionReference,
+    collectionPath: string,
     batchSize: number = BATCH_CHUNK_SIZE
 ): Promise<void> {
+    const db = getDb()
     while (true) {
-        const snapshot = await getDocs(query(collectionRef, limit(batchSize)))
+        const snapshot = await db.collection(collectionPath).limit(batchSize).get()
         if (snapshot.empty) return
 
-        const batch = writeBatch(db)
+        const batch = db.batch()
         snapshot.docs.forEach((docSnap) => batch.delete(docSnap.ref))
         await batch.commit()
 
@@ -147,6 +142,7 @@ function hasContentChanged(existing: UBPContent, updated: UBPContent): boolean {
  * @returns The created project document with generated ID
  */
 export async function createProject(data: Omit<ProjectCreateData, "createdAt" | "updatedAt">): Promise<ProjectDocument> {
+    const db = getDb()
     const now = Timestamp.now()
     const projectData: ProjectCreateData = {
         ...data,
@@ -154,7 +150,7 @@ export async function createProject(data: Omit<ProjectCreateData, "createdAt" | 
         updatedAt: now,
     }
 
-    const docRef = await addDoc(collection(db, COLLECTIONS.PROJECTS), projectData)
+    const docRef = await db.collection(COLLECTIONS.PROJECTS).add(projectData)
     
     return {
         id: docRef.id,
@@ -166,10 +162,10 @@ export async function createProject(data: Omit<ProjectCreateData, "createdAt" | 
  * Get a project by ID
  */
 export async function getProject(projectId: string): Promise<ProjectDocument | null> {
-    const docRef = doc(db, COLLECTIONS.PROJECTS, projectId)
-    const docSnap = await getDoc(docRef)
+    const db = getDb()
+    const docSnap = await db.collection(COLLECTIONS.PROJECTS).doc(projectId).get()
     
-    if (!docSnap.exists()) {
+    if (!docSnap.exists) {
         return null
     }
 
@@ -184,13 +180,12 @@ export async function getProject(projectId: string): Promise<ProjectDocument | n
  * Used for Command Center "Jump Back In" section
  */
 export async function getUserProjects(userId: string): Promise<ProjectListItem[]> {
-    const q = query(
-        collection(db, COLLECTIONS.PROJECTS),
-        where("userId", "==", userId),
-        orderBy("updatedAt", "desc")
-    )
-
-    const querySnapshot = await getDocs(q)
+    const db = getDb()
+    const querySnapshot = await db
+        .collection(COLLECTIONS.PROJECTS)
+        .where("userId", "==", userId)
+        .orderBy("updatedAt", "desc")
+        .get()
     
     return querySnapshot.docs.map((doc) => {
         const data = doc.data()
@@ -211,8 +206,8 @@ export async function updateProject(
     projectId: string,
     updates: Partial<Pick<ProjectDocument, "name" | "lastMessage">>
 ): Promise<void> {
-    const docRef = doc(db, COLLECTIONS.PROJECTS, projectId)
-    await updateDoc(docRef, {
+    const db = getDb()
+    await db.collection(COLLECTIONS.PROJECTS).doc(projectId).update({
         ...updates,
         updatedAt: Timestamp.now(),
     })
@@ -223,28 +218,29 @@ export async function updateProject(
  * Uses chunked batch deletion to handle unlimited subcollection documents.
  */
 export async function deleteProject(projectId: string): Promise<void> {
+    const db = getDb()
+    
     // Delete all messages in subcollection
-    const messagesRef = collection(db, COLLECTIONS.PROJECTS, projectId, COLLECTIONS.MESSAGES)
-    await deleteCollectionDocs(messagesRef)
+    const messagesPath = `${COLLECTIONS.PROJECTS}/${projectId}/${COLLECTIONS.MESSAGES}`
+    await deleteCollectionDocs(messagesPath)
 
     // Find blueprint and delete history + blueprint docs
-    const blueprintQuery = query(
-        collection(db, COLLECTIONS.BLUEPRINTS),
-        where("projectId", "==", projectId)
-    )
-    const blueprintSnap = await getDocs(blueprintQuery)
+    const blueprintSnap = await db
+        .collection(COLLECTIONS.BLUEPRINTS)
+        .where("projectId", "==", projectId)
+        .get()
 
     for (const blueprintDoc of blueprintSnap.docs) {
         // Delete history subcollection docs
-        const historyRef = collection(db, COLLECTIONS.BLUEPRINTS, blueprintDoc.id, COLLECTIONS.HISTORY)
-        await deleteCollectionDocs(historyRef)
+        const historyPath = `${COLLECTIONS.BLUEPRINTS}/${blueprintDoc.id}/${COLLECTIONS.HISTORY}`
+        await deleteCollectionDocs(historyPath)
 
         // Delete blueprint document
-        await deleteDoc(blueprintDoc.ref)
+        await blueprintDoc.ref.delete()
     }
 
     // Delete project document
-    await deleteDoc(doc(db, COLLECTIONS.PROJECTS, projectId))
+    await db.collection(COLLECTIONS.PROJECTS).doc(projectId).delete()
 }
 
 // =============================================================================
@@ -258,8 +254,9 @@ export async function addMessage(
     projectId: string,
     data: MessageCreateData
 ): Promise<MessageDocument> {
-    const messagesRef = collection(db, COLLECTIONS.PROJECTS, projectId, COLLECTIONS.MESSAGES)
-    const docRef = await addDoc(messagesRef, data)
+    const db = getDb()
+    const messagesRef = db.collection(COLLECTIONS.PROJECTS).doc(projectId).collection(COLLECTIONS.MESSAGES)
+    const docRef = await messagesRef.add(data)
 
     // Update project's lastMessage preview
     await updateProject(projectId, {
@@ -276,9 +273,13 @@ export async function addMessage(
  * Get all messages for a project
  */
 export async function getMessages(projectId: string): Promise<MessageDocument[]> {
-    const messagesRef = collection(db, COLLECTIONS.PROJECTS, projectId, COLLECTIONS.MESSAGES)
-    const q = query(messagesRef, orderBy("timestamp", "asc"))
-    const querySnapshot = await getDocs(q)
+    const db = getDb()
+    const querySnapshot = await db
+        .collection(COLLECTIONS.PROJECTS)
+        .doc(projectId)
+        .collection(COLLECTIONS.MESSAGES)
+        .orderBy("timestamp", "asc")
+        .get()
 
     return querySnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -294,27 +295,27 @@ export async function getMessagesPaginated(
     pageSize: number = 50,
     afterCursor?: string
 ): Promise<PaginatedMessages> {
-    const messagesRef = collection(db, COLLECTIONS.PROJECTS, projectId, COLLECTIONS.MESSAGES)
+    const db = getDb()
+    const messagesRef = db
+        .collection(COLLECTIONS.PROJECTS)
+        .doc(projectId)
+        .collection(COLLECTIONS.MESSAGES)
     
-    let q = query(
-        messagesRef,
-        orderBy("timestamp", "desc"),
-        limit(pageSize + 1) // Fetch one extra to check if there are more
-    )
+    let queryRef = messagesRef
+        .orderBy("timestamp", "desc")
+        .limit(pageSize + 1) // Fetch one extra to check if there are more
 
     if (afterCursor) {
-        const cursorDoc = await getDoc(doc(messagesRef, afterCursor))
-        if (cursorDoc.exists()) {
-            q = query(
-                messagesRef,
-                orderBy("timestamp", "desc"),
-                startAfter(cursorDoc),
-                limit(pageSize + 1)
-            )
+        const cursorDoc = await messagesRef.doc(afterCursor).get()
+        if (cursorDoc.exists) {
+            queryRef = messagesRef
+                .orderBy("timestamp", "desc")
+                .startAfter(cursorDoc)
+                .limit(pageSize + 1)
         }
     }
 
-    const querySnapshot = await getDocs(q)
+    const querySnapshot = await queryRef.get()
     const docs = querySnapshot.docs
 
     const hasMore = docs.length > pageSize
@@ -343,40 +344,43 @@ export async function getMessagesPaginated(
  * Create a new blueprint for a project.
  * Uses projectId as the document ID to enforce strict 1:1 relationship.
  * If a blueprint already exists for this project, this will fail.
- * Also creates initial history snapshot.
+ * Blueprint and initial history snapshot are created atomically via batch write.
  */
 export async function createBlueprint(
     data: BlueprintCreateData,
     triggeringMessageId?: string
 ): Promise<BlueprintDocument> {
+    const db = getDb()
     // Use projectId as document ID to enforce 1:1 at storage level
     const blueprintId = data.projectId
-    const docRef = doc(db, COLLECTIONS.BLUEPRINTS, blueprintId)
+    const docRef = db.collection(COLLECTIONS.BLUEPRINTS).doc(blueprintId)
 
     // Check if blueprint already exists (race condition protection)
-    const existingDoc = await getDoc(docRef)
-    if (existingDoc.exists()) {
+    const existingDoc = await docRef.get()
+    if (existingDoc.exists) {
         throw new Error(`Blueprint already exists for project ${data.projectId}`)
     }
 
-    // Create blueprint with projectId as document ID
-    await setDoc(docRef, data)
-    
-    const blueprint: BlueprintDocument = {
-        id: blueprintId,
-        ...data,
-    }
-
-    // Create initial history snapshot
-    await createHistorySnapshot(blueprintId, {
+    // Prepare history snapshot data
+    const historyData: BlueprintHistoryCreateData = {
         contentSnapshot: data.content,
         triggeringMessageId,
         version: data.content.metadata?.version || "1.0",
         changeDescription: "Initial blueprint created",
         timestamp: data.updatedAt,
-    })
+    }
 
-    return blueprint
+    // ATOMIC: Create blueprint and initial history snapshot in single batch
+    const batch = db.batch()
+    batch.set(docRef, data)
+    const historyRef = docRef.collection(COLLECTIONS.HISTORY).doc()
+    batch.set(historyRef, historyData)
+    await batch.commit()
+    
+    return {
+        id: blueprintId,
+        ...data,
+    }
 }
 
 /**
@@ -384,11 +388,11 @@ export async function createBlueprint(
  * Since blueprintId === projectId, this is a direct document lookup.
  */
 export async function getBlueprintByProjectId(projectId: string): Promise<BlueprintDocument | null> {
+    const db = getDb()
     // Direct lookup: blueprintId === projectId (enforces 1:1)
-    const docRef = doc(db, COLLECTIONS.BLUEPRINTS, projectId)
-    const docSnap = await getDoc(docRef)
+    const docSnap = await db.collection(COLLECTIONS.BLUEPRINTS).doc(projectId).get()
 
-    if (!docSnap.exists()) {
+    if (!docSnap.exists) {
         return null
     }
 
@@ -402,10 +406,10 @@ export async function getBlueprintByProjectId(projectId: string): Promise<Bluepr
  * Get a blueprint by ID
  */
 export async function getBlueprint(blueprintId: string): Promise<BlueprintDocument | null> {
-    const docRef = doc(db, COLLECTIONS.BLUEPRINTS, blueprintId)
-    const docSnap = await getDoc(docRef)
+    const db = getDb()
+    const docSnap = await db.collection(COLLECTIONS.BLUEPRINTS).doc(blueprintId).get()
 
-    if (!docSnap.exists()) {
+    if (!docSnap.exists) {
         return null
     }
 
@@ -419,7 +423,7 @@ export async function getBlueprint(blueprintId: string): Promise<BlueprintDocume
  * Update a blueprint with automatic version history.
  * Uses safe merge semantics to preserve existing sections not in incoming content.
  * Only creates snapshot if content actually changed (prevents version inflation).
- * Snapshot created AFTER successful update (prevents phantom versions).
+ * Blueprint update and history snapshot are created atomically via batch write.
  */
 export async function updateBlueprint(
     blueprintId: string,
@@ -429,6 +433,7 @@ export async function updateBlueprint(
         changeDescription?: string
     } = {}
 ): Promise<{ updated: boolean; newVersion?: string }> {
+    const db = getDb()
     const blueprint = await getBlueprint(blueprintId)
     if (!blueprint) {
         throw new Error(`Blueprint ${blueprintId} not found`)
@@ -458,21 +463,25 @@ export async function updateBlueprint(
         },
     }
 
-    // Update live blueprint FIRST (ensures consistency)
-    const docRef = doc(db, COLLECTIONS.BLUEPRINTS, blueprintId)
-    await updateDoc(docRef, {
-        content: updatedContent,
-        updatedAt: now,
-    })
-
-    // Create history snapshot AFTER successful update (prevents phantom versions)
-    await createHistorySnapshot(blueprintId, {
+    // Prepare history snapshot data
+    const historyData: BlueprintHistoryCreateData = {
         contentSnapshot: updatedContent,
         triggeringMessageId: options.triggeringMessageId,
         version: newVersion,
         changeDescription: options.changeDescription,
         timestamp: now,
+    }
+
+    // ATOMIC: Update blueprint and create history snapshot in single batch
+    const batch = db.batch()
+    const blueprintRef = db.collection(COLLECTIONS.BLUEPRINTS).doc(blueprintId)
+    batch.update(blueprintRef, {
+        content: updatedContent,
+        updatedAt: now,
     })
+    const historyRef = blueprintRef.collection(COLLECTIONS.HISTORY).doc()
+    batch.set(historyRef, historyData)
+    await batch.commit()
 
     return { updated: true, newVersion }
 }
@@ -488,8 +497,9 @@ async function createHistorySnapshot(
     blueprintId: string,
     data: BlueprintHistoryCreateData
 ): Promise<BlueprintHistoryDocument> {
-    const historyRef = collection(db, COLLECTIONS.BLUEPRINTS, blueprintId, COLLECTIONS.HISTORY)
-    const docRef = await addDoc(historyRef, data)
+    const db = getDb()
+    const historyRef = db.collection(COLLECTIONS.BLUEPRINTS).doc(blueprintId).collection(COLLECTIONS.HISTORY)
+    const docRef = await historyRef.add(data)
 
     return {
         id: docRef.id,
@@ -503,9 +513,13 @@ async function createHistorySnapshot(
 export async function getBlueprintHistory(
     blueprintId: string
 ): Promise<BlueprintHistoryDocument[]> {
-    const historyRef = collection(db, COLLECTIONS.BLUEPRINTS, blueprintId, COLLECTIONS.HISTORY)
-    const q = query(historyRef, orderBy("timestamp", "desc"))
-    const querySnapshot = await getDocs(q)
+    const db = getDb()
+    const querySnapshot = await db
+        .collection(COLLECTIONS.BLUEPRINTS)
+        .doc(blueprintId)
+        .collection(COLLECTIONS.HISTORY)
+        .orderBy("timestamp", "desc")
+        .get()
 
     return querySnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -520,10 +534,15 @@ export async function getHistorySnapshot(
     blueprintId: string,
     snapshotId: string
 ): Promise<BlueprintHistoryDocument | null> {
-    const docRef = doc(db, COLLECTIONS.BLUEPRINTS, blueprintId, COLLECTIONS.HISTORY, snapshotId)
-    const docSnap = await getDoc(docRef)
+    const db = getDb()
+    const docSnap = await db
+        .collection(COLLECTIONS.BLUEPRINTS)
+        .doc(blueprintId)
+        .collection(COLLECTIONS.HISTORY)
+        .doc(snapshotId)
+        .get()
 
-    if (!docSnap.exists()) {
+    if (!docSnap.exists) {
         return null
     }
 

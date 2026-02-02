@@ -9,7 +9,23 @@
  * @see /Docs/Architecture-Simplification-Plan.md
  */
 
-import { Timestamp } from "firebase/firestore"
+// =============================================================================
+// Generic Timestamp Type
+// =============================================================================
+
+/**
+ * Generic Firestore Timestamp interface compatible with both
+ * firebase-admin and firebase/firestore SDKs.
+ * 
+ * This allows the schema to be used in both server-side (admin SDK)
+ * and client-side (client SDK) contexts.
+ */
+export interface FirestoreTimestamp {
+    seconds: number
+    nanoseconds: number
+    toDate(): Date
+    toMillis(): number
+}
 
 // =============================================================================
 // Core Types
@@ -143,8 +159,8 @@ export interface ProjectDocument {
     userId: string // Owner's Firebase UID
     name: string
     lastMessage?: string // Preview for Command Center list
-    createdAt: Timestamp
-    updatedAt: Timestamp
+    createdAt: FirestoreTimestamp
+    updatedAt: FirestoreTimestamp
 }
 
 /**
@@ -155,8 +171,8 @@ export interface ProjectCreateData {
     userId: string
     name: string
     lastMessage?: string
-    createdAt: Timestamp
-    updatedAt: Timestamp
+    createdAt: FirestoreTimestamp
+    updatedAt: FirestoreTimestamp
 }
 
 /**
@@ -173,7 +189,7 @@ export interface MessageDocument {
     content: string
     proposedChanges?: Partial<UBPContent> // Optional proposed UBP changes
     intent: MessageIntent
-    timestamp: Timestamp
+    timestamp: FirestoreTimestamp
 }
 
 /**
@@ -184,7 +200,7 @@ export interface MessageCreateData {
     content: string
     proposedChanges?: Partial<UBPContent>
     intent: MessageIntent
-    timestamp: Timestamp
+    timestamp: FirestoreTimestamp
 }
 
 /**
@@ -200,7 +216,7 @@ export interface BlueprintDocument {
     id: string
     projectId: string // Foreign key to projects collection
     content: UBPContent
-    updatedAt: Timestamp
+    updatedAt: FirestoreTimestamp
 }
 
 /**
@@ -209,7 +225,7 @@ export interface BlueprintDocument {
 export interface BlueprintCreateData {
     projectId: string
     content: UBPContent
-    updatedAt: Timestamp
+    updatedAt: FirestoreTimestamp
 }
 
 /**
@@ -226,7 +242,7 @@ export interface BlueprintHistoryDocument {
     triggeringMessageId?: string // Link to causative message
     version: string // e.g., "1.0", "1.1"
     changeDescription?: string // Brief description of what changed
-    timestamp: Timestamp
+    timestamp: FirestoreTimestamp
 }
 
 /**
@@ -237,7 +253,7 @@ export interface BlueprintHistoryCreateData {
     triggeringMessageId?: string
     version: string
     changeDescription?: string
-    timestamp: Timestamp
+    timestamp: FirestoreTimestamp
 }
 
 // =============================================================================
@@ -288,16 +304,10 @@ export interface BlueprintWithHistory {
 
 /**
  * Convert Firestore Timestamp to ISO string for API responses
+ * Works with both firebase-admin and firebase/firestore Timestamps
  */
-export function timestampToISO(timestamp: Timestamp): string {
+export function timestampToISO(timestamp: FirestoreTimestamp): string {
     return timestamp.toDate().toISOString()
-}
-
-/**
- * Convert ISO string to Firestore Timestamp
- */
-export function isoToTimestamp(iso: string): Timestamp {
-    return Timestamp.fromDate(new Date(iso))
 }
 
 /**

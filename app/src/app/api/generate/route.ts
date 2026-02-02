@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+import { Timestamp } from "firebase-admin/firestore"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../blueprints/auth"
-import { getProjectById, updateProjectChatHistory, getLatestBlueprint, updateBlueprintContent, ChatMessage, updateProjectName } from "../blueprints/service"
+import { getProject, addMessage, getBlueprintByProjectId, upsertBlueprintFromAI, updateProject } from "@/lib/firebase/collections"
+import { timestampToISO, type UBPContent } from "@/lib/firebase/schema"
 import { generateFromMessage as originalGenerateFromMessage } from "./service"
 import { generateFromMessageWithLangChain, shouldUseLangChain } from "./langchainService"
 import { OpenRouterError } from "@/lib/openrouter"
@@ -132,7 +134,21 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Message required" }, { status: 400 })
         }
 
-        // Validate message length (prevent abuse)
+        // 4. AUTHORIZATION CHECK - Must happen before ANY data retrieval
+        // Verify project ownership if projectId provided
+        if (projectId) {
+            const project = await getProject(projectId)
+            if (!project) {
+                logWarn("project_not_found", { userId, projectId })
+                return NextResponse.json({ error: "Project not found" }, { status: 404 })
+            }
+            if (project.userId !== authResult.userId) {
+                logWarn("unauthorized_project_access", { userId, projectId, ownerId: project.userId })
+                return NextResponse.json({ error: "Access denied" }, { status: 403 })
+            }
+        }
+
+        // 5. Validate message length (prevent abuse)
         if (typeof message !== "string" || message.length > 10000) {
             logWarn("message_too_long", { userId, length: message?.length })
             return NextResponse.json(
@@ -141,7 +157,7 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // 4. Sanitize input and check for PII
+        // 6. Sanitize input and check for PII
         const sanitizedMessage = sanitizeInputForLLM(message)
         const piiResult = detectPII(message)
 
@@ -154,7 +170,7 @@ export async function POST(request: NextRequest) {
             // We continue but log the warning - PII was already redacted by sanitizeInputForLLM
         }
 
-        // 5. Estimate tokens and check budget
+        // 7. Estimate tokens and check budget
         const estimatedTokens = estimateMessageTokens([
             { role: "system", content: "" }, // System prompt ~900 tokens
             { role: "user", content: sanitizedMessage }
@@ -176,7 +192,7 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // 6. Log request start
+        // 8. Log request start
         log({
             level: "info",
             action: "generate_request",
@@ -190,16 +206,17 @@ export async function POST(request: NextRequest) {
             }
         })
 
-        // 7. Get current blueprint if projectId provided (for context)
-        let currentBlueprint = null
+        // 9. Get current blueprint if projectId provided (for context)
+        // Authorization already verified in step 4
+        let currentBlueprint: UBPContent | null = null
         if (projectId) {
-            const latestBp = await getLatestBlueprint(projectId)
-            if (latestBp && latestBp.content) {
-                currentBlueprint = latestBp.content
+            const blueprint = await getBlueprintByProjectId(projectId)
+            if (blueprint?.content) {
+                currentBlueprint = blueprint.content
             }
         }
 
-        // 8. Generate response from LLM with full context
+        // 10. Generate response from LLM with full context
         // Phase 2: Uses LangChain service when enabled via feature flag
         const generateFromMessage = getGenerateService(userId)
         const result = await generateFromMessage({
@@ -208,83 +225,77 @@ export async function POST(request: NextRequest) {
             currentBlueprint
         })
 
-        // 9. Record usage for cost tracking
+        // 11. Record usage for cost tracking
         const responseTokens = estimateMessageTokens([
             { role: "assistant", content: result.rawContent }
         ])
         const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v3.2"
         await recordUsage(userId, estimatedTokens, responseTokens, model)
 
-        // 10. Save chat history to Project (not Blueprint) if projectId provided
+        // 12. Save messages to subcollection and handle blueprint auto-versioning
+        // Authorization already verified in step 4 - projectId access is guaranteed
+        let userMessageId: string | undefined
+        let assistantMessageId: string | undefined
+
         if (projectId) {
-            const project = await getProjectById(projectId)
+            // Add user message to subcollection
+                const userMsg = await addMessage(projectId, {
+                    role: "user",
+                    content: message,
+                    intent: "discussion", // User messages are always discussion
+                    timestamp: Timestamp.now(),
+                })
+                userMessageId = userMsg.id
 
-            if (project && project.userId === authResult.userId) {
-                // Check if this user message is already the last message in history
-                // This happens when project is created with an initial prompt
-                const lastMessage = project.chatHistory[project.chatHistory.length - 1]
-                const isMessageAlreadySaved = lastMessage &&
-                    lastMessage.role === "user" &&
-                    lastMessage.content === message
-
-                const newMessages: ChatMessage[] = []
-
-                // Only add user message if it's not already saved
-                if (!isMessageAlreadySaved) {
-                    newMessages.push({
-                        role: "user",
-                        content: message,
-                        timestamp: new Date().toISOString(),
-                    })
-                }
-
-                // Always add the assistant response with metadata
-                const assistantMessage: ChatMessage = {
+                // Add assistant message to subcollection
+                const assistantMsg = await addMessage(projectId, {
                     role: "assistant",
                     content: result.rawContent,
-                    timestamp: new Date().toISOString(),
-                    ...(result.intent && { intent: result.intent }),
-                }
+                    intent: result.intent,
+                    proposedChanges: result.proposedChanges ? result.proposedChanges.changes as Partial<UBPContent> : undefined,
+                    timestamp: Timestamp.now(),
+                })
+                assistantMessageId = assistantMsg.id
 
-                if (result.proposedChanges) {
-                    assistantMessage.proposedChanges = result.proposedChanges
-                }
-
-                newMessages.push(assistantMessage)
-
-                // Save chat history to project (continues even when blueprints are locked)
-                await updateProjectChatHistory(projectId, newMessages)
-
-                // Only update blueprint content on INITIAL intent (new UBP generation)
-                // For discussions and proposals, we don't auto-update the blueprint
-                if (result.intent === 'initial' && result.content) {
-                    const latestBlueprint = await getLatestBlueprint(projectId)
-                    if (latestBlueprint && latestBlueprint.status === "draft") {
-                        try {
-                            await updateBlueprintContent(latestBlueprint.id, result.content)
-                        } catch {
-                            // Blueprint might be locked, that's okay - chat still saved to project
-                            logInfo("blueprint_locked", { projectId, blueprintId: latestBlueprint.id })
-                        }
+                // Auto-versioning: Update blueprint on initial or proposal intents
+                if ((result.intent === "initial" || result.intent === "proposal") && result.content) {
+                    try {
+                        const ubpContent = result.content as UBPContent
+                        await upsertBlueprintFromAI(
+                            projectId,
+                            ubpContent,
+                            assistantMessageId,
+                            result.proposedChanges?.summary || `AI ${result.intent} update`
+                        )
+                        logInfo("blueprint_auto_versioned", {
+                            projectId,
+                            intent: result.intent,
+                            messageId: assistantMessageId
+                        })
+                    } catch (err) {
+                        // Blueprint update failed but chat was saved - log and continue
+                        logError("blueprint_update_failed", {
+                            projectId,
+                            error: err instanceof Error ? err.message : "Unknown"
+                        })
                     }
                 }
-            }
 
-            // Update project name if AI suggested one (and it's an initial generation)
-            if (result.intent === 'initial' && result.productName) {
-                try {
-                    await updateProjectName(projectId, result.productName)
-                    logInfo("project_name_updated", { projectId, name: result.productName })
-                } catch (err) {
-                    logError("project_name_update_failed", {
-                        projectId,
-                        error: err instanceof Error ? err.message : "Unknown"
-                    })
+                // Update project name if AI suggested one (initial generation)
+                if (result.intent === "initial" && result.productName) {
+                    try {
+                        await updateProject(projectId, { name: result.productName })
+                        logInfo("project_name_updated", { projectId, name: result.productName })
+                    } catch (err) {
+                        logError("project_name_update_failed", {
+                            projectId,
+                            error: err instanceof Error ? err.message : "Unknown"
+                        })
+                    }
                 }
-            }
         }
 
-        // 11. Log success
+        // 13. Log success
         const duration = Date.now() - startTime
         log({
             level: "info",
@@ -299,7 +310,7 @@ export async function POST(request: NextRequest) {
             }
         })
 
-        // 12. Return the full response with intent for frontend handling
+        // 14. Return the full response with intent for frontend handling
         return NextResponse.json({
             intent: result.intent,
             message: result.message,
