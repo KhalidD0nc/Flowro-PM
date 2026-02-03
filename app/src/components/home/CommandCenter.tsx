@@ -118,14 +118,7 @@ export default function CommandCenter({ onProjectCreated }: CommandCenterProps) 
       <div className="z-10 flex w-full max-w-3xl flex-col items-center gap-8 px-6 pb-20">
         {/* Hero Section */}
         <div className="flex flex-col items-center gap-4 text-center">
-          {/* Status Badge */}
-          <div className="inline-flex items-center rounded-full border border-cyan-500/30 bg-cyan-500/5 px-3 py-1 text-xs font-medium text-cyan-300 backdrop-blur-sm">
-            <span className="mr-1.5 relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
-            </span>
-            System Online v2.4
-          </div>
+      
 
           {/* Headline */}
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-gray-400">

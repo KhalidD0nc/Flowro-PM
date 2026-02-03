@@ -1019,19 +1019,9 @@ Return the updated blueprint JSON with the changes applied to that section.`
     return (
         <div className="flex flex-1 flex-col h-full overflow-hidden">
             {/* Header */}
-            <header className="relative flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 shrink-0 z-10">
-                <div className="absolute inset-0 bg-[#020204]/80 backdrop-blur-xl border-b border-white/5" />
-
-                <div className="relative flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                    <button
-                        onClick={onBack}
-                        className="group flex items-center justify-center rounded-xl p-2 text-[#9dabb9] transition-all hover:bg-white/5 hover:text-white"
-                        title="Back to Command Center"
-                    >
-                        <span className="material-symbols-outlined text-xl sm:text-2xl transition-transform group-hover:-translate-x-0.5">arrow_back</span>
-                    </button>
-
-                    <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <header className="relative shrink-0 z-10 border-b border-white/5 bg-[#0f1720]/90 backdrop-blur-md shadow-[0_2px_10px_rgba(3,10,20,0.35)]">
+                <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 sm:py-3">
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                         <div className="hidden xs:flex size-9 sm:size-10 items-center justify-center rounded-xl bg-gradient-to-b from-[#137fec]/20 to-[#137fec]/5 border border-white/5 shadow-inner shadow-[#137fec]/10 shrink-0">
                             {isGenerating && (!project.projectName || project.projectName === "Untitled Project" || project.projectName === "Project") ? (
                                 <span className="material-symbols-outlined text-[#137fec] text-lg animate-spin">progress_activity</span>
@@ -1040,63 +1030,50 @@ Return the updated blueprint JSON with the changes applied to that section.`
                             )}
                         </div>
 
-                        <div className="flex flex-col min-w-0 justify-center">
-                            <div className="flex items-center gap-2">
-                                {isGenerating && (!project.projectName || project.projectName === "Untitled Project" || project.projectName === "Project") ? (
-                                    <h1 className="text-sm sm:text-base font-medium text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 animate-pulse truncate">
-                                        Flowro is cooking...
-                                    </h1>
-                                ) : (
-                                    <h1 className="text-sm sm:text-base font-medium text-white/90 truncate max-w-[150px] sm:max-w-none tracking-tight">
-                                        {project.projectName}
-                                    </h1>
-                                )}
+                        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                            <div className="flex flex-col min-w-0 justify-center">
+                                <div className="flex items-center gap-2">
+                                    {isGenerating && (!project.projectName || project.projectName === "Untitled Project" || project.projectName === "Project") ? (
+                                        <h1 className="text-sm sm:text-base font-medium text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 animate-pulse truncate">
+                                            Flowro is cooking...
+                                        </h1>
+                                    ) : (
+                                        <h1 className="text-sm sm:text-base font-medium text-white/90 truncate max-w-[160px] sm:max-w-none tracking-tight">
+                                            {project.projectName}
+                                        </h1>
+                                    )}
 
-                                {!isGenerating && (
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                                )}
+                                    {!isGenerating && (
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                                    )}
+                                </div>
                             </div>
+
+                            <button
+                                onClick={() => setIsUBPViewerOpen(true)}
+                                className="group inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[#9dabb9] hover:text-white hover:bg-white/5 transition-all text-xs sm:text-sm font-medium"
+                                title="Blueprint"
+                            >
+                                <span className="material-symbols-outlined text-[18px] sm:text-[20px] text-[#9dabb9] group-hover:text-[#137fec] transition-colors">description</span>
+                                <span className="hidden md:inline">Blueprint</span>
+                                {project.latestBlueprint && (
+                                    <span className="hidden lg:inline-flex items-center justify-center px-1.5 py-0.5 rounded-[4px] bg-[#137fec]/10 border border-[#137fec]/20 text-[#137fec] text-[10px] font-bold tracking-wide">
+                                        v{project.latestBlueprint.version}
+                                    </span>
+                                )}
+                            </button>
                         </div>
                     </div>
-                </div>
 
-                <div className="relative flex items-center gap-1 sm:gap-2 shrink-0">
-                    <button
-                        onClick={() => setIsLaunchPlanOpen(true)}
-                        className="group flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[#9dabb9] hover:text-white hover:bg-white/5 transition-all text-xs sm:text-sm font-medium"
-                        title={isLaunchPlanGenerating ? "Generating Launch Plan..." : "Launch Plan"}
-                    >
-                        <span className={`material-symbols-outlined text-[18px] sm:text-[20px] ${isLaunchPlanGenerating ? "text-[#10b981] animate-pulse" : "text-[#9dabb9] group-hover:text-[#10b981]"} transition-colors`}>
-                            {isLaunchPlanGenerating ? "sync" : "rocket_launch"}
-                        </span>
-                        <span className="hidden md:inline">
-                            {isLaunchPlanGenerating ? "Preparing..." : "Launch Plan"}
-                        </span>
-                    </button>
-
-                    <button
-                        onClick={() => setIsUBPViewerOpen(true)}
-                        className="group flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-[#9dabb9] hover:text-white hover:bg-white/5 transition-all text-xs sm:text-sm font-medium"
-                        title="Blueprint"
-                    >
-                        <span className="material-symbols-outlined text-[18px] sm:text-[20px] text-[#9dabb9] group-hover:text-[#137fec] transition-colors">description</span>
-                        <span className="hidden md:inline">Blueprint</span>
-                        {project.latestBlueprint && (
-                            <span className="hidden lg:inline-flex items-center justify-center px-1.5 py-0.5 rounded-[4px] bg-[#137fec]/10 border border-[#137fec]/20 text-[#137fec] text-[10px] font-bold tracking-wide">
-                                v{project.latestBlueprint.version}
-                            </span>
-                        )}
-                    </button>
-
-                    <div className="w-px h-6 bg-white/10 mx-1" />
-
-                    <button
-                        onClick={() => setIsShareModalOpen(true)}
-                        className="flex items-center justify-center size-9 sm:size-10 rounded-lg sm:rounded-xl text-[#9dabb9] hover:text-white hover:bg-white/5 transition-all"
-                        title="Share Project"
-                    >
-                        <span className="material-symbols-outlined text-lg sm:text-[20px]">ios_share</span>
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button
+                            onClick={() => setIsShareModalOpen(true)}
+                            className="flex items-center justify-center size-9 sm:size-10 rounded-lg sm:rounded-xl text-[#9dabb9] hover:text-white hover:bg-white/5 transition-all"
+                            title="Share Project"
+                        >
+                            <span className="material-symbols-outlined text-lg sm:text-[20px]">ios_share</span>
+                        </button>
+                    </div>
                 </div>
             </header>
 

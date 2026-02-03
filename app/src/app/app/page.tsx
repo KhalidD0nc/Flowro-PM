@@ -9,7 +9,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/Providers";
 import Sidebar from "@/components/home/Sidebar";
 import CommandCenter from "@/components/home/CommandCenter";
@@ -24,6 +24,7 @@ interface ActiveSession {
 
 export default function AppHome() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   
   // Active session state - when set, shows ChatView instead of CommandCenter
@@ -85,6 +86,25 @@ export default function AppHome() {
     if (!activeSession) return; // Already on Command Center
     handleBackToCommandCenter();
   }, [activeSession, handleBackToCommandCenter]);
+
+  // Allow direct /app/[projectId] refresh via redirect to /app?projectId=...
+  useEffect(() => {
+    if (loading || !user) return;
+    const projectId = searchParams.get("projectId");
+    if (!projectId) return;
+
+    if (activeSession?.projectId === projectId) {
+      window.history.replaceState(null, "", `/app/${projectId}`);
+      return;
+    }
+
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setActiveSession({ projectId, initialMessage: "", isExisting: true });
+      setIsTransitioning(false);
+      window.history.replaceState(null, "", `/app/${projectId}`);
+    }, 150);
+  }, [activeSession?.projectId, loading, searchParams, user]);
 
   // Show loading state while checking auth
   if (loading) {
