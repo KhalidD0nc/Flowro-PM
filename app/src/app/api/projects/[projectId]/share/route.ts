@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../../../blueprints/auth"
-import {
-    verifyProjectOwnership,
-    getProjectById,
-    shareProject,
-    unshareProject,
-    getLatestBlueprint,
-} from "../../../blueprints/service"
+import { getProject, getBlueprintByProjectId } from "@/lib/firebase/collections"
+import { shareProject, unshareProject } from "../../../blueprints/service"
 import {
     createShareToken,
     getShareByBlueprintId,
@@ -15,6 +10,16 @@ import {
 
 interface RouteContext {
     params: Promise<{ projectId: string }>
+}
+
+async function verifyOwnership(projectId: string, userId: string): Promise<void> {
+    const project = await getProject(projectId)
+    if (!project) {
+        throw new Error("Project not found")
+    }
+    if (project.userId !== userId) {
+        throw new Error("Access denied: you do not own this project")
+    }
 }
 
 /**
@@ -34,15 +39,16 @@ export async function GET(
         const { projectId } = await context.params
 
         // Verify ownership
-        await verifyProjectOwnership(projectId, auth.userId)
+        await verifyOwnership(projectId, auth.userId)
 
-        const project = await getProjectById(projectId)
+        const project = await getProject(projectId)
         if (!project) {
             return NextResponse.json({ error: "Project not found" }, { status: 404 })
         }
+        const projectData = project as { visibility?: "private" | "shared"; sharedWith?: unknown[] }
 
         // Check for existing share token (public link)
-        const latestBlueprint = await getLatestBlueprint(projectId)
+        const latestBlueprint = await getBlueprintByProjectId(projectId)
         let publicLinkEnabled = false
         let publicLinkId: string | undefined
 
@@ -55,8 +61,8 @@ export async function GET(
         }
 
         return NextResponse.json({
-            visibility: project.visibility || "private",
-            sharedWith: project.sharedWith || [],
+            visibility: projectData.visibility || "private",
+            sharedWith: projectData.sharedWith || [],
             publicLinkEnabled,
             publicLinkId,
         })
@@ -93,11 +99,11 @@ export async function POST(
         const body = await request.json()
 
         // Verify ownership
-        await verifyProjectOwnership(projectId, auth.userId)
+        await verifyOwnership(projectId, auth.userId)
 
         // Handle public link toggle
         if (body.publicLink !== undefined) {
-            const latestBlueprint = await getLatestBlueprint(projectId)
+            const latestBlueprint = await getBlueprintByProjectId(projectId)
 
             if (!latestBlueprint) {
                 return NextResponse.json(
@@ -201,7 +207,7 @@ export async function DELETE(
         }
 
         // Verify ownership
-        await verifyProjectOwnership(projectId, auth.userId)
+        await verifyOwnership(projectId, auth.userId)
 
         await unshareProject(projectId, body.email)
         return NextResponse.json({ success: true })

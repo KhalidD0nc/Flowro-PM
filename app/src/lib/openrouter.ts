@@ -216,13 +216,13 @@ If user mentions other tech, map to the closest approved option or recommend the
   "metadata": { "productName": "Creative Name", "version": "0.1", "status": "draft" },
   "productVision": { "problem": "...", "targetActor": "...", "successSignal": "..." },
   "scope": { "inScope": [...], "outOfScope": [...], "deferred": [...] },
-  "actors": { "primary": "...", "secondary": [...], "systems": [...] },
-  "behaviors": [{ "id": "B-01", "trigger": "...", "systemResponse": "...", "involvedActors": [...], "diagramCode": "graph TD\\n  A[Start] --> B[Action] --> C[Result]" }],
-  "constraintsRisks": { "constraints": [...], "assumptions": [...], "risks": [...] },
-  "techStack": { "frontend": "nextjs", "backend": "nextjs_api", "database": "firebase_firestore" },
-  "phases": [{ "phase": "Phase 1", "goal": "...", "outputs": [...] }],
-  "integrations": [{ "service": "...", "purpose": "...", "dataFlow": "..." }],
-  "changeLog": [{ "version": "0.1", "summary": "Initial draft", "reason": "Generated from user input", "impactedSections": ["all"] }]
+  "actors": [{ "name": "...", "description": "...", "type": "primary|secondary|system" }],
+  "behaviors": [{ "id": "B-01", "title": "...", "given": "...", "when": "...", "then": "...", "diagram": "graph TD\\n  A[Start] --> B[Action] --> C[Result]" }],
+  "constraints": [{ "type": "warning|risk|constraint", "title": "...", "description": "..." }],
+  "techDecisions": [{ "category": "Frontend|Backend|Database", "choice": "...", "rationale": "..." }],
+  "phases": [{ "name": "Phase 1", "description": "...", "goals": [...], "status": "upcoming" }],
+  "integrations": [{ "system": "...", "method": "...", "purpose": "..." }],
+  "changelog": [{ "version": "0.1", "title": "Initial draft", "description": "Generated from user input" }]
 }
 
 ## DISCUSSION FORMAT
@@ -236,7 +236,7 @@ If user mentions other tech, map to the closest approved option or recommend the
 }
 
 ## DIAGRAMS
-Each behavior needs diagramCode with Mermaid syntax:
+Each behavior needs a "diagram" field with Mermaid syntax:
 - Use sequenceDiagram for multi-actor flows (User→System→DB)
 - Use graph TD for decision logic or simple flows
 - Keep diagrams concise: 4-8 steps max

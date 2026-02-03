@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../../blueprints/auth"
-import { verifyProjectOwnership, getLatestBlueprint } from "../../blueprints/service"
+import { getProject, getBlueprintByProjectId } from "@/lib/firebase/collections"
 import { createTask, CreateTaskInput } from "../service"
 import { generateLaunchPlan } from "../../generate/service"
 import { log, logInfo, logError } from "@/lib/logger"
 import { estimateTokens } from "@/lib/tokenCounter"
 import { checkBudgetLimit, recordUsage } from "@/lib/costTracking"
+
+async function verifyProjectOwnership(projectId: string, userId: string): Promise<void> {
+    const project = await getProject(projectId)
+    if (!project) {
+        throw new Error("Project not found")
+    }
+    if (project.userId !== userId) {
+        throw new Error("Access denied: you do not own this project")
+    }
+}
 
 /**
  * POST /api/tasks/generate
@@ -34,7 +44,7 @@ export async function POST(request: NextRequest) {
         await verifyProjectOwnership(projectId, auth.userId)
 
         // Get the latest blueprint
-        const blueprint = await getLatestBlueprint(projectId)
+        const blueprint = await getBlueprintByProjectId(projectId)
         if (!blueprint || !blueprint.content) {
             return NextResponse.json(
                 { error: "No blueprint found. Create a UBP first." },

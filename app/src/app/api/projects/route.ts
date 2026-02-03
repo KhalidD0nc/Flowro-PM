@@ -24,7 +24,12 @@ export async function GET(request: NextRequest) {
 
         const projects = await getUserProjects(authResult.userId)
 
-        return NextResponse.json({ projects })
+        const enriched = projects.map((project) => ({
+            ...project,
+            projectName: project.name,
+        }))
+
+        return NextResponse.json({ projects: enriched })
     } catch (error) {
         console.error("List projects error:", error)
         return NextResponse.json(
@@ -52,12 +57,13 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { name: rawName, lastMessage: rawLastMessage } = body
+        const { name: rawName, projectName: rawProjectName, lastMessage: rawLastMessage } = body
 
         // Validate and sanitize name: must be non-empty string after trimming
         let name: string
-        if (typeof rawName === "string") {
-            const trimmed = rawName.trim()
+        const candidateName = typeof rawProjectName === "string" ? rawProjectName : rawName
+        if (typeof candidateName === "string") {
+            const trimmed = candidateName.trim()
             name = trimmed.length > 0 ? trimmed : "Untitled Project"
         } else {
             name = "Untitled Project"
@@ -81,6 +87,7 @@ export async function POST(request: NextRequest) {
             id: project.id,
             userId: project.userId,
             name: project.name,
+            projectName: project.name,
             lastMessage: project.lastMessage,
             createdAt: timestampToISO(project.createdAt),
             updatedAt: timestampToISO(project.updatedAt),

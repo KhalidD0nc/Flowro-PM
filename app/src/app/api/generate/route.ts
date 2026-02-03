@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
                     role: "assistant",
                     content: result.rawContent,
                     intent: result.intent,
-                    proposedChanges: result.proposedChanges ? result.proposedChanges.changes as Partial<UBPContent> : undefined,
+                    proposedChanges: result.proposedChanges || undefined,
                     timestamp: Timestamp.now(),
                 })
                 assistantMessageId = assistantMsg.id

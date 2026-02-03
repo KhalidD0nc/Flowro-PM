@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../blueprints/auth"
-import { verifyProjectOwnership } from "../blueprints/service"
+import { getProject } from "@/lib/firebase/collections"
 import { getProjectTasks, createTask, CreateTaskInput } from "./service"
+
+async function verifyProjectOwnership(projectId: string, userId: string): Promise<void> {
+    const project = await getProject(projectId)
+    if (!project) {
+        throw new Error("Project not found")
+    }
+    if (project.userId !== userId) {
+        throw new Error("Access denied: you do not own this project")
+    }
+}
 
 /**
  * GET /api/tasks?projectId=xxx

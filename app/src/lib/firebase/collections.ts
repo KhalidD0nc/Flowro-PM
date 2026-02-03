@@ -248,6 +248,20 @@ export async function deleteProject(projectId: string): Promise<void> {
 // =============================================================================
 
 /**
+ * Remove undefined values from an object to make it Firestore-safe.
+ * Firestore rejects documents with undefined values.
+ */
+function removeUndefinedValues<T extends Record<string, unknown>>(obj: T): T {
+    const cleaned: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined) {
+            cleaned[key] = value
+        }
+    }
+    return cleaned as T
+}
+
+/**
  * Add a message to a project's chat
  */
 export async function addMessage(
@@ -256,7 +270,9 @@ export async function addMessage(
 ): Promise<MessageDocument> {
     const db = getDb()
     const messagesRef = db.collection(COLLECTIONS.PROJECTS).doc(projectId).collection(COLLECTIONS.MESSAGES)
-    const docRef = await messagesRef.add(data)
+    // Clean undefined values to avoid Firestore rejection
+    const cleanedData = removeUndefinedValues(data as unknown as Record<string, unknown>)
+    const docRef = await messagesRef.add(cleanedData)
 
     // Update project's lastMessage preview
     await updateProject(projectId, {
@@ -361,14 +377,14 @@ export async function createBlueprint(
         throw new Error(`Blueprint already exists for project ${data.projectId}`)
     }
 
-    // Prepare history snapshot data
-    const historyData: BlueprintHistoryCreateData = {
+    // Prepare history snapshot data (clean undefined values)
+    const historyData = removeUndefinedValues({
         contentSnapshot: data.content,
         triggeringMessageId,
         version: data.content.metadata?.version || "1.0",
         changeDescription: "Initial blueprint created",
         timestamp: data.updatedAt,
-    }
+    } as Record<string, unknown>)
 
     // ATOMIC: Create blueprint and initial history snapshot in single batch
     const batch = db.batch()
@@ -463,14 +479,14 @@ export async function updateBlueprint(
         },
     }
 
-    // Prepare history snapshot data
-    const historyData: BlueprintHistoryCreateData = {
+    // Prepare history snapshot data (clean undefined values)
+    const historyData = removeUndefinedValues({
         contentSnapshot: updatedContent,
         triggeringMessageId: options.triggeringMessageId,
         version: newVersion,
         changeDescription: options.changeDescription,
         timestamp: now,
-    }
+    } as Record<string, unknown>)
 
     // ATOMIC: Update blueprint and create history snapshot in single batch
     const batch = db.batch()
@@ -499,7 +515,9 @@ async function createHistorySnapshot(
 ): Promise<BlueprintHistoryDocument> {
     const db = getDb()
     const historyRef = db.collection(COLLECTIONS.BLUEPRINTS).doc(blueprintId).collection(COLLECTIONS.HISTORY)
-    const docRef = await historyRef.add(data)
+    // Clean undefined values to avoid Firestore rejection
+    const cleanedData = removeUndefinedValues(data as unknown as Record<string, unknown>)
+    const docRef = await historyRef.add(cleanedData)
 
     return {
         id: docRef.id,
@@ -589,7 +607,7 @@ export async function getProjectWithDetails(projectId: string): Promise<{
 export async function upsertBlueprintFromAI(
     projectId: string,
     content: UBPContent,
-    triggeringMessageId: string,
+    triggeringMessageId?: string,
     changeDescription?: string
 ): Promise<BlueprintDocument> {
     const existingBlueprint = await getBlueprintByProjectId(projectId)
@@ -624,4 +642,84 @@ export async function upsertBlueprintFromAI(
     // Return updated blueprint
     const updated = await getBlueprint(existingBlueprint.id)
     return updated!
+}
+
+/**
+ * Save current blueprint as a locked snapshot and start a new draft version.
+ * Creates a history snapshot for the locked version and increments the live version.
+ */
+export async function saveBlueprintVersion(
+    blueprintId: string
+): Promise<{
+    lockedSnapshot: BlueprintHistoryDocument
+    blueprint: BlueprintDocument
+}> {
+    const db = getDb()
+    const blueprint = await getBlueprint(blueprintId)
+    if (!blueprint) {
+        throw new Error(`Blueprint ${blueprintId} not found`)
+    }
+
+    const baseContent = blueprint.content || createEmptyUBPContent()
+    const currentStatus = baseContent.metadata?.status
+    if (currentStatus === "locked" || currentStatus === "approved") {
+        throw new Error("Blueprint is already locked")
+    }
+
+    const now = Timestamp.now()
+    const currentVersion = baseContent.metadata?.version || "1.0"
+    const productName = baseContent.metadata?.productName || ""
+
+    const lockedContent: UBPContent = {
+        ...baseContent,
+        metadata: {
+            ...baseContent.metadata,
+            productName,
+            version: currentVersion,
+            status: "locked",
+        },
+    }
+
+    const newVersion = incrementVersion(currentVersion)
+    const newContent: UBPContent = {
+        ...baseContent,
+        metadata: {
+            ...baseContent.metadata,
+            productName,
+            version: newVersion,
+            status: "draft",
+        },
+    }
+
+    // Prepare history data (no triggering message for manual saves)
+    const historyData: BlueprintHistoryCreateData = {
+        contentSnapshot: lockedContent,
+        version: currentVersion,
+        changeDescription: "Version saved",
+        timestamp: now,
+    }
+    // Clean undefined values for Firestore
+    const cleanedHistoryData = removeUndefinedValues(historyData as unknown as Record<string, unknown>)
+
+    const batch = db.batch()
+    const blueprintRef = db.collection(COLLECTIONS.BLUEPRINTS).doc(blueprintId)
+    const historyRef = blueprintRef.collection(COLLECTIONS.HISTORY).doc()
+    batch.set(historyRef, cleanedHistoryData)
+    batch.update(blueprintRef, {
+        content: newContent,
+        updatedAt: now,
+    })
+    await batch.commit()
+
+    return {
+        lockedSnapshot: {
+            id: historyRef.id,
+            ...historyData,
+        },
+        blueprint: {
+            ...blueprint,
+            content: newContent,
+            updatedAt: now,
+        },
+    }
 }

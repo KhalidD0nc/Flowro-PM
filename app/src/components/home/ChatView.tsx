@@ -17,6 +17,7 @@ import ShareProjectModal from "@/components/ShareProjectModal"
 import LaunchPlanViewer from "@/components/LaunchPlanViewer"
 import { ChatPanel, type ChatMessage, type Intent, type ProposedChanges, type Blueprint, isUBPContent } from "@/components/chat"
 import type { SelectionContext } from "@/components/chat/types"
+import { parseJSONSafe } from "@/lib/jsonRepair"
 
 // =============================================================================
 // Types
@@ -390,16 +391,14 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                             let ubpContent: unknown = null
                             let parsedProposedChanges: ProposedChanges | undefined = undefined
 
-                            try {
-                                let cleanJson = accumulated.trim()
-                                if (cleanJson.startsWith('```')) {
-                                    cleanJson = cleanJson.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
-                                }
+                            // Use JSON repair utility for robust parsing of LLM output
+                            const parseResult = parseJSONSafe(accumulated)
 
-                                const fullParsed = JSON.parse(cleanJson)
+                            if (parseResult.success) {
+                                const fullParsed = parseResult.data as Record<string, unknown>
 
                                 if (fullParsed.intent === 'initial' || fullParsed.intent === 'discussion' || fullParsed.intent === 'proposal') {
-                                    parsedIntent = fullParsed.intent
+                                    parsedIntent = fullParsed.intent as Intent
                                 }
 
                                 if (fullParsed.proposedChanges && typeof fullParsed.proposedChanges === 'object') {
@@ -420,8 +419,12 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                                         setCurrentUBP(transformApiToUBP(ubpContent))
                                     }
                                 }
-                            } catch (parseErr) {
-                                console.error("Failed to parse accumulated JSON:", parseErr)
+                            } else {
+                                console.error("Failed to parse accumulated JSON:", parseResult.error, "at position:", parseResult.position)
+                                // Log the problematic section for debugging
+                                if (parseResult.position) {
+                                    console.error("JSON near error:", accumulated.substring(Math.max(0, parseResult.position - 50), parseResult.position + 50))
+                                }
                             }
 
                             const optimisticAssistantMsg: ChatMessage = {
@@ -519,29 +522,26 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
             let proposedChanges: ProposedChanges | undefined
             let productName: string | undefined
 
-            try {
-                let cleanJson = rawContent.trim()
-                if (cleanJson.startsWith('```')) {
-                    cleanJson = cleanJson.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
-                }
-
-                const parsed = JSON.parse(cleanJson)
+            // Use JSON repair utility for robust parsing of LLM output
+            const parseResult = parseJSONSafe(rawContent)
+            if (parseResult.success) {
+                const parsed = parseResult.data as Record<string, unknown>
                 if (parsed.intent === 'initial' || parsed.intent === 'discussion' || parsed.intent === 'proposal') {
-                    parsedIntent = parsed.intent
+                    parsedIntent = parsed.intent as Intent
                 }
                 if (parsed.intent === 'initial') {
                     const { intent: _i, message: _m, proposedChanges: _pc, metadata, ...ubpContent } = parsed
                     parsedContent = ubpContent
 
-                    if (metadata && typeof metadata === 'object' && metadata.productName) {
-                        productName = metadata.productName
+                    if (metadata && typeof metadata === 'object' && (metadata as Record<string, unknown>).productName) {
+                        productName = (metadata as Record<string, unknown>).productName as string
                     }
                 }
                 if (parsed.proposedChanges) {
-                    proposedChanges = parsed.proposedChanges
+                    proposedChanges = parsed.proposedChanges as ProposedChanges
                 }
-            } catch {
-                // Keep defaults
+            } else {
+                console.error("saveCompleteResponse: Failed to parse JSON:", parseResult.error)
             }
 
             const assistantMsg: ChatMessage = {
@@ -572,7 +572,8 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                     const bpData = await bpRes.json()
                     const latestBp = bpData.blueprints?.[0]
 
-                    if (latestBp && latestBp.status === 'draft') {
+                    const targetBlueprintId = latestBp?.id || projectId
+                    if (!latestBp || latestBp.status === 'draft') {
                         await fetch("/api/blueprints", {
                             method: "PATCH",
                             headers: {
@@ -580,13 +581,15 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                                 "Content-Type": "application/json",
                             },
                             body: JSON.stringify({
-                                blueprintId: latestBp.id,
+                                blueprintId: targetBlueprintId,
                                 content: parsedContent,
                             }),
                         })
 
                         setCurrentUBP(transformApiToUBP(parsedContent))
-                        setSelectedBlueprint({ ...latestBp, content: parsedContent })
+                        if (latestBp) {
+                            setSelectedBlueprint({ ...latestBp, content: parsedContent })
+                        }
                     }
                 }
 

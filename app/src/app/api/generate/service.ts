@@ -34,6 +34,183 @@ export interface GenerateResult {
 }
 
 /**
+ * Normalize UBP field names and structures from AI output to match schema.
+ * Handles backward compatibility for old AI output formats.
+ *
+ * Transformations:
+ * - constraintsRisks (object) → constraints (array with type field)
+ * - changeLog → changelog (with field mapping)
+ * - actors (old format) → actors (array with type field)
+ */
+export function normalizeUBPFields(ubpContent: Record<string, unknown>): void {
+    // Transform constraintsRisks → constraints
+    if (ubpContent.constraintsRisks && !ubpContent.constraints) {
+        const cr = ubpContent.constraintsRisks as Record<string, unknown[]>
+        const constraints: Array<{ type: string; title: string; description: string }> = []
+
+        // Flatten the nested structure into a typed array
+        if (Array.isArray(cr.constraints)) {
+            cr.constraints.forEach((item) => {
+                if (typeof item === 'string') {
+                    constraints.push({ type: 'constraint', title: item, description: '' })
+                } else if (typeof item === 'object' && item !== null) {
+                    const obj = item as Record<string, unknown>
+                    constraints.push({
+                        type: 'constraint',
+                        title: (obj.title as string) || (obj.name as string) || String(item),
+                        description: (obj.description as string) || ''
+                    })
+                }
+            })
+        }
+        if (Array.isArray(cr.risks)) {
+            cr.risks.forEach((item) => {
+                if (typeof item === 'string') {
+                    constraints.push({ type: 'risk', title: item, description: '' })
+                } else if (typeof item === 'object' && item !== null) {
+                    const obj = item as Record<string, unknown>
+                    constraints.push({
+                        type: 'risk',
+                        title: (obj.title as string) || (obj.name as string) || String(item),
+                        description: (obj.description as string) || ''
+                    })
+                }
+            })
+        }
+        if (Array.isArray(cr.assumptions)) {
+            cr.assumptions.forEach((item) => {
+                if (typeof item === 'string') {
+                    constraints.push({ type: 'warning', title: item, description: '' })
+                } else if (typeof item === 'object' && item !== null) {
+                    const obj = item as Record<string, unknown>
+                    constraints.push({
+                        type: 'warning',
+                        title: (obj.title as string) || (obj.name as string) || String(item),
+                        description: (obj.description as string) || ''
+                    })
+                }
+            })
+        }
+
+        ubpContent.constraints = constraints
+        delete ubpContent.constraintsRisks
+    }
+
+    // Transform changeLog → changelog (case sensitivity)
+    if (ubpContent.changeLog && !ubpContent.changelog) {
+        const oldLog = ubpContent.changeLog as Array<Record<string, unknown>>
+        if (Array.isArray(oldLog)) {
+            ubpContent.changelog = oldLog.map((entry) => ({
+                version: (entry.version as string) || '0.1',
+                title: (entry.title as string) || (entry.summary as string) || 'Update',
+                description: (entry.description as string) || (entry.reason as string) || '',
+                timestamp: (entry.timestamp as string) || new Date().toISOString()
+            }))
+        }
+        delete ubpContent.changeLog
+    }
+
+    // Transform old actors format (object) → new format (array)
+    if (ubpContent.actors && typeof ubpContent.actors === 'object' && !Array.isArray(ubpContent.actors)) {
+        const oldActors = ubpContent.actors as Record<string, unknown>
+        const actors: Array<{ name: string; description: string; type: string }> = []
+
+        // Handle primary actor
+        if (oldActors.primary) {
+            if (typeof oldActors.primary === 'string') {
+                actors.push({ name: oldActors.primary, description: 'Primary user', type: 'primary' })
+            }
+        }
+        // Handle secondary actors
+        if (Array.isArray(oldActors.secondary)) {
+            oldActors.secondary.forEach((actor) => {
+                if (typeof actor === 'string') {
+                    actors.push({ name: actor, description: '', type: 'secondary' })
+                } else if (typeof actor === 'object' && actor !== null) {
+                    const obj = actor as Record<string, unknown>
+                    actors.push({
+                        name: (obj.name as string) || String(actor),
+                        description: (obj.description as string) || '',
+                        type: 'secondary'
+                    })
+                }
+            })
+        }
+        // Handle system actors
+        if (Array.isArray(oldActors.systems)) {
+            oldActors.systems.forEach((system) => {
+                if (typeof system === 'string') {
+                    actors.push({ name: system, description: '', type: 'system' })
+                } else if (typeof system === 'object' && system !== null) {
+                    const obj = system as Record<string, unknown>
+                    actors.push({
+                        name: (obj.name as string) || String(system),
+                        description: (obj.description as string) || '',
+                        type: 'system'
+                    })
+                }
+            })
+        }
+
+        ubpContent.actors = actors
+    }
+
+    // Transform behaviors to ensure correct field names
+    if (Array.isArray(ubpContent.behaviors)) {
+        ubpContent.behaviors = (ubpContent.behaviors as Array<Record<string, unknown>>).map((behavior) => ({
+            id: (behavior.id as string) || `B-${Math.random().toString(36).substr(2, 4)}`,
+            title: (behavior.title as string) || (behavior.trigger as string) || 'Behavior',
+            given: (behavior.given as string) || '',
+            when: (behavior.when as string) || (behavior.trigger as string) || '',
+            then: (behavior.then as string) || (behavior.systemResponse as string) || '',
+            diagram: (behavior.diagram as string) || (behavior.diagramCode as string) || '',
+            priority: (behavior.priority as string) || 'medium'
+        }))
+    }
+
+    // Transform phases to ensure correct field names
+    if (Array.isArray(ubpContent.phases)) {
+        ubpContent.phases = (ubpContent.phases as Array<Record<string, unknown>>).map((phase) => ({
+            name: (phase.name as string) || (phase.phase as string) || 'Phase',
+            description: (phase.description as string) || (phase.goal as string) || '',
+            goals: (phase.goals as string[]) || (phase.outputs as string[]) || [],
+            status: (phase.status as string) || 'upcoming',
+            timeline: (phase.timeline as string) || ''
+        }))
+    }
+
+    // Transform integrations to ensure correct field names
+    if (Array.isArray(ubpContent.integrations)) {
+        ubpContent.integrations = (ubpContent.integrations as Array<Record<string, unknown>>).map((integration) => ({
+            system: (integration.system as string) || (integration.service as string) || '',
+            method: (integration.method as string) || (integration.dataFlow as string) || '',
+            purpose: (integration.purpose as string) || ''
+        }))
+    }
+
+    // Transform techStack (object) → techDecisions (array) if not already in array format
+    if (ubpContent.techStack && typeof ubpContent.techStack === 'object' && !Array.isArray(ubpContent.techStack) && !ubpContent.techDecisions) {
+        const ts = ubpContent.techStack as Record<string, string>
+        const techDecisions: Array<{ category: string; choice: string; rationale: string }> = []
+
+        if (ts.frontend) {
+            techDecisions.push({ category: 'Frontend', choice: ts.frontend, rationale: 'Selected based on project requirements' })
+        }
+        if (ts.backend) {
+            techDecisions.push({ category: 'Backend', choice: ts.backend, rationale: 'Selected based on project requirements' })
+        }
+        if (ts.database) {
+            techDecisions.push({ category: 'Database', choice: ts.database, rationale: 'Selected based on project requirements' })
+        }
+
+        if (techDecisions.length > 0) {
+            ubpContent.techDecisions = techDecisions
+        }
+        // Keep techStack for backward compatibility with validation code
+    }
+}
+
+/**
  * Builds the messages array for the LLM request
  * Includes full conversation history for context
  */
@@ -234,6 +411,9 @@ export async function callLLM(messages: Message[]): Promise<GenerateResult> {
         // Remove meta fields, keep UBP content
         const { intent: _i, message: _m, proposedChanges: _pc, ...ubpContent } = parsed
 
+        // Normalize field names to match schema (handle old AI output formats)
+        normalizeUBPFields(ubpContent)
+
         // Validate and correct tech stack if present
         if (ubpContent.techStack && typeof ubpContent.techStack === 'object') {
             const techStackValidation = validateTechStack(ubpContent.techStack)
@@ -247,16 +427,37 @@ export async function callLLM(messages: Message[]): Promise<GenerateResult> {
                 })
 
                 // Replace with safe defaults
-                ubpContent.techStack = getSafeDefaults()
+                const defaults = getSafeDefaults()
+                ubpContent.techStack = defaults
+
+                // Also update techDecisions to match
+                ubpContent.techDecisions = [
+                    { category: 'Frontend', choice: defaults.frontend, rationale: 'Safe default' },
+                    { category: 'Backend', choice: defaults.backend, rationale: 'Safe default' },
+                    { category: 'Database', choice: defaults.database, rationale: 'Safe default' }
+                ]
 
                 console.warn("⚠️ Tech stack validation failed - using safe defaults")
             } else {
                 logInfo("tech_stack_valid", { techStack: techStackValidation.data })
+                // Update techDecisions from validated tech stack
+                const ts = ubpContent.techStack as { frontend: string; backend: string; database: string }
+                ubpContent.techDecisions = [
+                    { category: 'Frontend', choice: ts.frontend, rationale: 'Selected based on project requirements' },
+                    { category: 'Backend', choice: ts.backend, rationale: 'Selected based on project requirements' },
+                    { category: 'Database', choice: ts.database, rationale: 'Selected based on project requirements' }
+                ]
             }
         } else {
             // No tech stack provided - add safe defaults
-            logInfo("tech_stack_missing", { fallback: getSafeDefaults() })
-            ubpContent.techStack = getSafeDefaults()
+            const defaults = getSafeDefaults()
+            logInfo("tech_stack_missing", { fallback: defaults })
+            ubpContent.techStack = defaults
+            ubpContent.techDecisions = [
+                { category: 'Frontend', choice: defaults.frontend, rationale: 'Safe default' },
+                { category: 'Backend', choice: defaults.backend, rationale: 'Safe default' },
+                { category: 'Database', choice: defaults.database, rationale: 'Safe default' }
+            ]
         }
 
         content = ubpContent

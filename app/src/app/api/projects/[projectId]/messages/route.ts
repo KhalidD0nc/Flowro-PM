@@ -12,6 +12,7 @@ import {
     type MessageIntent,
     type MessageRole,
     type UBPContent,
+    type ProposedChanges,
 } from "@/lib/firebase/schema"
 
 // Pagination safety constants
@@ -162,7 +163,7 @@ export async function POST(
             role?: MessageRole
             content?: string
             intent?: MessageIntent
-            proposedChanges?: Partial<UBPContent>
+            proposedChanges?: Partial<UBPContent> | ProposedChanges
         }
 
         if (!role || !["user", "assistant"].includes(role)) {

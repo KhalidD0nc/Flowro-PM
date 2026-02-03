@@ -5,7 +5,22 @@ import {
     getShareByBlueprintId,
     revokeShareToken,
 } from "./service"
-import { verifyBlueprintOwnership } from "../blueprints/service"
+import { getBlueprint, getProject } from "@/lib/firebase/collections"
+
+async function verifyBlueprintOwnership(blueprintId: string, userId: string): Promise<void> {
+    const blueprint = await getBlueprint(blueprintId)
+    if (!blueprint) {
+        throw new Error("Blueprint not found")
+    }
+
+    const project = await getProject(blueprint.projectId)
+    if (!project) {
+        throw new Error("Project not found")
+    }
+    if (project.userId !== userId) {
+        throw new Error("Access denied: you do not own this blueprint")
+    }
+}
 
 // POST /api/share - Create a new share token for a blueprint
 export async function POST(request: NextRequest) {

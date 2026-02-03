@@ -42,6 +42,16 @@ export type MessageIntent = "initial" | "discussion" | "proposal"
 export type MessageRole = "user" | "assistant"
 
 /**
+ * Proposed changes structure for AI suggestions
+ */
+export interface ProposedChanges {
+    action: "add" | "update" | "remove"
+    summary: string
+    sections: string[]
+    changes: Record<string, unknown>
+}
+
+/**
  * Blueprint status lifecycle
  */
 export type BlueprintStatus = "draft" | "locked" | "approved"
@@ -187,7 +197,7 @@ export interface MessageDocument {
     id: string
     role: MessageRole
     content: string
-    proposedChanges?: Partial<UBPContent> // Optional proposed UBP changes
+    proposedChanges?: Partial<UBPContent> | ProposedChanges // Optional proposed UBP changes
     intent: MessageIntent
     timestamp: FirestoreTimestamp
 }
@@ -198,7 +208,7 @@ export interface MessageDocument {
 export interface MessageCreateData {
     role: MessageRole
     content: string
-    proposedChanges?: Partial<UBPContent>
+    proposedChanges?: Partial<UBPContent> | ProposedChanges
     intent: MessageIntent
     timestamp: FirestoreTimestamp
 }

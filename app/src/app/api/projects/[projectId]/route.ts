@@ -5,9 +5,10 @@ import {
     getProjectWithDetails,
     updateProject,
     deleteProject,
-    getBlueprintByProjectId,
+    addMessage,
 } from "@/lib/firebase/collections"
-import { timestampToISO } from "@/lib/firebase/schema"
+import { Timestamp } from "firebase-admin/firestore"
+import { timestampToISO, type MessageIntent, type MessageRole, type ProposedChanges } from "@/lib/firebase/schema"
 
 /**
  * Verify that the authenticated user owns the project
@@ -20,6 +21,60 @@ async function verifyOwnership(projectId: string, userId: string): Promise<void>
     if (project.userId !== userId) {
         throw new Error("Access denied: you do not own this project")
     }
+}
+
+type ChatMessagePayload = {
+    role?: MessageRole
+    content?: string
+    intent?: MessageIntent | null
+    proposedChanges?: unknown
+    timestamp?: string
+}
+
+function isProposedChanges(value: unknown): value is ProposedChanges {
+    if (!value || typeof value !== "object") return false
+    const pc = value as Record<string, unknown>
+    return (
+        (pc.action === "add" || pc.action === "update" || pc.action === "remove") &&
+        typeof pc.summary === "string" &&
+        Array.isArray(pc.sections) &&
+        typeof pc.changes === "object" &&
+        pc.changes !== null
+    )
+}
+
+function cleanJsonString(raw: string): string {
+    let clean = raw.trim()
+    if (clean.startsWith("```")) {
+        clean = clean.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "")
+    }
+    return clean
+}
+
+function extractProposedChanges(content: string, fallback?: unknown): ProposedChanges | undefined {
+    if (isProposedChanges(fallback)) {
+        return fallback
+    }
+
+    try {
+        const parsed = JSON.parse(cleanJsonString(content))
+        if (parsed && typeof parsed === "object" && "proposedChanges" in parsed) {
+            const pc = (parsed as Record<string, unknown>).proposedChanges
+            if (pc && typeof pc === "object") {
+                const obj = pc as Record<string, unknown>
+                return {
+                    action: (obj.action as "add" | "update" | "remove") || "update",
+                    summary: (obj.summary as string) || "Blueprint update",
+                    sections: (obj.sections as string[]) || [],
+                    changes: (obj.changes as Record<string, unknown>) || {},
+                }
+            }
+        }
+    } catch {
+        // Ignore parse errors
+    }
+
+    return undefined
 }
 
 /**
@@ -57,12 +112,42 @@ export async function GET(
             )
         }
 
-        // Convert timestamps to ISO strings for client
+        const chatHistory = details.messages.map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+            intent: msg.intent,
+            proposedChanges: extractProposedChanges(msg.content, msg.proposedChanges),
+            timestamp: timestampToISO(msg.timestamp),
+        }))
+
+        const latestBlueprint = details.blueprint
+            ? {
+                  id: details.blueprint.id,
+                  projectId: details.blueprint.projectId,
+                  version: details.blueprint.content?.metadata?.version || "1.0",
+                  status: details.blueprint.content?.metadata?.status || "draft",
+                  content: details.blueprint.content,
+                  createdAt: timestampToISO(details.blueprint.updatedAt),
+                  lockedAt: undefined,
+              }
+            : undefined
+
+        // Return legacy-compatible shape (top-level project fields)
         return NextResponse.json({
+            id: details.project.id,
+            name: details.project.name,
+            projectName: details.project.name,
+            description: (details.project as { description?: string }).description,
+            chatHistory,
+            createdAt: timestampToISO(details.project.createdAt),
+            updatedAt: timestampToISO(details.project.updatedAt),
+            latestBlueprint,
+            // Keep detailed payload for newer clients/debugging
             project: {
                 id: details.project.id,
                 userId: details.project.userId,
                 name: details.project.name,
+                projectName: details.project.name,
                 lastMessage: details.project.lastMessage,
                 createdAt: timestampToISO(details.project.createdAt),
                 updatedAt: timestampToISO(details.project.updatedAt),
@@ -119,7 +204,7 @@ export async function PATCH(
 
         const { projectId } = await params
         const body = await request.json()
-        const { name: rawName, lastMessage: rawLastMessage } = body
+        const { name: rawName, projectName: rawProjectName, lastMessage: rawLastMessage, appendChat } = body
 
         // Verify ownership
         await verifyOwnership(projectId, authResult.userId)
@@ -128,8 +213,9 @@ export async function PATCH(
         const updates: { name?: string; lastMessage?: string } = {}
 
         // Validate name: must be non-empty string after trimming
-        if (typeof rawName === "string") {
-            const trimmed = rawName.trim()
+        const candidateName = typeof rawProjectName === "string" ? rawProjectName : rawName
+        if (typeof candidateName === "string") {
+            const trimmed = candidateName.trim()
             if (trimmed.length > 0) {
                 updates.name = trimmed
             }
@@ -143,16 +229,50 @@ export async function PATCH(
             // If rawLastMessage is provided but not a string, ignore it (don't update)
         }
 
-        if (Object.keys(updates).length === 0) {
+        const messagesToAppend: ChatMessagePayload[] = Array.isArray(appendChat) ? appendChat : []
+        const validMessages = messagesToAppend.filter((msg) =>
+            msg &&
+            (msg.role === "user" || msg.role === "assistant") &&
+            typeof msg.content === "string" &&
+            msg.content.trim().length > 0
+        )
+
+        if (Object.keys(updates).length === 0 && validMessages.length === 0) {
             return NextResponse.json(
                 { error: "No valid update fields provided" },
                 { status: 400 }
             )
         }
 
-        await updateProject(projectId, updates)
+        if (validMessages.length > 0) {
+            for (const msg of validMessages) {
+                const intent: MessageIntent =
+                    msg.intent === "initial" || msg.intent === "discussion" || msg.intent === "proposal"
+                        ? msg.intent
+                        : "discussion"
 
-        return NextResponse.json({ success: true, ...updates })
+                // Extract and validate proposedChanges if present
+                const proposedChanges = extractProposedChanges(msg.content as string, msg.proposedChanges)
+
+                await addMessage(projectId, {
+                    role: msg.role as MessageRole,
+                    content: msg.content as string,
+                    intent,
+                    proposedChanges,
+                    timestamp: Timestamp.now(),
+                })
+            }
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await updateProject(projectId, updates)
+        }
+
+        return NextResponse.json({
+            success: true,
+            ...updates,
+            appended: validMessages.length,
+        })
     } catch (error) {
         console.error("Update project error:", error)
         const message = error instanceof Error ? error.message : "Failed to update project"

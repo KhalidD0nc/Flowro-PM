@@ -563,7 +563,8 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                     const bpData = await bpRes.json()
                     const latestBp = bpData.blueprints?.[0]
 
-                    if (latestBp && latestBp.status === 'draft') {
+                    const targetBlueprintId = latestBp?.id || projectId
+                    if (!latestBp || latestBp.status === 'draft') {
                         await fetch("/api/blueprints", {
                             method: "PATCH",
                             headers: {
@@ -571,13 +572,15 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                                 "Content-Type": "application/json",
                             },
                             body: JSON.stringify({
-                                blueprintId: latestBp.id,
+                                blueprintId: targetBlueprintId,
                                 content: parsedContent,
                             }),
                         })
 
                         setCurrentUBP(transformApiToUBP(parsedContent))
-                        setSelectedBlueprint({ ...latestBp, content: parsedContent })
+                        if (latestBp) {
+                            setSelectedBlueprint({ ...latestBp, content: parsedContent })
+                        }
                     }
                 }
 

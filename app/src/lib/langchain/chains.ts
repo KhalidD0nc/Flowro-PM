@@ -80,43 +80,46 @@ export const InitialOutputSchema = z.object({
         outOfScope: z.array(z.string()).describe("Explicitly excluded"),
         deferred: z.array(z.string()).describe("For later phases"),
     }),
-    actors: z.object({
-        primary: z.string().describe("Main user type"),
-        secondary: z.array(z.string()).describe("Supporting users"),
-        systems: z.array(z.string()).describe("External systems"),
-    }),
+    actors: z.array(z.object({
+        name: z.string().describe("Actor name"),
+        description: z.string().describe("Actor description"),
+        type: z.enum(['primary', 'secondary', 'system']).describe("Actor type"),
+    })).describe("List of actors"),
     behaviors: z.array(z.object({
         id: z.string().describe("ID like B-01"),
-        trigger: z.string().describe("What starts this behavior"),
-        systemResponse: z.string().describe("What the system does"),
-        involvedActors: z.array(z.string()),
-        diagramCode: z.string().describe("Mermaid diagram code"),
+        title: z.string().describe("Behavior title"),
+        given: z.string().describe("Precondition").default(""),
+        when: z.string().describe("Trigger action"),
+        then: z.string().describe("Expected outcome"),
+        diagram: z.string().describe("Mermaid diagram code").default(""),
+        priority: z.enum(['high', 'medium', 'low']).default('medium'),
     })).min(5).max(8).describe("5-8 key behaviors"),
-    constraintsRisks: z.object({
-        constraints: z.array(z.string()),
-        assumptions: z.array(z.string()),
-        risks: z.array(z.string()),
-    }),
-    techStack: z.object({
-        frontend: z.enum(['nextjs', 'react', 'flutter']),
-        backend: z.enum(['nextjs_api', 'express', 'fastAPI']),
-        database: z.enum(['firebase_firestore', 'supabase_postgres']),
-    }),
+    constraints: z.array(z.object({
+        type: z.enum(['warning', 'risk', 'constraint']),
+        title: z.string(),
+        description: z.string(),
+    })).describe("Constraints, risks, and warnings"),
+    techDecisions: z.array(z.object({
+        category: z.string().describe("Frontend, Backend, or Database"),
+        choice: z.string().describe("The chosen technology"),
+        rationale: z.string().describe("Reason for the choice"),
+    })).describe("Technology decisions"),
     phases: z.array(z.object({
-        phase: z.string(),
-        goal: z.string(),
-        outputs: z.array(z.string()),
+        name: z.string(),
+        description: z.string(),
+        goals: z.array(z.string()),
+        status: z.enum(['completed', 'current', 'upcoming']).default('upcoming'),
     })).min(2).max(4),
     integrations: z.array(z.object({
-        service: z.string(),
+        system: z.string(),
+        method: z.string(),
         purpose: z.string(),
-        dataFlow: z.string().optional(),
     })),
-    changeLog: z.array(z.object({
+    changelog: z.array(z.object({
         version: z.string(),
-        summary: z.string(),
-        reason: z.string().optional(),
-        impactedSections: z.array(z.string()),
+        title: z.string(),
+        description: z.string(),
+        timestamp: z.string().optional(),
     })),
 })
 
@@ -143,43 +146,46 @@ export const RelaxedInitialOutputSchema = z.object({
         deferred: z.array(z.string()).default([]),
     }),
     // Optional fields for relaxed validation
-    actors: z.object({
-        primary: z.string(),
-        secondary: z.array(z.string()).default([]),
-        systems: z.array(z.string()).default([]),
-    }).optional(),
+    actors: z.array(z.object({
+        name: z.string(),
+        description: z.string().default(""),
+        type: z.enum(['primary', 'secondary', 'system']).default('primary'),
+    })).optional(),
     behaviors: z.array(z.object({
         id: z.string(),
-        trigger: z.string(),
-        systemResponse: z.string(),
-        involvedActors: z.array(z.string()).default([]),
-        diagramCode: z.string().default(""),
+        title: z.string(),
+        given: z.string().default(""),
+        when: z.string(),
+        then: z.string(),
+        diagram: z.string().default(""),
+        priority: z.string().default('medium'),
     })).optional(),
-    techStack: z.object({
-        frontend: z.string(),
-        backend: z.string(),
-        database: z.string(),
-    }).optional(),
+    techDecisions: z.array(z.object({
+        category: z.string(),
+        choice: z.string(),
+        rationale: z.string().default(""),
+    })).optional(),
     phases: z.array(z.object({
-        phase: z.string(),
-        goal: z.string(),
-        outputs: z.array(z.string()).default([]),
+        name: z.string(),
+        description: z.string(),
+        goals: z.array(z.string()).default([]),
+        status: z.string().default('upcoming'),
     })).optional(),
     integrations: z.array(z.object({
-        service: z.string(),
+        system: z.string(),
+        method: z.string().default(""),
         purpose: z.string(),
-        dataFlow: z.string().optional(),
     })).optional(),
-    constraintsRisks: z.object({
-        constraints: z.array(z.string()).default([]),
-        assumptions: z.array(z.string()).default([]),
-        risks: z.array(z.string()).default([]),
-    }).optional(),
-    changeLog: z.array(z.object({
+    constraints: z.array(z.object({
+        type: z.enum(['warning', 'risk', 'constraint']),
+        title: z.string(),
+        description: z.string().default(""),
+    })).optional(),
+    changelog: z.array(z.object({
         version: z.string(),
-        summary: z.string(),
-        reason: z.string().optional(),
-        impactedSections: z.array(z.string()).default([]),
+        title: z.string(),
+        description: z.string().default(""),
+        timestamp: z.string().optional(),
     })).optional(),
 })
 
@@ -653,7 +659,7 @@ export const TEST_EXAMPLES = {
         description: "Explores options without making changes",
         input: {
             input: "What are the pros and cons of Firebase vs Supabase?",
-            blueprintContext: "techStack: { database: 'firebase_firestore' }",
+            blueprintContext: "techDecisions: [{ category: 'Database', choice: 'firebase_firestore' }]",
             history: [],
         },
         expectedOutput: {
@@ -668,7 +674,11 @@ export const TEST_EXAMPLES = {
         input: {
             input: "Yes, switch to Supabase",
             blueprintContext: JSON.stringify({
-                techStack: { frontend: 'nextjs', backend: 'nextjs_api', database: 'firebase_firestore' }
+                techDecisions: [
+                    { category: 'Frontend', choice: 'nextjs', rationale: '' },
+                    { category: 'Backend', choice: 'nextjs_api', rationale: '' },
+                    { category: 'Database', choice: 'firebase_firestore', rationale: '' }
+                ]
             }),
             history: [
                 { role: 'assistant' as const, content: 'Should we switch to Supabase for PostgreSQL support?' }
@@ -705,22 +715,26 @@ export function validateChainSchemas(): Array<{ schema: string; valid: boolean; 
             metadata: { productName: 'Test', version: '0.1', status: 'draft' },
             productVision: { problem: 'Test problem', targetActor: 'Test user', successSignal: 'Test signal' },
             scope: { inScope: ['Feature 1'], outOfScope: [], deferred: [] },
-            actors: { primary: 'User', secondary: [], systems: [] },
+            actors: [{ name: 'User', description: 'Primary user', type: 'primary' }],
             behaviors: [
-                { id: 'B-01', trigger: 'Test', systemResponse: 'Response', involvedActors: [], diagramCode: 'graph TD' },
-                { id: 'B-02', trigger: 'Test', systemResponse: 'Response', involvedActors: [], diagramCode: 'graph TD' },
-                { id: 'B-03', trigger: 'Test', systemResponse: 'Response', involvedActors: [], diagramCode: 'graph TD' },
-                { id: 'B-04', trigger: 'Test', systemResponse: 'Response', involvedActors: [], diagramCode: 'graph TD' },
-                { id: 'B-05', trigger: 'Test', systemResponse: 'Response', involvedActors: [], diagramCode: 'graph TD' },
+                { id: 'B-01', title: 'Test Behavior 1', given: '', when: 'Test', then: 'Response', diagram: 'graph TD', priority: 'medium' },
+                { id: 'B-02', title: 'Test Behavior 2', given: '', when: 'Test', then: 'Response', diagram: 'graph TD', priority: 'medium' },
+                { id: 'B-03', title: 'Test Behavior 3', given: '', when: 'Test', then: 'Response', diagram: 'graph TD', priority: 'medium' },
+                { id: 'B-04', title: 'Test Behavior 4', given: '', when: 'Test', then: 'Response', diagram: 'graph TD', priority: 'medium' },
+                { id: 'B-05', title: 'Test Behavior 5', given: '', when: 'Test', then: 'Response', diagram: 'graph TD', priority: 'medium' },
             ],
-            constraintsRisks: { constraints: [], assumptions: [], risks: [] },
-            techStack: { frontend: 'nextjs', backend: 'nextjs_api', database: 'firebase_firestore' },
+            constraints: [{ type: 'constraint', title: 'Test constraint', description: '' }],
+            techDecisions: [
+                { category: 'Frontend', choice: 'nextjs', rationale: 'Best for SEO' },
+                { category: 'Backend', choice: 'nextjs_api', rationale: 'Unified codebase' },
+                { category: 'Database', choice: 'firebase_firestore', rationale: 'Real-time sync' },
+            ],
             phases: [
-                { phase: 'Phase 1', goal: 'MVP', outputs: ['App'] },
-                { phase: 'Phase 2', goal: 'Growth', outputs: ['Features'] },
+                { name: 'Phase 1', description: 'MVP', goals: ['App'], status: 'upcoming' },
+                { name: 'Phase 2', description: 'Growth', goals: ['Features'], status: 'upcoming' },
             ],
             integrations: [],
-            changeLog: [{ version: '0.1', summary: 'Initial', impactedSections: ['all'] }],
+            changelog: [{ version: '0.1', title: 'Initial', description: 'Initial draft' }],
         })
         results.push({ schema: 'InitialOutputSchema', valid: true, details: 'Parses valid input' })
     } catch (e) {
@@ -742,12 +756,12 @@ export function validateChainSchemas(): Array<{ schema: string; valid: boolean; 
     try {
         ProposalOutputSchema.parse({
             intent: 'proposal',
-            message: 'Updating the tech stack.',
+            message: 'Updating the tech decisions.',
             proposedChanges: {
                 action: 'update',
                 summary: 'Switch to Supabase',
-                sections: ['techStack'],
-                changes: { techStack: { database: 'supabase_postgres' } },
+                sections: ['techDecisions'],
+                changes: { techDecisions: [{ category: 'Database', choice: 'supabase_postgres', rationale: 'Better SQL support' }] },
             },
         })
         results.push({ schema: 'ProposalOutputSchema', valid: true, details: 'Parses valid input' })
