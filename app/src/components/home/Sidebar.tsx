@@ -25,7 +25,13 @@ interface RecentProject {
   updatedAt: string;
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  onProjectSelect?: (projectId: string) => void;
+  onNewChat?: () => void;
+  activeProjectId?: string | null;
+}
+
+export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }: SidebarProps) {
   const router = useRouter();
   const { user } = useAuth();
 
@@ -51,30 +57,39 @@ export default function Sidebar() {
     });
   }, []);
 
-  // Fetch recent projects
-  useEffect(() => {
-    const fetchRecentProjects = async () => {
-      if (!user) return;
+  // Fetch recent projects function
+  const fetchRecentProjects = useCallback(async () => {
+    if (!user) return;
 
-      try {
-        const response = await authGet("/api/projects", user);
-        if (response.ok) {
-          const data = await response.json();
-          // Sort all projects by last updated (most recent first)
-          const sortedProjects = (data.projects || []).sort((a: RecentProject, b: RecentProject) => {
-            return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-          });
-          setRecentProjects(sortedProjects);
-        }
-      } catch (error) {
-        console.error("Error fetching recent projects:", error);
-      } finally {
-        setIsLoadingProjects(false);
+    try {
+      setIsLoadingProjects(true);
+      const response = await authGet("/api/projects", user);
+      if (response.ok) {
+        const data = await response.json();
+        // Sort all projects by last updated (most recent first)
+        const sortedProjects = (data.projects || []).sort((a: RecentProject, b: RecentProject) => {
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        });
+        setRecentProjects(sortedProjects);
       }
-    };
-
-    fetchRecentProjects();
+    } catch (error) {
+      console.error("Error fetching recent projects:", error);
+    } finally {
+      setIsLoadingProjects(false);
+    }
   }, [user]);
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchRecentProjects();
+  }, [fetchRecentProjects]);
+
+  // Refetch when returning to Command Center (activeProjectId becomes null)
+  useEffect(() => {
+    if (activeProjectId === null) {
+      fetchRecentProjects();
+    }
+  }, [activeProjectId, fetchRecentProjects]);
 
   // Handle logout
   const handleLogout = async () => {
@@ -107,7 +122,16 @@ export default function Sidebar() {
       <div className="flex flex-col gap-6">
         {/* Logo / Brand with Toggle */}
         <div className="flex items-center justify-between px-1 py-2">
-          <Link href="/app" className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              if (onNewChat) {
+                onNewChat();
+              } else {
+                router.push("/app");
+              }
+            }}
+            className="flex items-center gap-3"
+          >
             <div className="flex items-center justify-center rounded-lg bg-white/5 p-1.5 ring-1 ring-white/10">
               <div className="size-7 rounded bg-gradient-to-br from-cyan-400 to-violet-500 flex items-center justify-center shadow-lg shadow-violet-500/20">
                 <span className="material-symbols-outlined text-white text-[18px]">
@@ -116,7 +140,7 @@ export default function Sidebar() {
               </div>
             </div>
             {!isCollapsed && (
-              <div className="flex flex-col">
+              <div className="flex flex-col text-left">
                 <h1 className="text-base font-bold leading-none tracking-tight text-white">
                   Flowro AI
                 </h1>
@@ -125,7 +149,7 @@ export default function Sidebar() {
                 </p>
               </div>
             )}
-          </Link>
+          </button>
 
           {/* Collapse Toggle */}
           <button
@@ -142,8 +166,14 @@ export default function Sidebar() {
         </div>
 
         {/* New Chat Button */}
-        <Link
-          href="/app"
+        <button
+          onClick={() => {
+            if (onNewChat) {
+              onNewChat();
+            } else {
+              router.push("/app");
+            }
+          }}
           className={`flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500/10 to-violet-500/10 px-3 py-2.5 text-sm font-medium text-white ring-1 ring-white/10 hover:from-cyan-500/20 hover:to-violet-500/20 transition-all ${
             isCollapsed ? "justify-center px-2" : "justify-start"
           }`}
@@ -153,7 +183,7 @@ export default function Sidebar() {
             add_circle
           </span>
           {!isCollapsed && <span>New Chat</span>}
-        </Link>
+        </button>
 
 
 
@@ -169,18 +199,31 @@ export default function Sidebar() {
             {isLoadingProjects ? (
               <div className="px-3 py-2 text-slate-500 text-sm">Loading...</div>
             ) : recentProjects.length > 0 ? (
-              recentProjects.map((project) => (
-                <Link
-                  key={project.id}
-                  href={`/chat/${project.id}`}
-                  className="flex items-center gap-3 truncate rounded-lg px-3 py-1.5 text-slate-400 text-sm hover:bg-white/5 hover:text-white transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[16px] opacity-70">
-                    history
-                  </span>
-                  <span className="truncate">{project.name}</span>
-                </Link>
-              ))
+              recentProjects.map((project) => {
+                const isActive = activeProjectId === project.id;
+                return (
+                  <button
+                    key={project.id}
+                    onClick={() => {
+                      if (onProjectSelect) {
+                        onProjectSelect(project.id);
+                      } else {
+                        router.push(`/app/${project.id}`);
+                      }
+                    }}
+                    className={`flex items-center gap-3 truncate rounded-lg px-3 py-1.5 text-sm transition-colors w-full text-left ${
+                      isActive
+                        ? "bg-white/10 text-white"
+                        : "text-slate-400 hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    <span className={`material-symbols-outlined text-[16px] ${isActive ? "opacity-100" : "opacity-70"}`}>
+                      {isActive ? "chat_bubble" : "history"}
+                    </span>
+                    <span className="truncate">{project.name}</span>
+                  </button>
+                );
+              })
             ) : (
               <div className="px-3 py-2 text-slate-500 text-sm">
                 No projects yet. Start by creating a new one.

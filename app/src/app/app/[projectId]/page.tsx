@@ -1,57 +1,35 @@
 /**
- * ChatView Component
+ * Project Page - Project Chat Interface
  * 
- * Embedded chat interface for seamless single-page experience.
- * Used within AppHome to display chat after project creation.
- * 
- * This is a streamlined version of the full chat page,
- * designed for inline rendering without navigation.
+ * Main project page at /app/[projectId]
+ * Uses same components as /chat/[projectId] for consistency
  */
 
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react"
-import { User } from "firebase/auth"
+import { useAuth } from "@/components/Providers"
+import { useRouter, useParams } from "next/navigation"
+import { useEffect, useState, useRef } from "react"
 import UBPViewer, { UBPContent } from "@/components/UBPViewer"
 import ShareProjectModal from "@/components/ShareProjectModal"
 import LaunchPlanViewer from "@/components/LaunchPlanViewer"
-import { ChatPanel, type ChatMessage, type Intent, type ProposedChanges, type Blueprint, isUBPContent } from "@/components/chat"
+import { ChatPanel, type ChatMessage, type Intent, type ProposedChanges, type Project, type Blueprint, isUBPContent } from "@/components/chat"
 import type { SelectionContext } from "@/components/chat/types"
 
 // =============================================================================
-// Types
-// =============================================================================
-
-interface Project {
-    id: string
-    projectName: string
-    description?: string
-    chatHistory: ChatMessage[]
-    createdAt: string
-    updatedAt: string
-    latestBlueprint?: Blueprint
-}
-
-interface ChatViewProps {
-    projectId: string
-    initialMessage: string
-    user: User
-    onBack: () => void
-    isExisting?: boolean // true when loading existing project from sidebar
-}
-
-// =============================================================================
-// Transform Helpers (copied from chat page)
+// Transform Helpers
 // =============================================================================
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function transformApiToUBP(apiData: any): UBPContent {
+    // Transform productVision
     const productVision = apiData.productVision ? {
         description: apiData.productVision.problem || apiData.productVision.description,
         primaryGoal: apiData.productVision.successSignal || apiData.productVision.primaryGoal,
         targetAudience: apiData.productVision.targetActor || apiData.productVision.targetAudience
     } : undefined
 
+    // Transform actors from API format to array format
     let actors: { name: string; description: string; icon?: string }[] | undefined
     if (apiData.actors) {
         if (Array.isArray(apiData.actors)) {
@@ -74,6 +52,7 @@ function transformApiToUBP(apiData: any): UBPContent {
         }
     }
 
+    // Transform behaviors
     const behaviors = apiData.behaviors?.map((b: { id?: string; trigger?: string; systemResponse?: string; title?: string; given?: string; when?: string; then?: string; diagramCode?: string; diagram?: string; priority?: string }) => ({
         id: b.id || "BH-01",
         title: b.title || b.systemResponse || "Behavior",
@@ -84,6 +63,7 @@ function transformApiToUBP(apiData: any): UBPContent {
         diagram: b.diagram || b.diagramCode
     }))
 
+    // Transform constraints from constraintsRisks
     let constraints: { type: "warning" | "risk"; title: string; description: string }[] | undefined
     if (apiData.constraints && Array.isArray(apiData.constraints)) {
         constraints = apiData.constraints
@@ -101,6 +81,7 @@ function transformApiToUBP(apiData: any): UBPContent {
         }
     }
 
+    // Transform techStack to techDecisions
     let techDecisions: { category: string; choice: string }[] | undefined
     if (apiData.techDecisions && Array.isArray(apiData.techDecisions)) {
         techDecisions = apiData.techDecisions
@@ -111,6 +92,7 @@ function transformApiToUBP(apiData: any): UBPContent {
         }))
     }
 
+    // Transform phases
     const phases = apiData.phases?.map((p: { phase?: string; name?: string; goal?: string; description?: string; outputs?: string[]; timeline?: string; status?: string }, i: number) => ({
         name: p.name || p.phase || `Phase ${i + 1}`,
         timeline: p.timeline,
@@ -118,12 +100,14 @@ function transformApiToUBP(apiData: any): UBPContent {
         status: p.status || (i === 0 ? "current" : "upcoming") as "completed" | "current" | "upcoming"
     }))
 
+    // Transform integrations
     const integrations = apiData.integrations?.map((i: { service?: string; system?: string; purpose?: string; dataFlow?: string; method?: string }) => ({
         system: i.system || i.service || "External Service",
         method: i.method || i.dataFlow || "API",
         purpose: i.purpose || ""
     }))
 
+    // Transform changelog
     let changelog: { version: string; title: string; description: string; timestamp?: string }[] | undefined
     if (apiData.changelog && Array.isArray(apiData.changelog)) {
         changelog = apiData.changelog
@@ -153,7 +137,12 @@ function transformApiToUBP(apiData: any): UBPContent {
 // Main Component
 // =============================================================================
 
-export default function ChatView({ projectId, initialMessage, user, onBack, isExisting = false }: ChatViewProps) {
+export default function ProjectPage() {
+    const { user, loading } = useAuth()
+    const router = useRouter()
+    const params = useParams()
+    const projectId = params.projectId as string
+
     // Project and blueprint state
     const [project, setProject] = useState<Project | null>(null)
     const [loadingProject, setLoadingProject] = useState(true)
@@ -165,9 +154,11 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
     const [message, setMessage] = useState("")
     const [isGenerating, setIsGenerating] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [projectError, setProjectError] = useState<string | null>(null)
     const [isStreaming, setIsStreaming] = useState(false)
     const [streamedContent, setStreamedContent] = useState("")
     const [thinkingPhase, setThinkingPhase] = useState(0)
+    const thinkingMessages = ["Thinking...", "Working on it...", "Almost there..."]
 
     // UI state
     const [isUBPViewerOpen, setIsUBPViewerOpen] = useState(false)
@@ -180,13 +171,12 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const chatHistoryRef = useRef<ChatMessage[]>([])
     const lastUserMessageRef = useRef<string | null>(null)
-    const hasInitialized = useRef(false)
 
     // =============================================================================
     // Effects
     // =============================================================================
 
-    // Cycle through thinking messages
+    // Cycle through thinking messages while generating
     useEffect(() => {
         if (!isGenerating) {
             setThinkingPhase(0)
@@ -198,23 +188,29 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
         return () => clearInterval(timer)
     }, [isGenerating])
 
-    // Keep chatHistoryRef in sync
+    // Keep chatHistoryRef in sync with latest project.chatHistory
     useEffect(() => {
         if (project?.chatHistory) {
             chatHistoryRef.current = project.chatHistory
         }
     }, [project?.chatHistory])
 
-    // Initialize project and auto-generate
+    // Redirect if not logged in or email not verified
     useEffect(() => {
-        if (hasInitialized.current) return
-        hasInitialized.current = true
+        if (!loading && !user) {
+            router.push("/auth")
+        } else if (!loading && user && !user.emailVerified) {
+            router.push("/auth?verify=true")
+        }
+    }, [user, loading, router])
 
-        async function initializeProject() {
+    // Fetch project data
+    useEffect(() => {
+        async function fetchProject() {
+            if (!user || !projectId) return
+
             try {
                 const token = await user.getIdToken()
-                
-                // Fetch the newly created project
                 const res = await fetch(`/api/projects/${projectId}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 })
@@ -224,37 +220,13 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
                 }
 
                 const data = await res.json()
-
-                // For existing projects, use the saved chat history
-                // For new projects, add initial user message if chat history is empty
-                let initialChatHistory: ChatMessage[]
-                if (isExisting) {
-                    // Loading existing project - use saved history
-                    initialChatHistory = data.chatHistory || []
-                } else {
-                    // New project - add initial message if history is empty
-                    initialChatHistory = data.chatHistory?.length > 0
-                        ? data.chatHistory
-                        : [{
-                            role: "user" as const,
-                            content: initialMessage,
-                            timestamp: new Date().toISOString(),
-                        }]
-                }
-
-                const projectData: Project = {
-                    ...data,
-                    chatHistory: initialChatHistory,
-                }
-                
-                setProject(projectData)
+                setProject(data)
 
                 if (data.latestBlueprint?.content) {
                     setCurrentUBP(transformApiToUBP(data.latestBlueprint.content))
                     setSelectedBlueprint(data.latestBlueprint)
                 }
 
-                // Fetch versions
                 const versionsRes = await fetch(`/api/blueprints?projectId=${projectId}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 })
@@ -262,41 +234,43 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
                     const versionsData = await versionsRes.json()
                     setAllVersions(versionsData.blueprints || [])
                 }
-
-                setLoadingProject(false)
-
-                // Auto-generate response for the initial message (only for new projects)
-                if (!isExisting && initialChatHistory.length === 1 && initialChatHistory[0].role === 'user') {
-                    // Small delay to ensure state is set
-                    setTimeout(() => {
-                        generateResponse([], initialMessage, false)
-                    }, 100)
-                }
-
             } catch (err) {
-                console.error("Error initializing project:", err)
-                setError("Failed to load project")
+                console.error("Error fetching project:", err)
+                setProjectError("Project not found")
+            } finally {
                 setLoadingProject(false)
             }
         }
 
-        initializeProject()
-    }, [projectId, initialMessage, user])
+        if (user && projectId) {
+            fetchProject()
+        }
+    }, [user, projectId])
 
     // Scroll to bottom on new messages
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [project?.chatHistory])
 
+    // Auto-generate for initial project prompt
+    useEffect(() => {
+        if (!loadingProject && project && project.chatHistory.length === 1) {
+            const firstMsg = project.chatHistory[0]
+            if (firstMsg.role === 'user' && !isGenerating) {
+                console.log("Auto-generating for initial project prompt")
+                generateResponse([], firstMsg.content, true)
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loadingProject, project?.id])
+
     // =============================================================================
     // API Functions
     // =============================================================================
 
-    const generateResponse = useCallback(async (
-        currentHistory: ChatMessage[], 
-        usersMessage: string, 
-        skipPersist: boolean = false
-    ) => {
+    const generateResponse = async (currentHistory: ChatMessage[], usersMessage: string, skipPersist: boolean = false) => {
+        if (!user) return
+
         setIsGenerating(true)
         setIsStreaming(true)
         setStreamedContent("")
@@ -325,7 +299,6 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                 { role: "user", content: usersMessage }
             ]
 
-            // Save user message to DB first
             if (!skipPersist) {
                 fetch(`/api/projects/${projectId}`, {
                     method: "PATCH",
@@ -440,7 +413,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                             setIsStreaming(false)
                             setStreamedContent("")
 
-                            await saveCompleteResponse(accumulated, token)
+                            await saveCompleteResponse(accumulated, currentHistory, token)
                         } else if (parsed.type === "error") {
                             throw new Error(parsed.error)
                         }
@@ -457,7 +430,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
             setIsGenerating(false)
             setIsStreaming(false)
         }
-    }, [projectId, user])
+    }
 
     const generateResponseNonStreaming = async (
         usersMessage: string,
@@ -512,7 +485,11 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
         }
     }
 
-    const saveCompleteResponse = async (rawContent: string, token: string) => {
+    const saveCompleteResponse = async (
+        rawContent: string,
+        _currentHistory: ChatMessage[],
+        token: string
+    ) => {
         try {
             let parsedIntent: Intent = 'discussion'
             let parsedContent: unknown = null
@@ -627,6 +604,8 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
     }
 
     const generateLaunchPlanInBackground = async () => {
+        if (!user || !projectId) return
+
         setIsLaunchPlanGenerating(true)
         try {
             const token = await user.getIdToken()
@@ -651,7 +630,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!message.trim() || isGenerating) return
+        if (!message.trim() || isGenerating || !user) return
 
         const userMessage = message.trim()
         setMessage("")
@@ -686,7 +665,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
     }
 
     const handleRetry = async () => {
-        if (!lastUserMessageRef.current || isGenerating) return
+        if (!lastUserMessageRef.current || isGenerating || !user) return
 
         setError(null)
         const currentHistory = chatHistoryRef.current
@@ -694,7 +673,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
     }
 
     const handleApplyProposedChanges = async (proposedChanges: ProposedChanges, messageIndex: number) => {
-        if (!project?.latestBlueprint?.id || !currentUBP) return
+        if (!user || !project?.latestBlueprint?.id || !currentUBP) return
 
         setIsSaving(true)
         try {
@@ -761,7 +740,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
     }
 
     const handleAIEdit = async (section: string, instruction: string, selection: string) => {
-        if (!project) return
+        if (!user || !project) return
 
         setIsGenerating(true)
 
@@ -863,7 +842,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
     }
 
     const updateBlueprint = async (newContent: UBPContent) => {
-        if (!project?.latestBlueprint?.id) return
+        if (!user || !project?.latestBlueprint?.id) return
 
         setIsSaving(true)
         try {
@@ -905,7 +884,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
     }
 
     const handleSaveVersion = async () => {
-        if (!project?.latestBlueprint?.id) return
+        if (!user || !project?.latestBlueprint?.id) return
 
         setIsSaving(true)
         try {
@@ -954,6 +933,8 @@ Return the updated blueprint JSON with the changes applied to that section.`
     }
 
     const handleVersionSelect = async (blueprintId: string) => {
+        if (!user) return
+
         const selected = allVersions.find((v) => v.id === blueprintId)
         if (!selected) return
 
@@ -986,24 +967,25 @@ Return the updated blueprint JSON with the changes applied to that section.`
     // Render
     // =============================================================================
 
-    if (loadingProject) {
+    if (loading || loadingProject) {
         return (
-            <div className="flex-1 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <span className="material-symbols-outlined text-[#137fec] animate-spin text-4xl">hourglass_top</span>
-                    <p className="text-slate-400 text-sm">Preparing your session...</p>
+            <div className="min-h-screen bg-[#101922] flex items-center justify-center">
+                <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_top</span>
                 </div>
             </div>
         )
     }
 
-    if (!project) {
+    if (!user) return null
+
+    if (projectError || !project) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center gap-4">
+            <div className="min-h-screen bg-[#101922] flex flex-col items-center justify-center gap-4">
                 <span className="material-symbols-outlined text-red-400 text-5xl">error</span>
-                <p className="text-white text-lg">Failed to load project</p>
+                <p className="text-white text-lg">{projectError || "Project not found"}</p>
                 <button
-                    onClick={onBack}
+                    onClick={() => router.push("/app")}
                     className="flex items-center gap-2 bg-[#137fec] hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                 >
                     <span className="material-symbols-outlined text-[18px]">arrow_back</span>
@@ -1014,14 +996,14 @@ Return the updated blueprint JSON with the changes applied to that section.`
     }
 
     return (
-        <div className="flex flex-1 flex-col h-full overflow-hidden">
+        <div className="flex h-screen w-full flex-col bg-[#101922] text-white overflow-hidden">
             {/* Header */}
             <header className="relative flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 shrink-0 z-10">
-                <div className="absolute inset-0 bg-[#020204]/80 backdrop-blur-xl border-b border-white/5" />
+                <div className="absolute inset-0 bg-[#101922]/80 backdrop-blur-xl border-b border-white/5" />
 
                 <div className="relative flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                     <button
-                        onClick={onBack}
+                        onClick={() => router.push("/app")}
                         className="group flex items-center justify-center rounded-xl p-2 text-[#9dabb9] transition-all hover:bg-white/5 hover:text-white"
                         title="Back to Command Center"
                     >
@@ -1156,7 +1138,10 @@ Return the updated blueprint JSON with the changes applied to that section.`
                 projectId={projectId}
                 projectName={project.projectName}
                 onClose={() => setIsShareModalOpen(false)}
-                getToken={async () => user.getIdToken()}
+                getToken={async () => {
+                    if (!user) throw new Error("Not authenticated")
+                    return user.getIdToken()
+                }}
             />
         </div>
     )

@@ -19,6 +19,7 @@ import ChatView from "@/components/home/ChatView";
 interface ActiveSession {
   projectId: string;
   initialMessage: string;
+  isExisting?: boolean; // true when loading an existing project from sidebar
 }
 
 export default function AppHome() {
@@ -53,15 +54,37 @@ export default function AppHome() {
   // Handle back to Command Center
   const handleBackToCommandCenter = useCallback(() => {
     setIsTransitioning(true);
-    
+
     // Reset URL
     window.history.replaceState(null, "", "/app");
-    
+
     setTimeout(() => {
       setActiveSession(null);
       setIsTransitioning(false);
     }, 150);
   }, []);
+
+  // Handle project selection from sidebar
+  const handleProjectSelect = useCallback((projectId: string) => {
+    // If already on this project, do nothing
+    if (activeSession?.projectId === projectId) return;
+
+    setIsTransitioning(true);
+
+    // Update URL without navigation
+    window.history.replaceState(null, "", `/app/${projectId}`);
+
+    setTimeout(() => {
+      setActiveSession({ projectId, initialMessage: "", isExisting: true });
+      setIsTransitioning(false);
+    }, 150);
+  }, [activeSession?.projectId]);
+
+  // Handle new chat from sidebar
+  const handleNewChat = useCallback(() => {
+    if (!activeSession) return; // Already on Command Center
+    handleBackToCommandCenter();
+  }, [activeSession, handleBackToCommandCenter]);
 
   // Show loading state while checking auth
   if (loading) {
@@ -96,7 +119,11 @@ export default function AppHome() {
   return (
     <div className="flex h-screen w-full flex-row bg-[#020204] font-sans text-white overflow-hidden selection:bg-violet-500/30 selection:text-white premium-bg">
       {/* Sidebar Navigation - Always visible */}
-      <Sidebar />
+      <Sidebar
+        onProjectSelect={handleProjectSelect}
+        onNewChat={handleNewChat}
+        activeProjectId={activeSession?.projectId || null}
+      />
 
       {/* Main Content Area with seamless transitions */}
       <div className="relative flex-1 flex flex-col overflow-hidden">
@@ -110,10 +137,12 @@ export default function AppHome() {
         {/* Content: CommandCenter or ChatView */}
         {activeSession ? (
           <ChatView
+            key={activeSession.projectId}
             projectId={activeSession.projectId}
             initialMessage={activeSession.initialMessage}
             user={user}
             onBack={handleBackToCommandCenter}
+            isExisting={activeSession.isExisting}
           />
         ) : (
           <CommandCenter onProjectCreated={handleProjectCreated} />
