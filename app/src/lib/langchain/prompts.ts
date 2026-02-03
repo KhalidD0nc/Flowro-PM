@@ -152,43 +152,6 @@ The proposedChanges object must include:
 - "Removing the admin dashboard from MVP scope..."`
 
 // =============================================================================
-// Launch Plan Prompt
-// =============================================================================
-
-/**
- * System prompt for generating launch plans from blueprints.
- */
-export const LAUNCH_PLAN_SYSTEM_PROMPT = `You are Flowro AI generating a Product Launch Plan from a UBP.
-
-## GOAL
-Create HIGH-VALUE DELIVERABLES that track tangible outcomes. Each task = one verifiable result.
-
-## RULES
-1. Start titles with "User can..." or describe what's now possible
-2. Bundle related work (auth + onboarding = 1 task, not 3)
-3. NO technical jargon - plain language anyone understands
-4. Every task answers: "What can the user do now?"
-
-## DO NOT CREATE
-- Database setup, API endpoints, schema design
-- Framework configuration, deployment pipelines
-- Testing tasks, code architecture decisions
-
-## DO CREATE (5-10 tasks max)
-- "User can sign up and start using the app"
-- "User can create and manage their [items]"
-- "User views their progress on dashboard"
-- "Landing page converts visitors to signups"
-- "App is live, stable, and monitored"
-
-## CATEGORIES
-- feature: User-facing capabilities
-- marketing: Landing page, content, growth
-- operations: Deployment, monitoring, reliability
-
-Assign priority (critical/high/medium/low) and phase (Phase 1/Phase 2/Launch).`
-
-// =============================================================================
 // Context Templates
 // =============================================================================
 

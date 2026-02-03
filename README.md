@@ -68,10 +68,10 @@ Generate comprehensive 9-section blueprints covering:
 - Continue conversations even after saving a version
 - Full version history with change tracking
 
-### 📊 Project Dashboard
-- Manage all your projects in one place
-- Visual status indicators
-- Quick access to blueprints and chat history
+### 📊 Command Center & Dashboard
+- **Vision Input**: Interactive "What's the vision?" interface for rapid project initiation.
+- **Quick Actions**: One-click templates for common apps (Task Manager, Warehouse, etc.).
+- **Smart Management**: Visual status indicators and quick access to blueprints.
 
 ### 🔗 Agent-Ready Export
 Export blueprints in formats optimized for AI coding agents:
@@ -137,7 +137,6 @@ flowchart LR
 | **Auth** | Firebase Auth | Zero-friction Google OAuth, no password management |
 | **Database** | Firebase Firestore | NoSQL perfect for JSON-based UBPs, real-time sync |
 | **AI Orchestration** | LangChain & OpenRouter | Structured AI outputs and multi-model flexibility |
-| **Task Engine** | @dnd-kit 6.3 | High-performance, accessible drag-and-drop toolkit |
 | **Styling** | Tailwind CSS 4 | Utility-first, rapid UI development with CSS variables |
 | **Diagrams** | Mermaid.js 11 | Text-to-diagram for agent compatibility |
 | **Validation** | Zod 4.3 | Runtime type validation for API responses |
@@ -334,17 +333,22 @@ Flowro-PM/
 │       │   └── page.tsx             # Landing page
 │       │
 │       ├── components/
-│       │   ├── KanbanBoard/         # Task management board
+│       │   ├── home/                # Command Center & Home View
+│       │   │   ├── CommandCenter.tsx
+│       │   │   ├── VisionInput.tsx
+│       │   │   └── QuickActions.tsx
 │       │   ├── onboarding/          # User onboarding flow
 │       │   ├── ui/                  # Reusable UI components
 │       │   ├── UBPViewer.tsx        # Blueprint display
 │       │   ├── UBPEditModals.tsx    # Blueprint editing
-│       │   ├── LaunchPlanViewer.tsx # Roadmap & tasks
-│       │   ├── ShareModal.tsx       # Sharing interface
+│       │   ├── ShareProjectModal.tsx # Project Sharing
 │       │   ├── PricingSection.tsx   # Pricing UI
 │       │   └── AIFloatingMenu.tsx   # AI enhancement menu
 │       │
 │       ├── lib/
+│       │   ├── rag/                 # RAG Engine
+│       │   ├── memory/              # Agent Memory System
+│       │   ├── learning/            # Self-learning capabilities
 │       │   ├── firebase.ts          # Client SDK
 │       │   ├── firebaseAdmin.ts     # Server SDK
 │       │   ├── openrouter.ts        # LLM client

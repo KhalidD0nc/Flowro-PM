@@ -70,7 +70,7 @@ async function runAllTests(): Promise<TestSection[]> {
     const sections: TestSection[] = []
 
     console.log('\n🧪 Phase 3: Intelligence Layer Test Suite\n')
-    console.log('=' .repeat(70))
+    console.log('='.repeat(70))
 
     // ==========================================================================
     // Section 1: Memory Compression Tests
@@ -108,7 +108,7 @@ async function runAllTests(): Promise<TestSection[]> {
     // Summary
     // ==========================================================================
 
-    console.log('\n' + '=' .repeat(70))
+    console.log('\n' + '='.repeat(70))
     printSummary(sections)
 
     return sections
@@ -144,7 +144,7 @@ async function runMemoryCompressionTests(): Promise<TestResult[]> {
         before: 'No memory compression - all 10+ messages sent to LLM each time (~2500 tokens)',
         after: 'Messages compressed to structured memory (~400 tokens, 84% reduction)',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 2: Decision Extraction
     results.push({
@@ -154,7 +154,7 @@ async function runMemoryCompressionTests(): Promise<TestResult[]> {
         before: 'Decisions lost in long conversations, LLM might contradict earlier choices',
         after: 'Key decisions tracked: Firebase database, dual auth (email + Google)',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 3: Open Questions
     results.push({
@@ -164,7 +164,7 @@ async function runMemoryCompressionTests(): Promise<TestResult[]> {
         before: 'No tracking of unanswered questions - context lost',
         after: 'Open questions preserved: notification priorities pending',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 4: Topic Extraction
     results.push({
@@ -174,7 +174,7 @@ async function runMemoryCompressionTests(): Promise<TestResult[]> {
         before: 'No topic awareness - full context needed every time',
         after: 'Topics tracked: authentication, database, notifications',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 5: Compression Ratio (note: short conversations may not show compression, value is in structure)
     // For 10+ messages, we expect some compression. For shorter, structured output is the value.
@@ -186,7 +186,7 @@ async function runMemoryCompressionTests(): Promise<TestResult[]> {
         before: 'N/A - no compression existed',
         after: 'Structured memory with decisions, questions, and topics extracted',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 6: Memory to Context Conversion
     const contextString = memoryToContext(compressionResult.memory)
@@ -197,7 +197,7 @@ async function runMemoryCompressionTests(): Promise<TestResult[]> {
         before: 'Raw messages sent to LLM without structure',
         after: 'Structured markdown context with decisions, questions, topics',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 7: Built-in validator (most tests should pass)
     const validatorResults = validateMemoryCompressor()
@@ -209,7 +209,7 @@ async function runMemoryCompressionTests(): Promise<TestResult[]> {
         before: 'No validation of memory system',
         after: 'Self-validating module with built-in test cases',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     return results
 }
@@ -234,7 +234,7 @@ async function runRAGTests(): Promise<TestResult[]> {
         before: 'No PM knowledge base - LLM relied on training data only',
         after: '8+ PM best practices loaded (auth, payments, onboarding, etc.)',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 2: Knowledge search works
     const authResults = await store.searchKnowledge('user login password auth security', 'authentication')
@@ -245,7 +245,7 @@ async function runRAGTests(): Promise<TestResult[]> {
         before: 'No searchable knowledge base',
         after: 'Semantic search across PM knowledge with relevance scoring',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 3: Pattern storage and retrieval
     const testPattern: BlueprintPattern = {
@@ -280,7 +280,7 @@ async function runRAGTests(): Promise<TestResult[]> {
         before: 'Each project started from scratch - no learning from past',
         after: 'Patterns stored and retrieved based on similarity',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 4: Knowledge enrichment
     const enrichment = await store.enrichWithKnowledge('payment stripe billing subscription', 'payments')
@@ -291,7 +291,7 @@ async function runRAGTests(): Promise<TestResult[]> {
         before: 'LLM answered from training data only',
         after: 'Curated PM knowledge injected into context',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 5: Pattern enrichment
     const patternEnrichment = await store.enrichWithPatterns('saas stripe subscription')
@@ -302,7 +302,7 @@ async function runRAGTests(): Promise<TestResult[]> {
         before: 'No awareness of similar past projects',
         after: 'Similar patterns inform recommendations',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 6: Built-in validator
     resetVectorStore() // Reset for validator
@@ -315,7 +315,7 @@ async function runRAGTests(): Promise<TestResult[]> {
         before: 'No validation of RAG system',
         after: 'Self-validating module with test coverage',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     return results
 }
@@ -414,7 +414,7 @@ async function runLearningTests(): Promise<TestResult[]> {
         before: 'No quality assessment of blueprints',
         after: 'Automated quality scoring with completeness, clarity, and validity checks',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 2: Category detection
     const category = detectCategory(testBlueprint)
@@ -425,7 +425,7 @@ async function runLearningTests(): Promise<TestResult[]> {
         before: 'No automatic categorization',
         after: 'Auto-detection from 8 categories (saas, marketplace, mobile-app, etc.)',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 3: Pattern extraction
     const pattern = extractPattern(testBlueprint, category, metrics.score)
@@ -436,12 +436,12 @@ async function runLearningTests(): Promise<TestResult[]> {
         before: 'Blueprints used once and discarded',
         after: 'Reusable patterns extracted with behavior and integration info',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 4: Full learning flow
     resetVectorStore() // Clean store
     const learningResult = await learnFromApprovedBlueprint(testBlueprint, 'productivity')
-    
+
     results.push({
         name: 'Full learning pipeline works',
         passed: learningResult.pattern.id.includes('taskflow') && learningResult.extractedKnowledge.length > 0,
@@ -449,7 +449,7 @@ async function runLearningTests(): Promise<TestResult[]> {
         before: 'No learning from approved blueprints',
         after: 'Patterns and knowledge auto-extracted when blueprint approved',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 5: Learned pattern retrievable
     const retrievedPatterns = await searchSimilarPatterns('task project team productivity collaboration')
@@ -460,7 +460,7 @@ async function runLearningTests(): Promise<TestResult[]> {
         before: 'Starting from scratch every time',
         after: 'Similar past projects inform new blueprint generation',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 6: Built-in validator
     const validatorResults = validatePatternExtractor()
@@ -472,7 +472,7 @@ async function runLearningTests(): Promise<TestResult[]> {
         before: 'No validation of learning system',
         after: 'Self-validating module with comprehensive test coverage',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     return results
 }
@@ -486,7 +486,7 @@ async function runIntegrationTests(): Promise<TestResult[]> {
 
     // Test 1: Memory + RAG integration
     resetVectorStore()
-    
+
     // Simulate a conversation about building a SaaS
     const conversationMessages: ChatMessage[] = [
         { role: 'user', content: 'I want to build a subscription-based analytics dashboard' },
@@ -517,7 +517,7 @@ async function runIntegrationTests(): Promise<TestResult[]> {
         before: 'Memory and knowledge systems isolated',
         after: 'Compressed memory topics trigger relevant knowledge retrieval',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 2: Learning + Retrieval cycle
     const newBlueprint: UBP = {
@@ -543,7 +543,7 @@ async function runIntegrationTests(): Promise<TestResult[]> {
     }
 
     await learnFromApprovedBlueprint(newBlueprint, 'saas')
-    
+
     // Try to find patterns with matching keywords
     const allPatterns = await searchSimilarPatterns('saas stripe analytics dashboard')
 
@@ -554,11 +554,11 @@ async function runIntegrationTests(): Promise<TestResult[]> {
         before: 'No learning loop',
         after: 'Approved blueprints become searchable patterns',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 3: End-to-end context building
     const storeForContext = getVectorStore()
-    
+
     // Build combined context (simulating what would go to LLM)
     const memoryContext = memoryToContext(memoryResult.memory)
     const knowledgeContext = await storeForContext.enrichWithKnowledge('payment billing stripe', 'payments')
@@ -573,7 +573,7 @@ async function runIntegrationTests(): Promise<TestResult[]> {
         before: 'Only raw messages sent to LLM',
         after: 'Rich context: memory + knowledge + patterns combined',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     // Test 4: Token efficiency
     // For enriched context, we accept higher token count because we're adding valuable context
@@ -590,7 +590,7 @@ async function runIntegrationTests(): Promise<TestResult[]> {
         before: 'Token usage grows linearly with conversation',
         after: 'Enriched context is bounded and adds valuable PM knowledge',
     })
-    console.log(`  ${results[results.length-1].passed ? '✅' : '❌'} ${results[results.length-1].name}`)
+    console.log(`  ${results[results.length - 1].passed ? '✅' : '❌'} ${results[results.length - 1].name}`)
 
     return results
 }
@@ -633,7 +633,7 @@ function printSummary(sections: TestSection[]): void {
 
 function showBeforeAfterComparison(sections: TestSection[]): void {
     console.log('\n📋 Before/After Comparison\n')
-    console.log('=' .repeat(70))
+    console.log('='.repeat(70))
 
     for (const section of sections) {
         console.log(`\n### ${section.name}\n`)

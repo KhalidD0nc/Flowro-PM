@@ -122,33 +122,6 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // Tasks Collection
-    // =========================================================================
-
-    match /tasks/{taskId} {
-      // Helper to get parent project
-      function getProject() {
-        return get(/databases/$(database)/documents/projects/$(resource.data.projectId));
-      }
-
-      function getProjectForCreate() {
-        return get(/databases/$(database)/documents/projects/$(request.resource.data.projectId));
-      }
-
-      allow read: if isAuthenticated()
-                  && exists(/databases/$(database)/documents/projects/$(resource.data.projectId))
-                  && getProject().data.userId == request.auth.uid;
-
-      allow create: if isAuthenticated()
-                    && exists(/databases/$(database)/documents/projects/$(request.resource.data.projectId))
-                    && getProjectForCreate().data.userId == request.auth.uid;
-
-      allow update, delete: if isAuthenticated()
-                            && exists(/databases/$(database)/documents/projects/$(resource.data.projectId))
-                            && getProject().data.userId == request.auth.uid;
-    }
-
-    // =========================================================================
     // Users Collection
     // =========================================================================
 

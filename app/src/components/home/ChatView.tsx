@@ -14,7 +14,6 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { User } from "firebase/auth"
 import UBPViewer, { UBPContent } from "@/components/UBPViewer"
 import ShareProjectModal from "@/components/ShareProjectModal"
-import LaunchPlanViewer from "@/components/LaunchPlanViewer"
 import { ChatPanel, type ChatMessage, type Intent, type ProposedChanges, type Blueprint, isUBPContent } from "@/components/chat"
 import type { SelectionContext } from "@/components/chat/types"
 import { parseJSONSafe } from "@/lib/jsonRepair"
@@ -172,11 +171,9 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
 
     // UI state
     const [isUBPViewerOpen, setIsUBPViewerOpen] = useState(false)
-    const [isLaunchPlanOpen, setIsLaunchPlanOpen] = useState(false)
     const [isShareModalOpen, setIsShareModalOpen] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null)
-    const [isLaunchPlanGenerating, setIsLaunchPlanGenerating] = useState(false)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const chatHistoryRef = useRef<ChatMessage[]>([])
@@ -504,7 +501,6 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
 
             if (data.intent === 'initial' && data.content && isUBPContent(data.content)) {
                 setCurrentUBP(transformApiToUBP(data.content))
-                generateLaunchPlanInBackground()
             }
 
             if (data.productName && projectRes.ok) {
@@ -604,8 +600,6 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                     })
                     setProject(prev => prev ? { ...prev, projectName: productName } : prev)
                 }
-
-                generateLaunchPlanInBackground()
             }
 
             if (res.ok) {
@@ -626,25 +620,6 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
             }
         } catch (error) {
             console.error("Failed to save response:", error)
-        }
-    }
-
-    const generateLaunchPlanInBackground = async () => {
-        setIsLaunchPlanGenerating(true)
-        try {
-            const token = await user.getIdToken()
-            await fetch("/api/tasks/generate", {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ projectId })
-            })
-        } catch (err) {
-            console.error("Background launch plan generation failed:", err)
-        } finally {
-            setIsLaunchPlanGenerating(false)
         }
     }
 
@@ -1122,13 +1097,6 @@ Return the updated blueprint JSON with the changes applied to that section.`
                 projectId={projectId}
                 onUpdate={updateBlueprint}
                 onEnhance={handleEnhanceWithFlowro}
-            />
-
-            <LaunchPlanViewer
-                isOpen={isLaunchPlanOpen}
-                onClose={() => setIsLaunchPlanOpen(false)}
-                projectId={projectId}
-                projectName={project?.projectName || "Project"}
             />
 
             <ShareProjectModal

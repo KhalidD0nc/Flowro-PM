@@ -36,16 +36,6 @@ export async function DELETE(request: NextRequest) {
                 batch.delete(bpDoc.ref)
             })
 
-            // Delete tasks for each project
-            const tasksSnapshot = await adminDb
-                .collection("tasks")
-                .where("projectId", "==", doc.id)
-                .get()
-
-            tasksSnapshot.docs.forEach((taskDoc) => {
-                batch.delete(taskDoc.ref)
-            })
-
             batch.delete(doc.ref)
         }
 

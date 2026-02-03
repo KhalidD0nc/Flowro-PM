@@ -339,16 +339,6 @@ export async function deleteProject(projectId: string): Promise<void> {
         batch.delete(doc.ref)
     })
 
-    // Delete all tasks for this project
-    const tasksSnapshot = await db
-        .collection("tasks")
-        .where("projectId", "==", projectId)
-        .get()
-
-    tasksSnapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref)
-    })
-
     // Delete all share tokens for this project
     const shareTokensSnapshot = await db
         .collection("shareTokens")
