@@ -4,13 +4,13 @@
  * Collapsible sidebar with:
  * - Persistent state via localStorage
  * - Real user data
- * - Navigation to settings, logout
+ * - Profile popup menu with settings, logout
  * - Recent projects from API
  */
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/Providers";
@@ -39,6 +39,10 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+
+  // Profile menu state
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -111,6 +115,23 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
       .toUpperCase()
       .slice(0, 2);
   };
+
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    if (isProfileMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isProfileMenuOpen]);
 
   return (
     <aside
@@ -233,40 +254,104 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
         )}
       </div>
 
-      {/* Bottom Section */}
-      <div className="flex flex-col gap-1 border-t border-white/5 pt-4">
-        {/* Settings */}
-        <Link
-          href="/settings"
-          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-slate-400 hover:bg-white/5 hover:text-white transition-colors ${
-            isCollapsed ? "justify-center" : ""
-          }`}
-          title="Settings"
-        >
-          <span className="material-symbols-outlined text-[20px]">
-            settings
-          </span>
-          {!isCollapsed && <p className="text-sm font-medium">Settings</p>}
-        </Link>
-
-        {/* Logout */}
-        <button
-          onClick={handleLogout}
-          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-slate-400 hover:bg-white/5 hover:text-white transition-colors ${
-            isCollapsed ? "justify-center" : ""
-          }`}
-          title="Logout"
-        >
-          <span className="material-symbols-outlined text-[20px]">logout</span>
-          {!isCollapsed && <p className="text-sm font-medium">Logout</p>}
-        </button>
-
-        {/* User Profile Card */}
-        {user && (
+      {/* Bottom Section - Profile Menu */}
+      <div className="relative border-t border-white/5 pt-4" ref={profileMenuRef}>
+        {/* Profile Menu Popup */}
+        {isProfileMenuOpen && user && (
           <div
-            className={`mt-2 flex items-center gap-3 rounded-lg bg-white/5 p-2 ring-1 ring-white/5 ${
+            className="absolute bottom-full left-0 mb-2 w-64 rounded-xl bg-[#1a1d21] border border-white/10 shadow-2xl shadow-black/50 overflow-hidden z-50"
+            style={{ minWidth: isCollapsed ? '256px' : '100%' }}
+          >
+            {/* User Email */}
+            <div className="px-4 py-3 border-b border-white/5">
+              <p className="text-sm text-[#9dabb8] truncate">
+                {user.email || "user@example.com"}
+              </p>
+            </div>
+
+            {/* Menu Items - Group 1 */}
+            <div className="py-1">
+              <Link
+                href="/settings"
+                onClick={() => setIsProfileMenuOpen(false)}
+                className="flex items-center justify-between px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-[20px] opacity-70">settings</span>
+                  <span className="text-sm">Settings</span>
+                </div>
+                <span className="text-xs text-slate-500">⇧⌘,</span>
+              </Link>
+
+              <button
+                onClick={() => setIsProfileMenuOpen(false)}
+                className="flex items-center justify-between w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-[20px] opacity-70">language</span>
+                  <span className="text-sm">Language</span>
+                </div>
+                <span className="material-symbols-outlined text-[16px] opacity-50">chevron_right</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  window.open("mailto:support@flowro.ai", "_blank");
+                }}
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[20px] opacity-70">help</span>
+                <span className="text-sm">Get help</span>
+              </button>
+            </div>
+
+            {/* Menu Items - Group 2 */}
+            <div className="py-1 border-t border-white/5">
+              <button
+                onClick={() => setIsProfileMenuOpen(false)}
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[20px] opacity-70">tune</span>
+                <span className="text-sm">View all plans</span>
+              </button>
+
+              <button
+                onClick={() => setIsProfileMenuOpen(false)}
+                className="flex items-center justify-between w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-[20px] opacity-70">info</span>
+                  <span className="text-sm">Learn more</span>
+                </div>
+                <span className="material-symbols-outlined text-[16px] opacity-50">chevron_right</span>
+              </button>
+            </div>
+
+            {/* Logout */}
+            <div className="py-1 border-t border-white/5">
+              <button
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  handleLogout();
+                }}
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[20px] opacity-70">logout</span>
+                <span className="text-sm">Log out</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* User Profile Button */}
+        {user && (
+          <button
+            onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+            className={`w-full flex items-center gap-3 rounded-lg bg-white/5 p-2 ring-1 ring-white/5 hover:bg-white/10 transition-colors cursor-pointer ${
               isCollapsed ? "justify-center" : ""
             }`}
+            title="Profile menu"
           >
             {user.photoURL ? (
               <img
@@ -275,19 +360,19 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                 className="size-8 rounded-full object-cover"
               />
             ) : (
-              <div className="size-8 rounded bg-gradient-to-tr from-violet-500 to-fuchsia-500 flex items-center justify-center text-xs font-bold text-white">
+              <div className="size-8 rounded-full bg-gradient-to-tr from-violet-500 to-fuchsia-500 flex items-center justify-center text-xs font-bold text-white">
                 {getUserInitials()}
               </div>
             )}
             {!isCollapsed && (
-              <div className="flex flex-col overflow-hidden">
+              <div className="flex flex-col overflow-hidden text-left flex-1">
                 <p className="truncate text-sm font-medium text-white">
                   {user.displayName || user.email?.split("@")[0] || "User"}
                 </p>
                 <p className="truncate text-xs text-slate-400">Free Plan</p>
               </div>
             )}
-          </div>
+          </button>
         )}
       </div>
     </aside>
