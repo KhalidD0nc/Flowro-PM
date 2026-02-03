@@ -1,40 +1,56 @@
 /**
- * Chat Page - Project Chat Interface
+ * ChatView Component
  * 
- * Main chat page that uses refactored components:
- * - ChatPanel for message display and input
- * - UBPViewer for blueprint viewing/editing
- * - LaunchPlanViewer for task management
+ * Embedded chat interface for seamless single-page experience.
+ * Used within AppHome to display chat after project creation.
  * 
- * Implements Phase 4 of Architecture-Simplification-Plan.md
- * @see /Docs/Architecture-Simplification-Plan.md Phase 4
+ * This is a streamlined version of the full chat page,
+ * designed for inline rendering without navigation.
  */
 
 "use client"
 
-import { useAuth } from "@/components/Providers"
-import { useRouter, useParams } from "next/navigation"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
+import { User } from "firebase/auth"
 import UBPViewer, { UBPContent } from "@/components/UBPViewer"
 import ShareProjectModal from "@/components/ShareProjectModal"
 import LaunchPlanViewer from "@/components/LaunchPlanViewer"
-import { ChatPanel, type ChatMessage, type Intent, type ProposedChanges, type Project, type Blueprint, isUBPContent } from "@/components/chat"
+import { ChatPanel, type ChatMessage, type Intent, type ProposedChanges, type Blueprint, isUBPContent } from "@/components/chat"
 import type { SelectionContext } from "@/components/chat/types"
 
 // =============================================================================
-// Transform Helpers
+// Types
+// =============================================================================
+
+interface Project {
+    id: string
+    projectName: string
+    description?: string
+    chatHistory: ChatMessage[]
+    createdAt: string
+    updatedAt: string
+    latestBlueprint?: Blueprint
+}
+
+interface ChatViewProps {
+    projectId: string
+    initialMessage: string
+    user: User
+    onBack: () => void
+}
+
+// =============================================================================
+// Transform Helpers (copied from chat page)
 // =============================================================================
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function transformApiToUBP(apiData: any): UBPContent {
-    // Transform productVision
     const productVision = apiData.productVision ? {
         description: apiData.productVision.problem || apiData.productVision.description,
         primaryGoal: apiData.productVision.successSignal || apiData.productVision.primaryGoal,
         targetAudience: apiData.productVision.targetActor || apiData.productVision.targetAudience
     } : undefined
 
-    // Transform actors from API format to array format
     let actors: { name: string; description: string; icon?: string }[] | undefined
     if (apiData.actors) {
         if (Array.isArray(apiData.actors)) {
@@ -57,18 +73,16 @@ function transformApiToUBP(apiData: any): UBPContent {
         }
     }
 
-    // Transform behaviors
     const behaviors = apiData.behaviors?.map((b: { id?: string; trigger?: string; systemResponse?: string; title?: string; given?: string; when?: string; then?: string; diagramCode?: string; diagram?: string; priority?: string }) => ({
         id: b.id || "BH-01",
         title: b.title || b.systemResponse || "Behavior",
         priority: b.priority,
-        given: b.given || (b.trigger ? `User triggers: ${b.trigger} ` : undefined),
+        given: b.given || (b.trigger ? `User triggers: ${b.trigger}` : undefined),
         when: b.when || b.trigger,
         then: b.then || b.systemResponse,
         diagram: b.diagram || b.diagramCode
     }))
 
-    // Transform constraints from constraintsRisks
     let constraints: { type: "warning" | "risk"; title: string; description: string }[] | undefined
     if (apiData.constraints && Array.isArray(apiData.constraints)) {
         constraints = apiData.constraints
@@ -86,7 +100,6 @@ function transformApiToUBP(apiData: any): UBPContent {
         }
     }
 
-    // Transform techStack to techDecisions
     let techDecisions: { category: string; choice: string }[] | undefined
     if (apiData.techDecisions && Array.isArray(apiData.techDecisions)) {
         techDecisions = apiData.techDecisions
@@ -97,22 +110,19 @@ function transformApiToUBP(apiData: any): UBPContent {
         }))
     }
 
-    // Transform phases
     const phases = apiData.phases?.map((p: { phase?: string; name?: string; goal?: string; description?: string; outputs?: string[]; timeline?: string; status?: string }, i: number) => ({
-        name: p.name || p.phase || `Phase ${i + 1} `,
+        name: p.name || p.phase || `Phase ${i + 1}`,
         timeline: p.timeline,
         description: p.description || p.goal || (p.outputs ? p.outputs.join(", ") : ""),
         status: p.status || (i === 0 ? "current" : "upcoming") as "completed" | "current" | "upcoming"
     }))
 
-    // Transform integrations
     const integrations = apiData.integrations?.map((i: { service?: string; system?: string; purpose?: string; dataFlow?: string; method?: string }) => ({
         system: i.system || i.service || "External Service",
         method: i.method || i.dataFlow || "API",
         purpose: i.purpose || ""
     }))
 
-    // Transform changelog
     let changelog: { version: string; title: string; description: string; timestamp?: string }[] | undefined
     if (apiData.changelog && Array.isArray(apiData.changelog)) {
         changelog = apiData.changelog
@@ -142,12 +152,7 @@ function transformApiToUBP(apiData: any): UBPContent {
 // Main Component
 // =============================================================================
 
-export default function ChatPage() {
-    const { user, loading } = useAuth()
-    const router = useRouter()
-    const params = useParams()
-    const projectId = params.projectId as string
-
+export default function ChatView({ projectId, initialMessage, user, onBack }: ChatViewProps) {
     // Project and blueprint state
     const [project, setProject] = useState<Project | null>(null)
     const [loadingProject, setLoadingProject] = useState(true)
@@ -158,12 +163,10 @@ export default function ChatPage() {
     // Chat state
     const [message, setMessage] = useState("")
     const [isGenerating, setIsGenerating] = useState(false)
-    const [error, setError] = useState<string | null>(null) // Transient generation errors (inline)
-    const [projectError, setProjectError] = useState<string | null>(null) // Fatal project errors (full-screen)
+    const [error, setError] = useState<string | null>(null)
     const [isStreaming, setIsStreaming] = useState(false)
     const [streamedContent, setStreamedContent] = useState("")
     const [thinkingPhase, setThinkingPhase] = useState(0)
-    const thinkingMessages = ["Thinking...", "Working on it...", "Almost there..."]
 
     // UI state
     const [isUBPViewerOpen, setIsUBPViewerOpen] = useState(false)
@@ -174,14 +177,15 @@ export default function ChatPage() {
     const [isLaunchPlanGenerating, setIsLaunchPlanGenerating] = useState(false)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
-    const chatHistoryRef = useRef<ChatMessage[]>([]) // Issue 4: Ref to capture latest history
-    const lastUserMessageRef = useRef<string | null>(null) // Issue 6: Track last message for retry
+    const chatHistoryRef = useRef<ChatMessage[]>([])
+    const lastUserMessageRef = useRef<string | null>(null)
+    const hasInitialized = useRef(false)
 
     // =============================================================================
     // Effects
     // =============================================================================
 
-    // Cycle through thinking messages while generating
+    // Cycle through thinking messages
     useEffect(() => {
         if (!isGenerating) {
             setThinkingPhase(0)
@@ -193,29 +197,23 @@ export default function ChatPage() {
         return () => clearInterval(timer)
     }, [isGenerating])
 
-    // Issue 4: Keep chatHistoryRef in sync with latest project.chatHistory
+    // Keep chatHistoryRef in sync
     useEffect(() => {
         if (project?.chatHistory) {
             chatHistoryRef.current = project.chatHistory
         }
     }, [project?.chatHistory])
 
-    // Redirect if not logged in or email not verified
+    // Initialize project and auto-generate
     useEffect(() => {
-        if (!loading && !user) {
-            router.push("/auth")
-        } else if (!loading && user && !user.emailVerified) {
-            router.push("/auth?verify=true")
-        }
-    }, [user, loading, router])
+        if (hasInitialized.current) return
+        hasInitialized.current = true
 
-    // Fetch project data
-    useEffect(() => {
-        async function fetchProject() {
-            if (!user || !projectId) return
-
+        async function initializeProject() {
             try {
                 const token = await user.getIdToken()
+                
+                // Fetch the newly created project
                 const res = await fetch(`/api/projects/${projectId}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 })
@@ -225,13 +223,29 @@ export default function ChatPage() {
                 }
 
                 const data = await res.json()
-                setProject(data)
+                
+                // Add initial user message to chat history if empty
+                const initialChatHistory: ChatMessage[] = data.chatHistory?.length > 0 
+                    ? data.chatHistory 
+                    : [{
+                        role: "user" as const,
+                        content: initialMessage,
+                        timestamp: new Date().toISOString(),
+                    }]
+
+                const projectData: Project = {
+                    ...data,
+                    chatHistory: initialChatHistory,
+                }
+                
+                setProject(projectData)
 
                 if (data.latestBlueprint?.content) {
                     setCurrentUBP(transformApiToUBP(data.latestBlueprint.content))
                     setSelectedBlueprint(data.latestBlueprint)
                 }
 
+                // Fetch versions
                 const versionsRes = await fetch(`/api/blueprints?projectId=${projectId}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 })
@@ -239,50 +253,41 @@ export default function ChatPage() {
                     const versionsData = await versionsRes.json()
                     setAllVersions(versionsData.blueprints || [])
                 }
+
+                setLoadingProject(false)
+
+                // Auto-generate response for the initial message
+                if (initialChatHistory.length === 1 && initialChatHistory[0].role === 'user') {
+                    // Small delay to ensure state is set
+                    setTimeout(() => {
+                        generateResponse([], initialMessage, false)
+                    }, 100)
+                }
+
             } catch (err) {
-                console.error("Error fetching project:", err)
-                setProjectError("Project not found")
-            } finally {
+                console.error("Error initializing project:", err)
+                setError("Failed to load project")
                 setLoadingProject(false)
             }
         }
 
-        if (user && projectId) {
-            fetchProject()
-        }
-    }, [user, projectId])
+        initializeProject()
+    }, [projectId, initialMessage, user])
 
     // Scroll to bottom on new messages
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }, [project?.chatHistory])
 
-    // Auto-generate for initial project prompt
-    useEffect(() => {
-        if (!loadingProject && project && project.chatHistory.length === 1) {
-            const firstMsg = project.chatHistory[0]
-            if (firstMsg.role === 'user' && !isGenerating) {
-                console.log("Auto-generating for initial project prompt")
-                // skipPersist=true because the user message is already in the database
-                generateResponse([], firstMsg.content, true)
-            }
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [loadingProject, project?.id])
-
     // =============================================================================
     // API Functions
     // =============================================================================
 
-    /**
-     * Generate AI response with streaming support
-     * @param currentHistory - Chat history for context
-     * @param usersMessage - The user's message to respond to
-     * @param skipPersist - If true, skip saving user message (used for auto-generate when message already exists)
-     */
-    const generateResponse = async (currentHistory: ChatMessage[], usersMessage: string, skipPersist: boolean = false) => {
-        if (!user) return
-
+    const generateResponse = useCallback(async (
+        currentHistory: ChatMessage[], 
+        usersMessage: string, 
+        skipPersist: boolean = false
+    ) => {
         setIsGenerating(true)
         setIsStreaming(true)
         setStreamedContent("")
@@ -311,7 +316,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                 { role: "user", content: usersMessage }
             ]
 
-            // Save user message to DB first (skip if message already persisted, e.g., auto-generate)
+            // Save user message to DB first
             if (!skipPersist) {
                 fetch(`/api/projects/${projectId}`, {
                     method: "PATCH",
@@ -388,7 +393,6 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                                     parsedIntent = fullParsed.intent
                                 }
 
-                                // Fix #2: Extract proposedChanges for proposal intents
                                 if (fullParsed.proposedChanges && typeof fullParsed.proposedChanges === 'object') {
                                     const pc = fullParsed.proposedChanges as Record<string, unknown>
                                     parsedProposedChanges = {
@@ -427,7 +431,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                             setIsStreaming(false)
                             setStreamedContent("")
 
-                            await saveCompleteResponse(accumulated, currentHistory, token)
+                            await saveCompleteResponse(accumulated, token)
                         } else if (parsed.type === "error") {
                             throw new Error(parsed.error)
                         }
@@ -444,7 +448,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
             setIsGenerating(false)
             setIsStreaming(false)
         }
-    }
+    }, [projectId, user])
 
     const generateResponseNonStreaming = async (
         usersMessage: string,
@@ -499,11 +503,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
         }
     }
 
-    const saveCompleteResponse = async (
-        rawContent: string,
-        _currentHistory: ChatMessage[],
-        token: string
-    ) => {
+    const saveCompleteResponse = async (rawContent: string, token: string) => {
         try {
             let parsedIntent: Intent = 'discussion'
             let parsedContent: unknown = null
@@ -618,8 +618,6 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
     }
 
     const generateLaunchPlanInBackground = async () => {
-        if (!user || !projectId) return
-
         setIsLaunchPlanGenerating(true)
         try {
             const token = await user.getIdToken()
@@ -644,21 +642,19 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!message.trim() || isGenerating || !user) return
+        if (!message.trim() || isGenerating) return
 
         const userMessage = message.trim()
         setMessage("")
         setIsGenerating(true)
         setError(null)
 
-        // Handle AI enhancement mode
         if (selectionContext) {
             await handleAIEdit(selectionContext.section, userMessage, selectionContext.text)
-            setSelectionContext(null) // Clear after AI edit completes
+            setSelectionContext(null)
             return
         }
 
-        // Issue 6: Store last user message for retry functionality
         lastUserMessageRef.current = userMessage
 
         const optimisticUserMsg: ChatMessage = {
@@ -667,7 +663,6 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
             timestamp: new Date().toISOString(),
         }
 
-        // Issue 4: Use ref to get latest history, avoiding stale closure
         const currentHistory = chatHistoryRef.current
         setProject(prev => prev ? {
             ...prev,
@@ -681,20 +676,16 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
         setMessage(actionMessage)
     }
 
-    /**
-     * Issue 6: Retry the last failed generation
-     */
     const handleRetry = async () => {
-        if (!lastUserMessageRef.current || isGenerating || !user) return
+        if (!lastUserMessageRef.current || isGenerating) return
 
         setError(null)
-        // Use chatHistoryRef for latest history (Issue 4)
         const currentHistory = chatHistoryRef.current
-        await generateResponse(currentHistory, lastUserMessageRef.current, true) // skipPersist since message already saved
+        await generateResponse(currentHistory, lastUserMessageRef.current, true)
     }
 
     const handleApplyProposedChanges = async (proposedChanges: ProposedChanges, messageIndex: number) => {
-        if (!user || !project?.latestBlueprint?.id || !currentUBP) return
+        if (!project?.latestBlueprint?.id || !currentUBP) return
 
         setIsSaving(true)
         try {
@@ -761,13 +752,13 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
     }
 
     const handleAIEdit = async (section: string, instruction: string, selection: string) => {
-        if (!user || !project) return
+        if (!project) return
 
         setIsGenerating(true)
 
         const prompt = `I am editing the "${section}" section of the blueprint.
         
-Current context(selected text): "${selection}"
+Current context (selected text): "${selection}"
 
 Instruction: ${instruction}
 
@@ -779,7 +770,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
 
             const userMessage: ChatMessage = {
                 role: "user",
-                content: `Edit ${section}: ${instruction} `,
+                content: `Edit ${section}: ${instruction}`,
                 timestamp: new Date().toISOString(),
                 proposedChanges: {
                     action: 'update',
@@ -863,7 +854,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
     }
 
     const updateBlueprint = async (newContent: UBPContent) => {
-        if (!user || !project?.latestBlueprint?.id) return
+        if (!project?.latestBlueprint?.id) return
 
         setIsSaving(true)
         try {
@@ -905,7 +896,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
     }
 
     const handleSaveVersion = async () => {
-        if (!user || !project?.latestBlueprint?.id) return
+        if (!project?.latestBlueprint?.id) return
 
         setIsSaving(true)
         try {
@@ -954,8 +945,6 @@ Return the updated blueprint JSON with the changes applied to that section.`
     }
 
     const handleVersionSelect = async (blueprintId: string) => {
-        if (!user) return
-
         const selected = allVersions.find((v) => v.id === blueprintId)
         if (!selected) return
 
@@ -988,25 +977,24 @@ Return the updated blueprint JSON with the changes applied to that section.`
     // Render
     // =============================================================================
 
-    if (loading || loadingProject) {
+    if (loadingProject) {
         return (
-            <div className="min-h-screen bg-[#101922] flex items-center justify-center">
-                <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_top</span>
+            <div className="flex-1 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <span className="material-symbols-outlined text-[#137fec] animate-spin text-4xl">hourglass_top</span>
+                    <p className="text-slate-400 text-sm">Preparing your session...</p>
                 </div>
             </div>
         )
     }
 
-    if (!user) return null
-
-    if (projectError || !project) {
+    if (!project) {
         return (
-            <div className="min-h-screen bg-[#101922] flex flex-col items-center justify-center gap-4">
+            <div className="flex-1 flex flex-col items-center justify-center gap-4">
                 <span className="material-symbols-outlined text-red-400 text-5xl">error</span>
-                <p className="text-white text-lg">{projectError || "Project not found"}</p>
+                <p className="text-white text-lg">Failed to load project</p>
                 <button
-                    onClick={() => router.push("/app")}
+                    onClick={onBack}
                     className="flex items-center gap-2 bg-[#137fec] hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                 >
                     <span className="material-symbols-outlined text-[18px]">arrow_back</span>
@@ -1017,14 +1005,14 @@ Return the updated blueprint JSON with the changes applied to that section.`
     }
 
     return (
-        <div className="flex h-screen w-full flex-col bg-[#101922] text-white overflow-hidden">
+        <div className="flex flex-1 flex-col h-full overflow-hidden">
             {/* Header */}
             <header className="relative flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 shrink-0 z-10">
-                <div className="absolute inset-0 bg-[#101922]/80 backdrop-blur-xl border-b border-white/5" />
+                <div className="absolute inset-0 bg-[#020204]/80 backdrop-blur-xl border-b border-white/5" />
 
                 <div className="relative flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                     <button
-                        onClick={() => router.push("/app")}
+                        onClick={onBack}
                         className="group flex items-center justify-center rounded-xl p-2 text-[#9dabb9] transition-all hover:bg-white/5 hover:text-white"
                         title="Back to Command Center"
                     >
@@ -1159,10 +1147,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
                 projectId={projectId}
                 projectName={project.projectName}
                 onClose={() => setIsShareModalOpen(false)}
-                getToken={async () => {
-                    if (!user) throw new Error("Not authenticated")
-                    return user.getIdToken()
-                }}
+                getToken={async () => user.getIdToken()}
             />
         </div>
     )

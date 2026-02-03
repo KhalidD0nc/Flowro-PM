@@ -36,7 +36,7 @@ export const onboardingChecklistItems: Omit<OnboardingChecklistItem, "completed"
         id: "create_project",
         title: "Create your first project",
         description: "Start by creating a new project to generate a blueprint",
-        action: "/dashboard",
+        action: "/app",
     },
     {
         id: "generate_blueprint",

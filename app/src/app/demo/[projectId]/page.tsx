@@ -218,10 +218,10 @@ export default function DemoProjectPage() {
                         <span className="text-[#9dabb9] text-sm hidden sm:inline">- Read-only preview</span>
                     </div>
                     <Link
-                        href={isAuthenticated ? "/dashboard" : "/auth"}
+                        href={isAuthenticated ? "/app" : "/auth"}
                         className="flex items-center gap-1 text-[#137fec] text-sm font-medium hover:text-blue-400 transition-colors"
                     >
-                        {isAuthenticated ? "Go to Dashboard" : "Create your own"}
+                        {isAuthenticated ? "Go to Command Center" : "Create your own"}
                         <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                     </Link>
                 </div>
@@ -317,12 +317,12 @@ export default function DemoProjectPage() {
                         </h2>
                         <p className="text-[#9dabb9] mb-6">
                             {isAuthenticated
-                                ? "Head to your dashboard to start a new project."
+                                ? "Head to your Command Center to start a new project."
                                 : "Sign up free and generate your first blueprint in minutes."
                             }
                         </p>
                         <Link
-                            href={isAuthenticated ? "/dashboard" : "/auth"}
+                            href={isAuthenticated ? "/app" : "/auth"}
                             className="inline-flex items-center gap-2 bg-[#137fec] text-white font-bold px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors shadow-lg shadow-[#137fec]/20"
                         >
                             <span className="material-symbols-outlined text-[20px]">

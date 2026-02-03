@@ -214,7 +214,7 @@ export default function BoardPage() {
     }
 
     const handleBackToDashboard = () => {
-        router.push("/dashboard")
+        router.push("/app")
     }
 
     if (loading || loadingData) {
