@@ -8,7 +8,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/Providers";
 import Sidebar from "@/components/home/Sidebar";
@@ -22,7 +22,7 @@ interface ActiveSession {
   isExisting?: boolean; // true when loading an existing project from sidebar
 }
 
-export default function AppHome() {
+function AppHomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
@@ -169,5 +169,26 @@ export default function AppHome() {
         )}
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-[#020204] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <span className="material-symbols-outlined text-[#137fec] animate-spin text-5xl">
+          hourglass_top
+        </span>
+        <span className="text-[#9dabb9] text-sm">Loading...</span>
+      </div>
+    </div>
+  );
+}
+
+export default function AppHome() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <AppHomeContent />
+    </Suspense>
   );
 }
