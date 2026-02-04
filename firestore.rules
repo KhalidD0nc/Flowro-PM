@@ -23,38 +23,61 @@ service cloud.firestore {
              && get(/databases/$(database)/documents/projects/$(projectId)).data.userId == request.auth.uid;
     }
 
+    // Check if user is an active collaborator on a project
+    // Checks that user is either the owner or in the collaboratorUserIds array
+    // The collaboratorUserIds array is maintained by the application layer when
+    // collaborators are added/removed (FieldValue.arrayUnion/arrayRemove)
+    function hasProjectAccess(projectId) {
+      let project = get(/databases/$(database)/documents/projects/$(projectId));
+      return isAuthenticated()
+             && project != null
+             && (
+               project.data.userId == request.auth.uid
+               || request.auth.uid in project.data.collaboratorUserIds
+             );
+    }
+
+    // Check if user can edit - owner only for now
+    // Application layer enforces editor/admin permissions
+    function canEditProject(projectId) {
+      return isProjectOwner(projectId);
+    }
+
     // =========================================================================
     // Projects Collection (with messages subcollection)
     // =========================================================================
 
     match /projects/{projectId} {
-      // Allow read if user owns the project
-      allow read: if isOwner(resource.data.userId);
+      // Allow read if user owns OR is an active collaborator
+      allow read: if hasProjectAccess(projectId);
 
       // Allow create if authenticated and setting self as owner
       allow create: if isAuthenticated()
                     && request.resource.data.userId == request.auth.uid;
 
-      // Allow update if user owns the project AND userId is not being changed
-      allow update: if isOwner(resource.data.userId)
-                    && request.resource.data.userId == resource.data.userId;
+      // Allow update if user can edit AND userId is not changed
+      // Only owner can modify collaborators array
+      allow update: if canEditProject(projectId)
+                    && request.resource.data.userId == resource.data.userId
+                    && (request.resource.data.userId == request.auth.uid
+                        || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['collaborators']));
 
-      // Allow delete if user owns the project
+      // Allow delete if user owns the project (only owner can delete)
       allow delete: if isOwner(resource.data.userId);
 
       // ----- Messages Subcollection -----
       // Stores chat history (unlimited messages, avoids 1MB limit)
       match /messages/{messageId} {
-        // Inherit access from parent project
-        allow read: if isProjectOwner(projectId);
+        // Collaborators can read messages
+        allow read: if hasProjectAccess(projectId);
 
-        // Allow create if user owns the parent project
-        allow create: if isProjectOwner(projectId);
+        // Editors can create messages
+        allow create: if canEditProject(projectId);
 
         // Messages are immutable (no updates allowed)
         allow update: if false;
 
-        // Allow delete if user owns the parent project
+        // Only owner can delete messages
         allow delete: if isProjectOwner(projectId);
       }
     }
@@ -73,51 +96,35 @@ service cloud.firestore {
         return get(/databases/$(database)/documents/projects/$(request.resource.data.projectId));
       }
 
-      // Allow read if user owns the parent project
-      allow read: if isAuthenticated()
-                  && exists(/databases/$(database)/documents/projects/$(resource.data.projectId))
-                  && getProject().data.userId == request.auth.uid;
+      // Collaborators can read blueprints
+      allow read: if hasProjectAccess(resource.data.projectId);
 
-      // Allow create if user owns the parent project
+      // Only project owner can create blueprints
       // Enforce 1:1: blueprintId MUST equal projectId (prevents duplicate blueprints)
       allow create: if isAuthenticated()
                     && blueprintId == request.resource.data.projectId
-                    && exists(/databases/$(database)/documents/projects/$(request.resource.data.projectId))
-                    && getProjectForCreate().data.userId == request.auth.uid;
+                    && isProjectOwner(request.resource.data.projectId);
 
-      // Allow update if user owns parent project
-      // Note: Status checks moved to application layer for flexibility
-      allow update: if isAuthenticated()
-                    && exists(/databases/$(database)/documents/projects/$(resource.data.projectId))
-                    && getProject().data.userId == request.auth.uid;
+      // Editors can update blueprints
+      allow update: if canEditProject(resource.data.projectId);
 
-      // Allow delete if user owns the parent project
-      allow delete: if isAuthenticated()
-                    && exists(/databases/$(database)/documents/projects/$(resource.data.projectId))
-                    && getProject().data.userId == request.auth.uid;
+      // Only owner can delete blueprints
+      allow delete: if isProjectOwner(resource.data.projectId);
 
       // ----- History Subcollection -----
       // Stores version snapshots (auto-created on blueprint changes)
       match /history/{snapshotId} {
-        // Allow read if user owns the parent project
-        allow read: if isAuthenticated()
-                    && exists(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId))
-                    && get(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId)).data.userId == request.auth.uid;
+        // Collaborators can read history
+        allow read: if hasProjectAccess(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId);
 
-        // Allow create if user owns the parent project
-        allow create: if isAuthenticated()
-                      && exists(/databases/$(database)/documents/blueprints/$(blueprintId))
-                      && exists(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId))
-                      && get(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId)).data.userId == request.auth.uid;
+        // Editors can create history snapshots
+        allow create: if canEditProject(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId);
 
         // History snapshots are immutable (no updates)
         allow update: if false;
 
-        // Allow delete if user owns the parent project (for cascade delete)
-        allow delete: if isAuthenticated()
-                      && exists(/databases/$(database)/documents/blueprints/$(blueprintId))
-                      && exists(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId))
-                      && get(/databases/$(database)/documents/projects/$(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId)).data.userId == request.auth.uid;
+        // Only owner can delete history (for cascade delete)
+        allow delete: if isProjectOwner(get(/databases/$(database)/documents/blueprints/$(blueprintId)).data.projectId);
       }
     }
 
@@ -155,23 +162,5 @@ service cloud.firestore {
                             && resource.data.createdBy == request.auth.uid;
     }
 
-    // =========================================================================
-    // Project Shares (email-based sharing)
-    // =========================================================================
-
-    match /projectShares/{shareId} {
-      // Allow read if user is the owner or the shared recipient
-      allow read: if isAuthenticated()
-                  && (resource.data.ownerId == request.auth.uid
-                      || resource.data.email == request.auth.token.email);
-
-      // Only project owners can create shares
-      allow create: if isAuthenticated()
-                    && request.resource.data.ownerId == request.auth.uid;
-
-      // Only owners can update or delete shares
-      allow update, delete: if isAuthenticated()
-                            && resource.data.ownerId == request.auth.uid;
-    }
   }
 }

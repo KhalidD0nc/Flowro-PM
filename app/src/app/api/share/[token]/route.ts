@@ -51,7 +51,8 @@ export async function GET(
                 version: blueprint.content?.metadata?.version || "1.0",
                 status: blueprint.content?.metadata?.status || "draft",
                 content: blueprint.content,
-                createdAt: timestampToISO(blueprint.updatedAt),
+                createdAt: timestampToISO(project.createdAt),
+                updatedAt: timestampToISO(blueprint.updatedAt),
                 lockedAt: undefined,
             },
             project: {

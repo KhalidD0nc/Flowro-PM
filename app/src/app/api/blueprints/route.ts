@@ -154,14 +154,20 @@ export async function PATCH(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { blueprintId, content, action, projectId } = body
+        const { blueprintId, content, action } = body
 
         if (!blueprintId) {
             return NextResponse.json({ error: "blueprintId required" }, { status: 400 })
         }
 
-        const resolvedProjectId = projectId || blueprintId
-        await verifyProjectOwnership(resolvedProjectId, authResult.userId)
+        // Fetch blueprint to get its actual projectId (never trust client-supplied projectId for auth)
+        const blueprint = await getBlueprint(blueprintId)
+        if (!blueprint) {
+            return NextResponse.json({ error: "Blueprint not found" }, { status: 404 })
+        }
+
+        // Verify ownership using the blueprint's projectId (source of truth)
+        await verifyProjectOwnership(blueprint.projectId, authResult.userId)
 
         if (action === "save-version") {
             const result = await saveBlueprintVersion(blueprintId)
@@ -187,11 +193,6 @@ export async function PATCH(request: NextRequest) {
         }
 
         if (action === "lock" || action === "unlock") {
-            const blueprint = await getBlueprint(blueprintId)
-            if (!blueprint) {
-                return NextResponse.json({ error: "Blueprint not found" }, { status: 404 })
-            }
-
             const now = Timestamp.now()
             const currentVersion = blueprint.content.metadata?.version || "1.0"
             const productName = blueprint.content.metadata?.productName || ""
@@ -219,7 +220,7 @@ export async function PATCH(request: NextRequest) {
         }
 
         if (content !== undefined) {
-            await upsertBlueprintFromAI(resolvedProjectId, content as UBPContent, undefined, "Manual update")
+            await upsertBlueprintFromAI(blueprint.projectId, content as UBPContent, undefined, "Manual update")
             return NextResponse.json({ success: true, message: "Blueprint content updated" })
         }
 

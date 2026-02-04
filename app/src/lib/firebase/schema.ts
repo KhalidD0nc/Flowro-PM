@@ -56,6 +56,33 @@ export interface ProposedChanges {
  */
 export type BlueprintStatus = "draft" | "locked" | "approved"
 
+/**
+ * Project collaborator role types
+ * - viewer: Can view project and blueprints
+ * - commenter: Can view and add comments
+ * - editor: Can view, comment, and edit
+ * - admin: Can view, edit, and manage collaborators
+ */
+export type CollaboratorRole = "viewer" | "commenter" | "editor" | "admin"
+
+/**
+ * Project collaborator status
+ */
+export type CollaboratorStatus = "pending" | "active" | "revoked"
+
+/**
+ * Project collaborator document
+ */
+export interface ProjectCollaborator {
+    userId: string
+    email: string
+    role: CollaboratorRole
+    invitedBy: string
+    invitedAt: FirestoreTimestamp
+    acceptedAt?: FirestoreTimestamp
+    status: CollaboratorStatus
+}
+
 // =============================================================================
 // UBP Content Structure (9 Sections)
 // =============================================================================
@@ -169,6 +196,8 @@ export interface ProjectDocument {
     userId: string // Owner's Firebase UID
     name: string
     lastMessage?: string // Preview for Command Center list
+    collaborators?: ProjectCollaborator[] // Team members with access
+    collaboratorUserIds?: string[] // Flat array of collaborator UIDs for efficient Firestore queries
     createdAt: FirestoreTimestamp
     updatedAt: FirestoreTimestamp
 }
@@ -181,6 +210,8 @@ export interface ProjectCreateData {
     userId: string
     name: string
     lastMessage?: string
+    collaborators?: ProjectCollaborator[]
+    collaboratorUserIds?: string[] // Flat array of collaborator UIDs for efficient Firestore queries
     createdAt: FirestoreTimestamp
     updatedAt: FirestoreTimestamp
 }
@@ -331,6 +362,12 @@ export function incrementVersion(currentVersion: string): string {
     }
     const major = parseInt(parts[0], 10)
     const minor = parseInt(parts[1], 10)
+
+    // Guard against NaN from invalid input like "v1.0" or "1.x"
+    if (isNaN(major) || isNaN(minor)) {
+        return "1.0"
+    }
+
     return `${major}.${minor + 1}`
 }
 

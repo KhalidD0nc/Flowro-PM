@@ -14,7 +14,7 @@
  */
 
 import { getAdminDb } from "../firebase-admin"
-import { Timestamp } from "firebase-admin/firestore"
+import { Timestamp, FieldValue } from "firebase-admin/firestore"
 import {
     COLLECTIONS,
     type ProjectDocument,
@@ -54,7 +54,7 @@ function normalizeNonEmptyString(value?: string): string | undefined {
         return undefined
     }
     const trimmed = value.trim()
-    return trimmed.length > 0 ? value : undefined
+    return trimmed.length > 0 ? trimmed : undefined
 }
 
 /**
@@ -141,17 +141,18 @@ function hasContentChanged(existing: UBPContent, updated: UBPContent): boolean {
  * Create a new project
  * @returns The created project document with generated ID
  */
-export async function createProject(data: Omit<ProjectCreateData, "createdAt" | "updatedAt">): Promise<ProjectDocument> {
+export async function createProject(data: Omit<ProjectCreateData, "createdAt" | "updatedAt" | "collaboratorUserIds">): Promise<ProjectDocument> {
     const db = getDb()
     const now = Timestamp.now()
     const projectData: ProjectCreateData = {
         ...data,
+        collaboratorUserIds: [], // Initialize empty for Firestore security rules
         createdAt: now,
         updatedAt: now,
     }
 
     const docRef = await db.collection(COLLECTIONS.PROJECTS).add(projectData)
-    
+
     return {
         id: docRef.id,
         ...projectData,
@@ -164,7 +165,7 @@ export async function createProject(data: Omit<ProjectCreateData, "createdAt" | 
 export async function getProject(projectId: string): Promise<ProjectDocument | null> {
     const db = getDb()
     const docSnap = await db.collection(COLLECTIONS.PROJECTS).doc(projectId).get()
-    
+
     if (!docSnap.exists) {
         return null
     }
@@ -186,7 +187,7 @@ export async function getUserProjects(userId: string): Promise<ProjectListItem[]
         .where("userId", "==", userId)
         .orderBy("updatedAt", "desc")
         .get()
-    
+
     return querySnapshot.docs.map((doc) => {
         const data = doc.data()
         return {
@@ -219,7 +220,7 @@ export async function updateProject(
  */
 export async function deleteProject(projectId: string): Promise<void> {
     const db = getDb()
-    
+
     // Delete all messages in subcollection
     const messagesPath = `${COLLECTIONS.PROJECTS}/${projectId}/${COLLECTIONS.MESSAGES}`
     await deleteCollectionDocs(messagesPath)
@@ -316,7 +317,7 @@ export async function getMessagesPaginated(
         .collection(COLLECTIONS.PROJECTS)
         .doc(projectId)
         .collection(COLLECTIONS.MESSAGES)
-    
+
     let queryRef = messagesRef
         .orderBy("timestamp", "desc")
         .limit(pageSize + 1) // Fetch one extra to check if there are more
@@ -392,7 +393,7 @@ export async function createBlueprint(
     const historyRef = docRef.collection(COLLECTIONS.HISTORY).doc()
     batch.set(historyRef, historyData)
     await batch.commit()
-    
+
     return {
         id: blueprintId,
         ...data,
@@ -722,4 +723,253 @@ export async function saveBlueprintVersion(
             updatedAt: now,
         },
     }
+}
+
+// =============================================================================
+// Project Collaborators
+// =============================================================================
+
+/**
+ * Add a collaborator to a project
+ */
+export async function addCollaborator(
+    projectId: string,
+    collaboratorData: {
+        userId: string
+        email: string
+        role: import("./schema").CollaboratorRole
+        invitedBy: string
+    }
+): Promise<void> {
+    const db = getDb()
+    const projectRef = db.collection(COLLECTIONS.PROJECTS).doc(projectId)
+    const projectSnap = await projectRef.get()
+
+    if (!projectSnap.exists) {
+        throw new Error("Project not found")
+    }
+
+    const data = projectSnap.data()
+    const collaborators = data?.collaborators || []
+
+    // Check if already a collaborator
+    const existingIndex = collaborators.findIndex(
+        (c: { userId: string }) => c.userId === collaboratorData.userId
+    )
+
+    const now = Timestamp.now()
+    const newCollaborator = {
+        ...collaboratorData,
+        invitedAt: now,
+        status: "pending" as const,
+    }
+
+    if (existingIndex >= 0) {
+        // Update existing collaborator
+        collaborators[existingIndex] = {
+            ...collaborators[existingIndex],
+            role: collaboratorData.role,
+            invitedBy: collaboratorData.invitedBy,
+            invitedAt: now,
+            status: "pending" as const,
+        }
+    } else {
+        // Add new collaborator
+        collaborators.push(newCollaborator)
+    }
+
+    await projectRef.update({
+        collaborators,
+        collaboratorUserIds: FieldValue.arrayUnion(collaboratorData.userId),
+        updatedAt: now,
+    })
+}
+
+/**
+ * Update collaborator status (e.g., accept invitation)
+ */
+export async function updateCollaboratorStatus(
+    projectId: string,
+    userId: string,
+    status: import("./schema").CollaboratorStatus
+): Promise<void> {
+    const db = getDb()
+    const projectRef = db.collection(COLLECTIONS.PROJECTS).doc(projectId)
+    const projectSnap = await projectRef.get()
+
+    if (!projectSnap.exists) {
+        throw new Error("Project not found")
+    }
+
+    const data = projectSnap.data()
+    const collaborators = data?.collaborators || []
+
+    const collaboratorIndex = collaborators.findIndex(
+        (c: { userId: string }) => c.userId === userId
+    )
+
+    if (collaboratorIndex < 0) {
+        throw new Error("Collaborator not found")
+    }
+
+    const now = Timestamp.now()
+    collaborators[collaboratorIndex].status = status
+    if (status === "active") {
+        collaborators[collaboratorIndex].acceptedAt = now
+    }
+
+    await projectRef.update({
+        collaborators,
+        updatedAt: now,
+    })
+}
+
+/**
+ * Remove a collaborator from a project
+ */
+export async function removeCollaborator(
+    projectId: string,
+    userId: string
+): Promise<void> {
+    const db = getDb()
+    const projectRef = db.collection(COLLECTIONS.PROJECTS).doc(projectId)
+    const projectSnap = await projectRef.get()
+
+    if (!projectSnap.exists) {
+        throw new Error("Project not found")
+    }
+
+    const data = projectSnap.data()
+    const collaborators = (data?.collaborators || []).filter(
+        (c: { userId: string }) => c.userId !== userId
+    )
+
+    await projectRef.update({
+        collaborators,
+        collaboratorUserIds: FieldValue.arrayRemove(userId),
+        updatedAt: Timestamp.now(),
+    })
+}
+
+/**
+ * Check if user has access to a project and their permission level
+ */
+export async function checkProjectAccess(
+    projectId: string,
+    userId: string
+): Promise<{
+    hasAccess: boolean
+    role: "owner" | import("./schema").CollaboratorRole | null
+    canEdit: boolean
+    canComment: boolean
+    canAdmin: boolean
+}> {
+    const project = await getProject(projectId)
+
+    if (!project) {
+        return {
+            hasAccess: false,
+            role: null,
+            canEdit: false,
+            canComment: false,
+            canAdmin: false,
+        }
+    }
+
+    // Owner has full access
+    if (project.userId === userId) {
+        return {
+            hasAccess: true,
+            role: "owner",
+            canEdit: true,
+            canComment: true,
+            canAdmin: true,
+        }
+    }
+
+    // Check collaborators
+    const collaborator = project.collaborators?.find(
+        (c) => c.userId === userId && c.status === "active"
+    )
+
+    if (!collaborator) {
+        return {
+            hasAccess: false,
+            role: null,
+            canEdit: false,
+            canComment: false,
+            canAdmin: false,
+        }
+    }
+
+    const canEdit = ["editor", "admin"].includes(collaborator.role)
+    const canComment = ["commenter", "editor", "admin"].includes(collaborator.role)
+    const canAdmin = collaborator.role === "admin"
+
+    return {
+        hasAccess: true,
+        role: collaborator.role,
+        canEdit,
+        canComment,
+        canAdmin,
+    }
+}
+
+/**
+ * Get all projects where user is owner or collaborator
+ */
+export async function getAccessibleProjects(userId: string): Promise<ProjectListItem[]> {
+    const db = getDb()
+
+    // Get projects owned by user
+    const ownedSnapshot = await db
+        .collection(COLLECTIONS.PROJECTS)
+        .where("userId", "==", userId)
+        .orderBy("updatedAt", "desc")
+        .get()
+
+    // Get projects where user is a collaborator (using flat userId array for efficient query)
+    const collaboratorSnapshot = await db
+        .collection(COLLECTIONS.PROJECTS)
+        .where("collaboratorUserIds", "array-contains", userId)
+        .orderBy("updatedAt", "desc")
+        .get()
+
+    const projectMap = new Map<string, ProjectListItem>()
+
+    // Add owned projects
+    ownedSnapshot.docs.forEach((doc) => {
+        const data = doc.data()
+        projectMap.set(doc.id, {
+            id: doc.id,
+            name: data.name,
+            lastMessage: data.lastMessage,
+            createdAt: timestampToISO(data.createdAt),
+            updatedAt: timestampToISO(data.updatedAt),
+        })
+    })
+
+    // Add collaborated projects (avoid duplicates)
+    collaboratorSnapshot.docs.forEach((doc) => {
+        if (!projectMap.has(doc.id)) {
+            const data = doc.data()
+            const collaborator = data.collaborators?.find(
+                (c: { userId: string; status: string }) =>
+                    c.userId === userId && c.status === "active"
+            )
+            if (collaborator) {
+                projectMap.set(doc.id, {
+                    id: doc.id,
+                    name: data.name,
+                    lastMessage: data.lastMessage,
+                    createdAt: timestampToISO(data.createdAt),
+                    updatedAt: timestampToISO(data.updatedAt),
+                })
+            }
+        }
+    })
+
+    return Array.from(projectMap.values()).sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    )
 }
