@@ -54,16 +54,6 @@ interface ProjectInput {
 }
 
 /**
- * Task input interface
- */
-interface TaskInput {
-  title: string
-  description?: string | null
-  priority?: "critical" | "high" | "medium" | "low"
-  status?: "backlog" | "in_progress" | "launched"
-}
-
-/**
  * Sanitizes and validates project input
  * @param body - Raw request body
  * @returns Validation result with sanitized data
@@ -101,66 +91,6 @@ export function sanitizeProjectInput(
       projectName: projectName!,
       description,
       initialPrompt,
-    },
-  }
-}
-
-/**
- * Sanitizes and validates task input
- * @param body - Raw request body
- * @returns Validation result with sanitized data
- */
-export function sanitizeTaskInput(body: unknown): ValidationResult<TaskInput> {
-  const errors: string[] = []
-
-  if (!body || typeof body !== "object") {
-    return { valid: false, errors: ["Invalid request body"] }
-  }
-
-  const input = body as Record<string, unknown>
-
-  // Sanitize title (required, max 200 chars)
-  const title = sanitizeString(input.title as string, 200)
-  if (!title) {
-    errors.push("Task title is required")
-  }
-
-  // Sanitize description (optional, max 2000 chars)
-  const description = sanitizeString(input.description as string, 2000)
-
-  // Validate priority if provided
-  const validPriorities = ["critical", "high", "medium", "low"]
-  let priority: TaskInput["priority"] | undefined
-  if (input.priority) {
-    if (validPriorities.includes(input.priority as string)) {
-      priority = input.priority as TaskInput["priority"]
-    } else {
-      errors.push("Invalid priority value")
-    }
-  }
-
-  // Validate status if provided
-  const validStatuses = ["backlog", "in_progress", "launched"]
-  let status: TaskInput["status"] | undefined
-  if (input.status) {
-    if (validStatuses.includes(input.status as string)) {
-      status = input.status as TaskInput["status"]
-    } else {
-      errors.push("Invalid status value")
-    }
-  }
-
-  if (errors.length > 0) {
-    return { valid: false, errors }
-  }
-
-  return {
-    valid: true,
-    data: {
-      title: title!,
-      description,
-      priority,
-      status,
     },
   }
 }

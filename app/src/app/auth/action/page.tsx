@@ -19,9 +19,9 @@ function AuthActionContent() {
             await applyActionCode(auth, oobCode)
             setStatus("success")
 
-            // Auto-redirect to dashboard after 2 seconds
+            // Auto-redirect to app after 2 seconds
             setTimeout(() => {
-                router.push("/dashboard")
+                router.push("/app")
             }, 2000)
         } catch (error: unknown) {
             console.error("Verification error:", error)

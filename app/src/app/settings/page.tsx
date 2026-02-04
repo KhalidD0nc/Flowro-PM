@@ -118,11 +118,11 @@ export default function SettingsPage() {
                     <nav className="flex flex-col gap-2">
                         <a
                             className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[#9dabb9] transition-colors hover:bg-white/5 group"
-                            href="/dashboard"
+                            href="/app"
                             onClick={() => setIsMobileMenuOpen(false)}
                         >
-                            <span className="material-symbols-outlined text-slate-400 transition-colors group-hover:text-white">dashboard</span>
-                            <p className="text-sm font-medium leading-normal transition-colors group-hover:text-white">Dashboard</p>
+                            <span className="material-symbols-outlined text-slate-400 transition-colors group-hover:text-white">home</span>
+                            <p className="text-sm font-medium leading-normal transition-colors group-hover:text-white">Command Center</p>
                         </a>
                         <a
                             className="flex items-center gap-3 rounded-lg bg-[#137fec] px-3 py-2.5 transition-colors"

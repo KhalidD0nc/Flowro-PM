@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getShareByToken, incrementViewCount } from "../service"
-import { getBlueprintById, getProjectById } from "../../blueprints/service"
+import { getBlueprint, getProject } from "@/lib/firebase/collections"
+import { timestampToISO } from "@/lib/firebase/schema"
 
 // GET /api/share/[token] - Get blueprint by share token (PUBLIC - no auth required)
 export async function GET(
@@ -25,18 +26,19 @@ export async function GET(
         }
 
         // Get blueprint data
-        const blueprint = await getBlueprintById(shareData.blueprintId)
+        const blueprint = await getBlueprint(shareData.blueprintId)
 
         if (!blueprint) {
             return NextResponse.json({ error: "Blueprint not found" }, { status: 404 })
         }
 
         // Get project data
-        const project = await getProjectById(shareData.projectId)
+        const project = await getProject(shareData.projectId)
 
         if (!project) {
             return NextResponse.json({ error: "Project not found" }, { status: 404 })
         }
+        const projectData = project as { description?: string }
 
         // Increment view count asynchronously (don't await, don't block response)
         incrementViewCount(token).catch(err =>
@@ -46,15 +48,16 @@ export async function GET(
         return NextResponse.json({
             blueprint: {
                 id: blueprint.id,
-                version: blueprint.version,
-                status: blueprint.status,
+                version: blueprint.content?.metadata?.version || "1.0",
+                status: blueprint.content?.metadata?.status || "draft",
                 content: blueprint.content,
-                createdAt: blueprint.createdAt,
-                lockedAt: blueprint.lockedAt,
+                createdAt: timestampToISO(project.createdAt),
+                updatedAt: timestampToISO(blueprint.updatedAt),
+                lockedAt: undefined,
             },
             project: {
-                projectName: project.projectName,
-                description: project.description,
+                projectName: project.name,
+                description: projectData.description,
             },
             shareData: {
                 viewCount: shareData.viewCount,

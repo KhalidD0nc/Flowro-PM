@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../blueprints/auth"
-import { createProject, getUserProjects } from "../blueprints/service"
+import {
+    createProject,
+    getUserProjects,
+} from "@/lib/firebase/collections"
+import { timestampToISO } from "@/lib/firebase/schema"
 
-// GET /api/projects - List user's projects
+/**
+ * GET /api/projects - List user's projects (fast, no chat history)
+ * 
+ * Returns lightweight project list for Command Center "Jump Back In" section.
+ * Uses subcollection architecture - no chat history downloaded.
+ * 
+ * @returns { projects: ProjectListItem[] }
+ */
 export async function GET(request: NextRequest) {
     try {
         const authResult = await verifyAuthToken(request)
@@ -11,16 +22,32 @@ export async function GET(request: NextRequest) {
             return unauthorizedResponse(authResult)
         }
 
-        const { projects, totalSavedVersions } = await getUserProjects(authResult.userId)
+        const projects = await getUserProjects(authResult.userId)
 
-        return NextResponse.json({ projects, totalSavedVersions })
+        const enriched = projects.map((project) => ({
+            ...project,
+            projectName: project.name,
+        }))
+
+        return NextResponse.json({ projects: enriched })
     } catch (error) {
         console.error("List projects error:", error)
-        return NextResponse.json({ error: "Failed to list projects" }, { status: 500 })
+        return NextResponse.json(
+            { error: "Failed to list projects" },
+            { status: 500 }
+        )
     }
 }
 
-// POST /api/projects - Create new project
+/**
+ * POST /api/projects - Create new project
+ * 
+ * Creates a new project container. Blueprint is created separately
+ * when AI generates initial response via /api/generate.
+ * 
+ * @body { name: string, lastMessage?: string }
+ * @returns ProjectDocument with ISO timestamps
+ */
 export async function POST(request: NextRequest) {
     try {
         const authResult = await verifyAuthToken(request)
@@ -30,32 +57,46 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { description: descriptionFromBody, initialPrompt: initialPromptFromBody } = body
-        let { projectName } = body
-        const description = descriptionFromBody
-        const initialPrompt = initialPromptFromBody
+        const { name: rawName, projectName: rawProjectName, lastMessage: rawLastMessage } = body
 
-        if (!projectName) {
-            // Generate a clean default name - AI will suggest a proper name in its first response
-            projectName = "Untitled Project"
+        // Validate and sanitize name: must be non-empty string after trimming
+        let name: string
+        const candidateName = typeof rawProjectName === "string" ? rawProjectName : rawName
+        if (typeof candidateName === "string") {
+            const trimmed = candidateName.trim()
+            name = trimmed.length > 0 ? trimmed : "Untitled Project"
+        } else {
+            name = "Untitled Project"
         }
 
-        const { project, blueprint } = await createProject({
+        // Validate lastMessage: must be string if provided, otherwise undefined
+        let lastMessage: string | undefined
+        if (typeof rawLastMessage === "string") {
+            lastMessage = rawLastMessage.slice(0, 100) // Preview limit
+        }
+        // If rawLastMessage is not a string, leave lastMessage as undefined
+
+        const project = await createProject({
             userId: authResult.userId,
-            projectName,
-            description,
-            initialPrompt,
+            name,
+            lastMessage,
         })
 
-
-
-        // Return both project and its initial blueprint
+        // Return project with ISO string timestamps for client
         return NextResponse.json({
-            ...project,
-            latestBlueprint: blueprint
+            id: project.id,
+            userId: project.userId,
+            name: project.name,
+            projectName: project.name,
+            lastMessage: project.lastMessage,
+            createdAt: timestampToISO(project.createdAt),
+            updatedAt: timestampToISO(project.updatedAt),
         })
     } catch (error) {
         console.error("Create project error:", error)
-        return NextResponse.json({ error: "Failed to create project" }, { status: 500 })
+        return NextResponse.json(
+            { error: "Failed to create project" },
+            { status: 500 }
+        )
     }
 }

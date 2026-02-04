@@ -35,11 +35,11 @@ export default function NotFound() {
                 {/* Actions */}
                 <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                     <Link
-                        href="/dashboard"
+                        href="/app"
                         className="flex items-center justify-center gap-2 h-12 px-6 rounded-lg bg-[#137fec] text-white font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-[#137fec]/20"
                     >
-                        <span className="material-symbols-outlined text-[20px]">dashboard</span>
-                        Go to Dashboard
+                        <span className="material-symbols-outlined text-[20px]">home</span>
+                        Go to Command Center
                     </Link>
                     <Link
                         href="/"

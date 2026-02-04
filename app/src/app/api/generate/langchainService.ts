@@ -14,7 +14,7 @@
  * @version 2.0.0
  */
 
-import { generateFromMessage as originalGenerateFromMessage, GenerateInput, GenerateResult } from "./service"
+import { generateFromMessage as originalGenerateFromMessage, GenerateInput, GenerateResult, normalizeUBPFields } from "./service"
 import {
     generateWithLangChain,
     detectIntent,
@@ -150,8 +150,13 @@ function convertToGenerateResult(
     langChainResult: GenerateWithLangChainResult,
     originalMessage: string
 ): GenerateResult {
-    // Validate and fix tech stack if present
+    // Normalize UBP fields to match schema (handle old AI output formats)
     const content = langChainResult.content
+    if (content && typeof content === 'object') {
+        normalizeUBPFields(content as Record<string, unknown>)
+    }
+
+    // Validate and fix tech stack if present
     if (content && typeof content === 'object' && 'techStack' in content) {
         const techStackValidation = validateTechStack((content as Record<string, unknown>).techStack)
         if (!techStackValidation.valid) {
@@ -159,7 +164,14 @@ function convertToGenerateResult(
                 original: (content as Record<string, unknown>).techStack,
                 fixed: getSafeDefaults(),
             })
-            ;(content as Record<string, unknown>).techStack = getSafeDefaults()
+            const defaults = getSafeDefaults()
+            ;(content as Record<string, unknown>).techStack = defaults
+            // Also update techDecisions
+            ;(content as Record<string, unknown>).techDecisions = [
+                { category: 'Frontend', choice: defaults.frontend, rationale: 'Safe default' },
+                { category: 'Backend', choice: defaults.backend, rationale: 'Safe default' },
+                { category: 'Database', choice: defaults.database, rationale: 'Safe default' }
+            ]
         }
     }
 

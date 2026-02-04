@@ -30,7 +30,7 @@ export default function AuthPage() {
     useEffect(() => {
         if (user && !loading) {
             if (user.emailVerified) {
-                router.replace("/dashboard")
+                router.replace("/app")
             } else {
                 // Show verification pending screen
                 setAuthMode("verifyEmail")
@@ -55,7 +55,7 @@ export default function AuthPage() {
             analytics.signupStarted("google")
             await signInWithGoogle()
             analytics.signupCompleted("google")
-            router.push("/dashboard")
+            router.push("/app")
         } catch (error) {
             console.error("Sign in error:", error)
             setError("Failed to sign in with Google. Please try again.")
@@ -87,7 +87,7 @@ export default function AuthPage() {
                 analytics.signupStarted("email")
                 await signIn(email, password)
                 analytics.signupCompleted("email")
-                router.push("/dashboard")
+                router.push("/app")
             }
         } catch (error: unknown) {
             console.error("Auth error:", error)

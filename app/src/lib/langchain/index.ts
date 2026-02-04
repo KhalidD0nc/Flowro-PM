@@ -43,7 +43,6 @@ export {
     INITIAL_SYSTEM_PROMPT,
     DISCUSSION_SYSTEM_PROMPT,
     PROPOSAL_SYSTEM_PROMPT,
-    LAUNCH_PLAN_SYSTEM_PROMPT,
     buildSystemPrompt,
     validatePrompts,
 } from './prompts'

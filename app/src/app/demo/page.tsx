@@ -20,10 +20,10 @@ export default function DemoLandingPage() {
                 </Link>
                 {isAuthenticated ? (
                     <Link
-                        href="/dashboard"
+                        href="/app"
                         className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-9 px-4 bg-[#137fec] text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-[#137fec]/90 transition-all"
                     >
-                        Dashboard
+                        Command Center
                     </Link>
                 ) : (
                     <Link
@@ -101,7 +101,7 @@ export default function DemoLandingPage() {
                     <div className="flex flex-col sm:flex-row gap-3 justify-center">
                         {isAuthenticated ? (
                             <Link
-                                href="/dashboard"
+                                href="/app"
                                 className="flex items-center justify-center gap-2 h-12 px-8 rounded-lg bg-[#137fec] text-white font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-[#137fec]/20"
                             >
                                 <span className="material-symbols-outlined text-[20px]">add</span>
@@ -119,7 +119,7 @@ export default function DemoLandingPage() {
                     </div>
                     <p className="text-[#9dabb9] text-sm mt-4">
                         {isAuthenticated
-                            ? "Head to your dashboard to create a new project."
+                            ? "Head to your Command Center to create a new project."
                             : "No credit card required. Create up to 1 project free."
                         }
                     </p>
@@ -132,8 +132,8 @@ export default function DemoLandingPage() {
                     {isAuthenticated ? (
                         <>
                             Ready to create your own blueprints?{" "}
-                            <Link href="/dashboard" className="text-[#137fec] hover:text-blue-400 transition-colors font-medium">
-                                Go to Dashboard
+                            <Link href="/app" className="text-[#137fec] hover:text-blue-400 transition-colors font-medium">
+                                Go to Command Center
                             </Link>
                         </>
                     ) : (

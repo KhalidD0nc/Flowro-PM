@@ -1,20 +1,31 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../../../blueprints/auth"
 import {
-    verifyProjectOwnership,
-    getProjectById,
-    shareProject,
-    unshareProject,
-    getLatestBlueprint,
-} from "../../../blueprints/service"
+    getProject,
+    getBlueprintByProjectId,
+    addCollaborator,
+    removeCollaborator,
+    checkProjectAccess,
+} from "@/lib/firebase/collections"
 import {
     createShareToken,
     getShareByBlueprintId,
     revokeShareToken,
 } from "../../../share/service"
+import { type CollaboratorRole } from "@/lib/firebase/schema"
 
 interface RouteContext {
     params: Promise<{ projectId: string }>
+}
+
+async function verifyOwnership(projectId: string, userId: string): Promise<void> {
+    const project = await getProject(projectId)
+    if (!project) {
+        throw new Error("Project not found")
+    }
+    if (project.userId !== userId) {
+        throw new Error("Access denied: you do not own this project")
+    }
 }
 
 /**
@@ -34,15 +45,15 @@ export async function GET(
         const { projectId } = await context.params
 
         // Verify ownership
-        await verifyProjectOwnership(projectId, auth.userId)
+        await verifyOwnership(projectId, auth.userId)
 
-        const project = await getProjectById(projectId)
+        const project = await getProject(projectId)
         if (!project) {
             return NextResponse.json({ error: "Project not found" }, { status: 404 })
         }
 
         // Check for existing share token (public link)
-        const latestBlueprint = await getLatestBlueprint(projectId)
+        const latestBlueprint = await getBlueprintByProjectId(projectId)
         let publicLinkEnabled = false
         let publicLinkId: string | undefined
 
@@ -55,8 +66,7 @@ export async function GET(
         }
 
         return NextResponse.json({
-            visibility: project.visibility || "private",
-            sharedWith: project.sharedWith || [],
+            collaborators: project.collaborators || [],
             publicLinkEnabled,
             publicLinkId,
         })
@@ -77,7 +87,7 @@ export async function GET(
 /**
  * POST /api/projects/[projectId]/share
  * Share a project with a user or toggle public link
- * Body: { email: string, role: "editor" | "viewer" } OR { publicLink: boolean }
+ * Body: { userId: string, email: string, role: CollaboratorRole } OR { publicLink: boolean }
  */
 export async function POST(
     request: NextRequest,
@@ -93,11 +103,11 @@ export async function POST(
         const body = await request.json()
 
         // Verify ownership
-        await verifyProjectOwnership(projectId, auth.userId)
+        await verifyOwnership(projectId, auth.userId)
 
         // Handle public link toggle
         if (body.publicLink !== undefined) {
-            const latestBlueprint = await getLatestBlueprint(projectId)
+            const latestBlueprint = await getBlueprintByProjectId(projectId)
 
             if (!latestBlueprint) {
                 return NextResponse.json(
@@ -139,28 +149,46 @@ export async function POST(
             }
         }
 
-        // Handle email share
-        if (!body.email) {
-            return NextResponse.json(
-                { error: "email is required" },
-                { status: 400 }
-            )
+        // Handle collaborator invitation
+        if (body.userId && body.email) {
+            const role = body.role as CollaboratorRole
+            
+            // Validate role
+            const validRoles: CollaboratorRole[] = ["viewer", "commenter", "editor", "admin"]
+            if (!validRoles.includes(role)) {
+                return NextResponse.json(
+                    { error: "role must be one of: viewer, commenter, editor, admin" },
+                    { status: 400 }
+                )
+            }
+
+            // Can't share with yourself
+            if (body.userId === auth.userId) {
+                return NextResponse.json(
+                    { error: "Cannot share project with yourself" },
+                    { status: 400 }
+                )
+            }
+
+            // Add collaborator
+            await addCollaborator(projectId, {
+                userId: body.userId,
+                email: body.email,
+                role,
+                invitedBy: auth.userId,
+            })
+
+            return NextResponse.json({
+                success: true,
+                message: "Collaborator invitation sent",
+            }, { status: 201 })
         }
 
-        const role = body.role || "viewer"
-        if (role !== "editor" && role !== "viewer") {
-            return NextResponse.json(
-                { error: "role must be 'editor' or 'viewer'" },
-                { status: 400 }
-            )
-        }
-
-        // Can't share with yourself
-        // Note: Would need to look up owner's email to check this properly
-        // For now, we skip this check
-
-        const share = await shareProject(projectId, body.email, role)
-        return NextResponse.json({ share }, { status: 201 })
+        // Invalid request
+        return NextResponse.json(
+            { error: "Either publicLink or userId+email+role must be provided" },
+            { status: 400 }
+        )
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to share project"
 
@@ -177,8 +205,8 @@ export async function POST(
 
 /**
  * DELETE /api/projects/[projectId]/share
- * Remove a share from a project
- * Body: { email: string }
+ * Remove a collaborator from a project
+ * Body: { userId: string }
  */
 export async function DELETE(
     request: NextRequest,
@@ -193,20 +221,31 @@ export async function DELETE(
         const { projectId } = await context.params
         const body = await request.json()
 
-        if (!body.email) {
+        if (!body.userId) {
             return NextResponse.json(
-                { error: "email is required" },
+                { error: "userId is required" },
                 { status: 400 }
             )
         }
 
-        // Verify ownership
-        await verifyProjectOwnership(projectId, auth.userId)
+        // Verify ownership (only owner can remove collaborators)
+        await verifyOwnership(projectId, auth.userId)
 
-        await unshareProject(projectId, body.email)
-        return NextResponse.json({ success: true })
+        // Can't remove yourself
+        if (body.userId === auth.userId) {
+            return NextResponse.json(
+                { error: "Cannot remove yourself from the project" },
+                { status: 400 }
+            )
+        }
+
+        await removeCollaborator(projectId, body.userId)
+        return NextResponse.json({
+            success: true,
+            message: "Collaborator removed successfully",
+        })
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to remove share"
+        const message = error instanceof Error ? error.message : "Failed to remove collaborator"
 
         if (message.includes("not found")) {
             return NextResponse.json({ error: message }, { status: 404 })

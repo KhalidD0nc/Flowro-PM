@@ -55,11 +55,11 @@ export default function Error({ error, reset }: ErrorProps) {
                         Try Again
                     </button>
                     <Link
-                        href="/dashboard"
+                        href="/app"
                         className="flex items-center justify-center gap-2 h-12 px-6 rounded-lg border border-[#283039] bg-[#18212b] text-white font-medium hover:bg-[#283039] transition-colors"
                     >
-                        <span className="material-symbols-outlined text-[20px]">dashboard</span>
-                        Go to Dashboard
+                        <span className="material-symbols-outlined text-[20px]">home</span>
+                        Go to Command Center
                     </Link>
                 </div>
 

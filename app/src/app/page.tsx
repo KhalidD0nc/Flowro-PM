@@ -60,10 +60,10 @@ export default function Home() {
     const router = useRouter()
     const { user, loading } = useAuth()
 
-    // Redirect authenticated users to dashboard - use replace to prevent back navigation
+    // Redirect authenticated users to app - use replace to prevent back navigation
     useEffect(() => {
         if (user && !loading) {
-            router.replace("/dashboard")
+            router.replace("/app")
         }
     }, [user, loading, router])
 
