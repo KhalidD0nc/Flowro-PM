@@ -3,6 +3,9 @@
 import { db } from "./firebase"
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore"
 
+// User plan types
+
+
 // User profile schema
 export interface UserProfile {
     userId: string
@@ -10,15 +13,17 @@ export interface UserProfile {
     onboardingStep: number
     role?: "founder" | "pm" | "developer" | "designer" | "other"
     projectType?: "saas" | "mobile" | "ecommerce" | "internal" | "other"
+    plan: "builder"
     completedTours: string[]
     createdAt: Date | null
     updatedAt: Date | null
 }
 
-// Default profile for new users
+// Default profile for new users - all new users get Builder Plan
 export const defaultProfile: Omit<UserProfile, "userId" | "createdAt" | "updatedAt"> = {
     onboardingCompleted: false,
     onboardingStep: 0,
+    plan: "builder",
     completedTours: [],
 }
 
@@ -74,6 +79,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
                 onboardingStep: data.onboardingStep ?? 0,
                 role: data.role,
                 projectType: data.projectType,
+                plan: data.plan ?? "builder",
                 completedTours: data.completedTours ?? [],
                 createdAt: data.createdAt?.toDate() ?? null,
                 updatedAt: data.updatedAt?.toDate() ?? null,

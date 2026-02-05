@@ -142,10 +142,10 @@ function AppHomeContent() {
       />
 
       {/* Main Content Area with seamless transitions */}
-      <div className="relative flex-1 flex flex-col overflow-hidden">
+      <div className="relative flex-1 flex flex-col overflow-hidden bg-[#0a0d12]">
         {/* Transition overlay */}
         <div
-          className={`absolute inset-0 bg-[#020204] pointer-events-none z-50 transition-opacity duration-150 ${isTransitioning ? "opacity-100" : "opacity-0"
+          className={`absolute inset-0 bg-[#0a0d12] pointer-events-none z-50 transition-opacity duration-150 ${isTransitioning ? "opacity-100" : "opacity-0"
             }`}
         />
 

@@ -5,7 +5,7 @@
  * - Persistent state via localStorage
  * - Real user data
  * - Profile popup menu with settings, logout
- * - Recent projects from API
+ * - Recent projects from API with 3-dot menu for actions
  */
 
 "use client";
@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/Providers";
 import { signOutUser } from "@/app/auth/actions";
-import { authGet } from "@/lib/authFetch";
+import { authGet, authDelete, authPatch } from "@/lib/authFetch";
 
 const SIDEBAR_COLLAPSED_KEY = "flowro_sidebar_collapsed";
 
@@ -43,6 +43,21 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
   // Profile menu state
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Project actions menu state
+  const [openProjectMenuId, setOpenProjectMenuId] = useState<string | null>(null);
+  const projectMenuRef = useRef<HTMLDivElement>(null);
+
+  // Rename modal state
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [renameProjectId, setRenameProjectId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
+
+  // Delete confirmation state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -122,20 +137,90 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
         setIsProfileMenuOpen(false);
       }
+      if (projectMenuRef.current && !projectMenuRef.current.contains(event.target as Node)) {
+        setOpenProjectMenuId(null);
+      }
     };
 
-    if (isProfileMenuOpen) {
+    if (isProfileMenuOpen || openProjectMenuId) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isProfileMenuOpen]);
+  }, [isProfileMenuOpen, openProjectMenuId]);
+
+  // Handle rename project
+  const handleRenameProject = async () => {
+    if (!user || !renameProjectId || !renameValue.trim()) return;
+
+    setIsRenaming(true);
+    try {
+      const response = await authPatch(`/api/projects/${renameProjectId}`, user, {
+        name: renameValue.trim(),
+      });
+
+      if (response.ok) {
+        setRecentProjects((prev) =>
+          prev.map((p) =>
+            p.id === renameProjectId ? { ...p, name: renameValue.trim() } : p
+          )
+        );
+        setRenameModalOpen(false);
+        setRenameProjectId(null);
+        setRenameValue("");
+      }
+    } catch (error) {
+      console.error("Error renaming project:", error);
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
+  // Handle delete project
+  const handleDeleteProject = async () => {
+    if (!user || !deleteProjectId) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await authDelete(`/api/projects/${deleteProjectId}`, user);
+
+      if (response.ok) {
+        setRecentProjects((prev) => prev.filter((p) => p.id !== deleteProjectId));
+        setDeleteModalOpen(false);
+        setDeleteProjectId(null);
+
+        // If the deleted project was active, go back to command center
+        if (activeProjectId === deleteProjectId && onNewChat) {
+          onNewChat();
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting project:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Open rename modal
+  const openRenameModal = (project: RecentProject) => {
+    setRenameProjectId(project.id);
+    setRenameValue(project.name);
+    setRenameModalOpen(true);
+    setOpenProjectMenuId(null);
+  };
+
+  // Open delete confirmation
+  const openDeleteModal = (projectId: string) => {
+    setDeleteProjectId(projectId);
+    setDeleteModalOpen(true);
+    setOpenProjectMenuId(null);
+  };
 
   return (
     <aside
-      className={`flex flex-col justify-between border-r-2 border-white/20 bg-[#0f141a]/95 backdrop-blur-xl p-4 shrink-0 z-20 transition-all duration-300 ${isCollapsed ? "w-16" : "w-full md:w-64"
+      className={`flex flex-col justify-between border-r border-white/10 bg-[#0a0d12] p-4 shrink-0 z-20 transition-all duration-300 ${isCollapsed ? "w-16" : "w-full md:w-64"
         }`}
     >
       {/* Top Section */}
@@ -162,7 +247,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
           {/* Collapse Toggle */}
           <button
             onClick={toggleCollapsed}
-            className={`p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 border border-white/20 transition-colors ${isCollapsed ? "mx-auto" : ""
+            className={`p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors ${isCollapsed ? "mx-auto" : ""
               }`}
             title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
@@ -181,11 +266,11 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
               router.push("/app");
             }
           }}
-          className={`flex items-center gap-2 rounded-lg bg-[#11161d] px-3 py-2.5 text-sm font-semibold text-white border-2 border-white/30 shadow-[4px_4px_0_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all ${isCollapsed ? "justify-center px-2" : "justify-start"
+          className={`flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500/20 to-violet-500/20 px-3 py-2.5 text-sm font-semibold text-white hover:from-cyan-500/30 hover:to-violet-500/30 transition-all ${isCollapsed ? "justify-center px-2" : "justify-start"
             }`}
           title="New Chat"
         >
-          <span className="material-symbols-outlined text-[#38bdf8]">
+          <span className="material-symbols-outlined text-cyan-400">
             add_circle
           </span>
           {!isCollapsed && <span>New Chat</span>}
@@ -207,26 +292,62 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
             ) : recentProjects.length > 0 ? (
               recentProjects.map((project) => {
                 const isActive = activeProjectId === project.id;
+                const isMenuOpen = openProjectMenuId === project.id;
                 return (
-                  <button
-                    key={project.id}
-                    onClick={() => {
-                      if (onProjectSelect) {
-                        onProjectSelect(project.id);
-                      } else {
-                        router.push(`/app/${project.id}`);
-                      }
-                    }}
-                    className={`flex items-center gap-3 truncate rounded-lg px-3 py-1.5 text-sm transition-colors w-full text-left border border-white/10 ${isActive
-                      ? "sidebar-item-active text-white"
-                      : "text-slate-300 hover:bg-white/10 hover:text-white"
-                      }`}
-                  >
-                    <span className={`material-symbols-outlined text-[16px] ${isActive ? "opacity-100" : "opacity-70"}`}>
-                      {isActive ? "chat_bubble" : "history"}
-                    </span>
-                    <span className="truncate">{project.name}</span>
-                  </button>
+                  <div key={project.id} className="relative group" ref={isMenuOpen ? projectMenuRef : null}>
+                    <button
+                      onClick={() => {
+                        if (onProjectSelect) {
+                          onProjectSelect(project.id);
+                        } else {
+                          router.push(`/app/${project.id}`);
+                        }
+                      }}
+                      className={`flex items-center gap-3 truncate rounded-lg px-3 py-2 text-sm transition-colors w-full text-left ${isActive
+                        ? "bg-white/10 text-white"
+                        : "text-slate-300 hover:bg-white/5 hover:text-white"
+                        }`}
+                    >
+                      <span className={`material-symbols-outlined text-[16px] ${isActive ? "text-cyan-400" : "opacity-70"}`}>
+                        {isActive ? "chat_bubble" : "description"}
+                      </span>
+                      <span className="truncate flex-1">{project.name}</span>
+                    </button>
+
+                    {/* 3-dot menu button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenProjectMenuId(isMenuOpen ? null : project.id);
+                      }}
+                      className={`absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-md transition-opacity ${isMenuOpen ? "opacity-100 bg-white/10" : "opacity-0 group-hover:opacity-100 hover:bg-white/10"}`}
+                      title="Project options"
+                    >
+                      <span className="material-symbols-outlined text-[16px] text-slate-400">
+                        more_vert
+                      </span>
+                    </button>
+
+                    {/* Project actions dropdown */}
+                    {isMenuOpen && (
+                      <div className="absolute left-full top-0 ml-2 w-40 rounded-lg bg-[#0f141a] shadow-xl overflow-hidden z-50 py-1">
+                        <button
+                          onClick={() => openRenameModal(project)}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">edit</span>
+                          Rename
+                        </button>
+                        <button
+                          onClick={() => openDeleteModal(project.id)}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">delete</span>
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 );
               })
             ) : (
@@ -239,11 +360,11 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
       </div>
 
       {/* Bottom Section - Profile Menu */}
-      <div className="relative border-t-2 border-white/20 pt-4" ref={profileMenuRef}>
+      <div className="relative pt-4" ref={profileMenuRef}>
         {/* Profile Menu Popup */}
         {isProfileMenuOpen && user && (
           <div
-            className="absolute bottom-full left-0 mb-2 w-64 rounded-xl bg-[#0f141a] border-2 border-white/30 shadow-[6px_6px_0_#000] overflow-hidden z-50"
+            className="absolute bottom-full left-0 mb-2 w-64 rounded-xl bg-[#0f141a] shadow-xl overflow-hidden z-50"
             style={{ minWidth: isCollapsed ? '256px' : '100%' }}
           >
             {/* User Email */}
@@ -332,7 +453,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
         {user && (
           <button
             onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-            className={`w-full flex items-center gap-3 rounded-lg bg-[#11161d] p-2 border-2 border-white/20 shadow-[4px_4px_0_#000] hover:bg-white/10 transition-colors cursor-pointer ${isCollapsed ? "justify-center" : ""
+            className={`w-full flex items-center gap-3 rounded-lg bg-white/5 p-2 hover:bg-white/10 transition-colors cursor-pointer ${isCollapsed ? "justify-center" : ""
               }`}
             title="Profile menu"
           >
@@ -340,10 +461,10 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
               <img
                 src={user.photoURL}
                 alt="Profile"
-                className="size-8 rounded-full object-cover"
+                className="size-8 rounded-full object-cover ring-2 ring-violet-500/30"
               />
             ) : (
-              <div className="size-8 rounded-full bg-gradient-to-tr from-violet-500 to-fuchsia-500 flex items-center justify-center text-xs font-bold text-white">
+              <div className="size-8 rounded-full bg-gradient-to-tr from-cyan-500 to-violet-500 flex items-center justify-center text-xs font-bold text-white">
                 {getUserInitials()}
               </div>
             )}
@@ -352,12 +473,89 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                 <p className="truncate text-sm font-medium text-white">
                   {user.displayName || user.email?.split("@")[0] || "User"}
                 </p>
-                <p className="truncate text-xs text-slate-400">Free Plan</p>
+                <p className="truncate text-xs text-cyan-400 font-medium">Builder Plan</p>
               </div>
             )}
           </button>
         )}
       </div>
+
+      {/* Rename Modal */}
+      {renameModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl bg-[#0f141a] p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold text-white mb-4">Rename Project</h3>
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              className="w-full rounded-lg bg-white/5 px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500/50 mb-4"
+              placeholder="Project name"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRenameProject();
+                if (e.key === "Escape") {
+                  setRenameModalOpen(false);
+                  setRenameProjectId(null);
+                }
+              }}
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setRenameModalOpen(false);
+                  setRenameProjectId(null);
+                }}
+                className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRenameProject}
+                disabled={isRenaming || !renameValue.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-cyan-500 to-violet-500 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {isRenaming ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl bg-[#0f141a] p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex size-10 items-center justify-center rounded-full bg-red-500/10 text-red-400">
+                <span className="material-symbols-outlined">warning</span>
+              </div>
+              <h3 className="text-lg font-semibold text-white">Delete Project</h3>
+            </div>
+            <p className="text-slate-400 mb-6">
+              Are you sure you want to delete this project? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setDeleteProjectId(null);
+                }}
+                className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteProject}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
