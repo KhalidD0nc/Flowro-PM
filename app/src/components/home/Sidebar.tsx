@@ -135,9 +135,8 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
 
   return (
     <aside
-      className={`flex flex-col justify-between border-r border-white/5 bg-[#050507]/90 backdrop-blur-xl p-4 shrink-0 z-20 transition-all duration-300 ${
-        isCollapsed ? "w-16" : "w-64"
-      }`}
+      className={`flex flex-col justify-between border-r-2 border-white/20 bg-[#0f141a]/95 backdrop-blur-xl p-4 shrink-0 z-20 transition-all duration-300 ${isCollapsed ? "w-16" : "w-full md:w-64"
+        }`}
     >
       {/* Top Section */}
       <div className="flex flex-col gap-6">
@@ -153,31 +152,18 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
             }}
             className="flex items-center gap-3"
           >
-            <div className="flex items-center justify-center rounded-lg bg-white/5 p-1.5 ring-1 ring-white/10">
-              <div className="size-7 rounded bg-gradient-to-br from-cyan-400 to-violet-500 flex items-center justify-center shadow-lg shadow-violet-500/20">
-                <span className="material-symbols-outlined text-white text-[18px]">
-                  hourglass_top
-                </span>
-              </div>
-            </div>
-            {!isCollapsed && (
-              <div className="flex flex-col text-left">
-                <h1 className="text-base font-bold leading-none tracking-tight text-white">
-                  Flowro AI
-                </h1>
-                <p className="text-[10px] font-medium text-slate-400 mt-1 tracking-wide uppercase opacity-70">
-                  Unified Blueprints
-                </p>
-              </div>
-            )}
+            <img
+              src="/logo.png"
+              alt="Flowro Logo"
+              className={`transition-all duration-300 ${isCollapsed ? "hidden md:block size-10" : "h-10 w-auto"}`}
+            />
           </button>
 
           {/* Collapse Toggle */}
           <button
             onClick={toggleCollapsed}
-            className={`p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors ${
-              isCollapsed ? "mx-auto" : ""
-            }`}
+            className={`p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 border border-white/20 transition-colors ${isCollapsed ? "mx-auto" : ""
+              }`}
             title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             <span className="material-symbols-outlined text-[18px]">
@@ -195,12 +181,11 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
               router.push("/app");
             }
           }}
-          className={`flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500/10 to-violet-500/10 px-3 py-2.5 text-sm font-medium text-white ring-1 ring-white/10 hover:from-cyan-500/20 hover:to-violet-500/20 transition-all ${
-            isCollapsed ? "justify-center px-2" : "justify-start"
-          }`}
+          className={`flex items-center gap-2 rounded-lg bg-[#11161d] px-3 py-2.5 text-sm font-semibold text-white border-2 border-white/30 shadow-[4px_4px_0_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all ${isCollapsed ? "justify-center px-2" : "justify-start"
+            }`}
           title="New Chat"
         >
-          <span className="material-symbols-outlined text-cyan-400">
+          <span className="material-symbols-outlined text-[#38bdf8]">
             add_circle
           </span>
           {!isCollapsed && <span>New Chat</span>}
@@ -212,7 +197,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
         {!isCollapsed && (
           <div className="flex flex-col gap-1 mt-2">
             <div className="px-3 pb-2 pt-1">
-              <p className="text-xs font-semibold text-slate-400/60 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-slate-300/70 uppercase tracking-wider">
                 Projects
               </p>
             </div>
@@ -232,11 +217,10 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                         router.push(`/app/${project.id}`);
                       }
                     }}
-                    className={`flex items-center gap-3 truncate rounded-lg px-3 py-1.5 text-sm transition-colors w-full text-left ${
-                      isActive
-                        ? "bg-white/10 text-white"
-                        : "text-slate-400 hover:bg-white/5 hover:text-white"
-                    }`}
+                    className={`flex items-center gap-3 truncate rounded-lg px-3 py-1.5 text-sm transition-colors w-full text-left border border-white/10 ${isActive
+                      ? "sidebar-item-active text-white"
+                      : "text-slate-300 hover:bg-white/10 hover:text-white"
+                      }`}
                   >
                     <span className={`material-symbols-outlined text-[16px] ${isActive ? "opacity-100" : "opacity-70"}`}>
                       {isActive ? "chat_bubble" : "history"}
@@ -255,15 +239,15 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
       </div>
 
       {/* Bottom Section - Profile Menu */}
-      <div className="relative border-t border-white/5 pt-4" ref={profileMenuRef}>
+      <div className="relative border-t-2 border-white/20 pt-4" ref={profileMenuRef}>
         {/* Profile Menu Popup */}
         {isProfileMenuOpen && user && (
           <div
-            className="absolute bottom-full left-0 mb-2 w-64 rounded-xl bg-[#1a1d21] border border-white/10 shadow-2xl shadow-black/50 overflow-hidden z-50"
+            className="absolute bottom-full left-0 mb-2 w-64 rounded-xl bg-[#0f141a] border-2 border-white/30 shadow-[6px_6px_0_#000] overflow-hidden z-50"
             style={{ minWidth: isCollapsed ? '256px' : '100%' }}
           >
             {/* User Email */}
-            <div className="px-4 py-3 border-b border-white/5">
+            <div className="px-4 py-3 border-b border-white/10">
               <p className="text-sm text-[#9dabb8] truncate">
                 {user.email || "user@example.com"}
               </p>
@@ -274,7 +258,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
               <Link
                 href="/settings"
                 onClick={() => setIsProfileMenuOpen(false)}
-                className="flex items-center justify-between px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+                className="flex items-center justify-between px-4 py-2.5 text-[#c5ccd4] hover:bg-white/10 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-[20px] opacity-70">settings</span>
@@ -285,7 +269,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
 
               <button
                 onClick={() => setIsProfileMenuOpen(false)}
-                className="flex items-center justify-between w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+                className="flex items-center justify-between w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/10 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-[20px] opacity-70">language</span>
@@ -299,7 +283,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                   setIsProfileMenuOpen(false);
                   window.open("mailto:support@flowro.ai", "_blank");
                 }}
-                className="flex items-center gap-3 w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/10 transition-colors"
               >
                 <span className="material-symbols-outlined text-[20px] opacity-70">help</span>
                 <span className="text-sm">Get help</span>
@@ -307,10 +291,10 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
             </div>
 
             {/* Menu Items - Group 2 */}
-            <div className="py-1 border-t border-white/5">
+            <div className="py-1 border-t border-white/10">
               <button
                 onClick={() => setIsProfileMenuOpen(false)}
-                className="flex items-center gap-3 w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/10 transition-colors"
               >
                 <span className="material-symbols-outlined text-[20px] opacity-70">tune</span>
                 <span className="text-sm">View all plans</span>
@@ -318,7 +302,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
 
               <button
                 onClick={() => setIsProfileMenuOpen(false)}
-                className="flex items-center justify-between w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+                className="flex items-center justify-between w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/10 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <span className="material-symbols-outlined text-[20px] opacity-70">info</span>
@@ -329,13 +313,13 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
             </div>
 
             {/* Logout */}
-            <div className="py-1 border-t border-white/5">
+            <div className="py-1 border-t border-white/10">
               <button
                 onClick={() => {
                   setIsProfileMenuOpen(false);
                   handleLogout();
                 }}
-                className="flex items-center gap-3 w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/5 transition-colors"
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/10 transition-colors"
               >
                 <span className="material-symbols-outlined text-[20px] opacity-70">logout</span>
                 <span className="text-sm">Log out</span>
@@ -348,9 +332,8 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
         {user && (
           <button
             onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-            className={`w-full flex items-center gap-3 rounded-lg bg-white/5 p-2 ring-1 ring-white/5 hover:bg-white/10 transition-colors cursor-pointer ${
-              isCollapsed ? "justify-center" : ""
-            }`}
+            className={`w-full flex items-center gap-3 rounded-lg bg-[#11161d] p-2 border-2 border-white/20 shadow-[4px_4px_0_#000] hover:bg-white/10 transition-colors cursor-pointer ${isCollapsed ? "justify-center" : ""
+              }`}
             title="Profile menu"
           >
             {user.photoURL ? (

@@ -68,7 +68,7 @@ export default function SettingsPage() {
         return (
             <div className="min-h-screen bg-[#101922] flex items-center justify-center">
                 <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-[#137fec] animate-spin text-3xl">hourglass_top</span>
+                    <img src="/logo.svg" alt="Loading" className="size-8 animate-spin" />
                 </div>
             </div>
         )
@@ -97,9 +97,7 @@ export default function SettingsPage() {
                     {/* Branding */}
                     <div className="flex items-center justify-between px-2">
                         <div className="flex items-center gap-3">
-                            <div className="size-8 text-[#137fec]">
-                                <span className="material-symbols-outlined text-[32px]">hourglass_top</span>
-                            </div>
+                            <img src="/logo.svg" alt="Flowro Logo" className="size-8" />
                             <div className="flex flex-col">
                                 <h1 className="text-lg font-bold leading-tight tracking-tight text-white">Flowro AI</h1>
                                 <p className="text-xs font-medium text-[#9dabb9]">Unified Blueprints</p>

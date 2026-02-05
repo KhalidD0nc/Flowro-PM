@@ -15,7 +15,7 @@ export default function DemoLandingPage() {
             {/* Header */}
             <header className="sticky top-0 z-50 flex items-center justify-between border-b border-[#30363d] bg-[#0D1117]/80 backdrop-blur-md px-6 py-3">
                 <Link href="/" className="flex items-center gap-3 text-white cursor-pointer">
-                    <span className="material-symbols-outlined text-[#137fec] text-3xl">hourglass_top</span>
+                    <img src="/logo.svg" alt="Flowro Logo" className="size-8" />
                     <h2 className="text-lg font-bold leading-tight tracking-[-0.015em]">Flowro AI</h2>
                 </Link>
                 {isAuthenticated ? (
@@ -167,8 +167,8 @@ function DemoCard({
         <Link
             href={href}
             className={`group flex flex-col gap-4 p-6 rounded-xl border transition-all hover:-translate-y-1 ${featured
-                    ? "bg-[#137fec]/10 border-[#137fec]/30 hover:border-[#137fec]/50"
-                    : "bg-[#18212b] border-[#283039] hover:border-[#137fec]/30"
+                ? "bg-[#137fec]/10 border-[#137fec]/30 hover:border-[#137fec]/50"
+                : "bg-[#18212b] border-[#283039] hover:border-[#137fec]/30"
                 }`}
         >
             <div className={`size-12 rounded-lg flex items-center justify-center ${featured ? "bg-[#137fec]/20 text-[#137fec]" : "bg-[#283039] text-[#9dabb9] group-hover:text-[#137fec]"

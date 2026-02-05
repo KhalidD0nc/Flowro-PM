@@ -26,7 +26,7 @@ function AppHomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
-  
+
   // Active session state - when set, shows ChatView instead of CommandCenter
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -41,10 +41,10 @@ function AppHomeContent() {
   // Handle project creation - seamless transition to chat
   const handleProjectCreated = useCallback((projectId: string, initialMessage: string) => {
     setIsTransitioning(true);
-    
+
     // Update URL without navigation (for bookmarking/sharing)
     window.history.replaceState(null, "", `/app/${projectId}`);
-    
+
     // Small delay for smooth transition
     setTimeout(() => {
       setActiveSession({ projectId, initialMessage });
@@ -111,9 +111,7 @@ function AppHomeContent() {
     return (
       <div className="min-h-screen bg-[#020204] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <span className="material-symbols-outlined text-[#137fec] animate-spin text-5xl">
-            hourglass_top
-          </span>
+          <img src="/logo.svg" alt="Flowro Logo" className="w-16 h-16 animate-spin" />
           <span className="text-[#9dabb9] text-sm">Loading...</span>
         </div>
       </div>
@@ -125,9 +123,7 @@ function AppHomeContent() {
     return (
       <div className="min-h-screen bg-[#020204] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <span className="material-symbols-outlined text-[#137fec] animate-spin text-5xl">
-            hourglass_top
-          </span>
+          <img src="/logo.svg" alt="Flowro Logo" className="w-16 h-16 animate-spin" />
           <span className="text-[#9dabb9] text-sm animate-pulse">
             Redirecting to login...
           </span>
@@ -148,12 +144,11 @@ function AppHomeContent() {
       {/* Main Content Area with seamless transitions */}
       <div className="relative flex-1 flex flex-col overflow-hidden">
         {/* Transition overlay */}
-        <div 
-          className={`absolute inset-0 bg-[#020204] pointer-events-none z-50 transition-opacity duration-150 ${
-            isTransitioning ? "opacity-100" : "opacity-0"
-          }`}
+        <div
+          className={`absolute inset-0 bg-[#020204] pointer-events-none z-50 transition-opacity duration-150 ${isTransitioning ? "opacity-100" : "opacity-0"
+            }`}
         />
-        
+
         {/* Content: CommandCenter or ChatView */}
         {activeSession ? (
           <ChatView
@@ -176,9 +171,7 @@ function LoadingFallback() {
   return (
     <div className="min-h-screen bg-[#020204] flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <span className="material-symbols-outlined text-[#137fec] animate-spin text-5xl">
-          hourglass_top
-        </span>
+        <img src="/logo.svg" alt="Flowro Logo" className="w-16 h-16 animate-spin" />
         <span className="text-[#9dabb9] text-sm">Loading...</span>
       </div>
     </div>

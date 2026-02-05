@@ -22,9 +22,8 @@ export default function WelcomeModal({ isOpen, userName, onGetStarted, onSkip }:
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div
-                className={`relative w-full max-w-lg mx-4 rounded-2xl border border-[#283039] bg-[#18212b]/95 p-8 shadow-2xl shadow-black/40 transform transition-all duration-300 ${
-                    isAnimating ? "scale-95 opacity-0" : "scale-100 opacity-100"
-                }`}
+                className={`relative w-full max-w-lg mx-4 rounded-2xl border border-[#283039] bg-[#18212b]/95 p-8 shadow-2xl shadow-black/40 transform transition-all duration-300 ${isAnimating ? "scale-95 opacity-0" : "scale-100 opacity-100"
+                    }`}
             >
                 {/* Logo and celebration */}
                 <div className="flex flex-col items-center text-center">
@@ -32,9 +31,7 @@ export default function WelcomeModal({ isOpen, userName, onGetStarted, onSkip }:
                         {/* Glow effect */}
                         <div className="absolute inset-0 bg-[#137fec]/20 rounded-full blur-xl" />
                         <div className="relative size-20 rounded-full bg-gradient-to-br from-[#137fec] to-blue-600 flex items-center justify-center shadow-lg shadow-[#137fec]/30">
-                            <span className="material-symbols-outlined text-white text-4xl">
-                                hourglass_top
-                            </span>
+                            <img src="/logo.svg" alt="Flowro Logo" className="size-12 brightness-0 invert" />
                         </div>
                     </div>
 

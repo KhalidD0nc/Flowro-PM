@@ -13,7 +13,7 @@ export default function TermsPage() {
             <header className="border-b border-slate-700/50 bg-[#101922]/80 backdrop-blur-sm sticky top-0 z-50">
                 <div className="max-w-4xl mx-auto px-6 py-4">
                     <Link href="/" className="flex items-center gap-2 w-fit">
-                        <span className="material-symbols-outlined text-[#137fec]" style={{ fontSize: '28px' }}>hourglass_top</span>
+                        <img src="/logo.svg" alt="Flowro Logo" className="size-7" />
                         <span className="text-lg font-bold tracking-tight text-white">Flowro AI</span>
                     </Link>
                 </div>
