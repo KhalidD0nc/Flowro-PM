@@ -12,8 +12,8 @@ export default function PricingSection() {
                 {/* Page Heading */}
                 <div className="flex flex-col items-center text-center gap-6">
                     <div className="inline-flex items-center gap-2 px-4 py-1.5 w-fit neo-pill">
-                        <span className="material-symbols-outlined text-[18px] text-black">rocket_launch</span>
-                        <span className="text-sm font-black text-black tracking-wide">LAUNCH SPECIAL</span>
+                        <span className="material-symbols-outlined text-[18px] text-white">rocket_launch</span>
+                        <span className="text-sm font-black text-white tracking-wide">LAUNCH SPECIAL</span>
                     </div>
                     <div className="flex flex-col gap-2">
                         <h2 className="text-white text-5xl md:text-6xl font-black leading-[1.1] tracking-[-0.033em]">

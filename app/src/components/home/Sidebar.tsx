@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/Providers";
 import { signOutUser } from "@/app/auth/actions";
 import { authGet, authDelete, authPatch } from "@/lib/authFetch";
+import PricingModal from "@/components/PricingModal";
 
 const SIDEBAR_COLLAPSED_KEY = "flowro_sidebar_collapsed";
 
@@ -47,6 +48,9 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
   // Project actions menu state
   const [openProjectMenuId, setOpenProjectMenuId] = useState<string | null>(null);
   const projectMenuRef = useRef<HTMLDivElement>(null);
+
+  // Pricing modal state
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
 
   // Rename modal state
   const [renameModalOpen, setRenameModalOpen] = useState(false);
@@ -266,12 +270,12 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
               router.push("/app");
             }
           }}
-          className={`flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500/20 to-violet-500/20 px-3 py-2.5 text-sm font-semibold text-white hover:from-cyan-500/30 hover:to-violet-500/30 transition-all ${isCollapsed ? "justify-center px-2" : "justify-start"
+          className={`flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2.5 text-sm font-semibold text-white hover:bg-white/15 transition-all ${isCollapsed ? "justify-center px-2" : "justify-start"
             }`}
           title="New Chat"
         >
-          <span className="material-symbols-outlined text-cyan-400">
-            add_circle
+          <span className="material-symbols-outlined text-slate-300">
+            edit
           </span>
           {!isCollapsed && <span>New Chat</span>}
         </button>
@@ -309,7 +313,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                         }`}
                     >
                       <span className={`material-symbols-outlined text-[16px] ${isActive ? "text-cyan-400" : "opacity-70"}`}>
-                        {isActive ? "chat_bubble" : "description"}
+                        description
                       </span>
                       <span className="truncate flex-1">{project.name}</span>
                     </button>
@@ -374,62 +378,17 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
               </p>
             </div>
 
-            {/* Menu Items - Group 1 */}
+            {/* Menu Items */}
             <div className="py-1">
-              <Link
-                href="/settings"
-                onClick={() => setIsProfileMenuOpen(false)}
-                className="flex items-center justify-between px-4 py-2.5 text-[#c5ccd4] hover:bg-white/10 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-[20px] opacity-70">settings</span>
-                  <span className="text-sm">Settings</span>
-                </div>
-                <span className="text-xs text-slate-500">⇧⌘,</span>
-              </Link>
-
-              <button
-                onClick={() => setIsProfileMenuOpen(false)}
-                className="flex items-center justify-between w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/10 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-[20px] opacity-70">language</span>
-                  <span className="text-sm">Language</span>
-                </div>
-                <span className="material-symbols-outlined text-[16px] opacity-50">chevron_right</span>
-              </button>
-
               <button
                 onClick={() => {
                   setIsProfileMenuOpen(false);
-                  window.open("mailto:support@flowro.ai", "_blank");
+                  setIsPricingModalOpen(true);
                 }}
-                className="flex items-center gap-3 w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/10 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[20px] opacity-70">help</span>
-                <span className="text-sm">Get help</span>
-              </button>
-            </div>
-
-            {/* Menu Items - Group 2 */}
-            <div className="py-1 border-t border-white/10">
-              <button
-                onClick={() => setIsProfileMenuOpen(false)}
                 className="flex items-center gap-3 w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/10 transition-colors"
               >
                 <span className="material-symbols-outlined text-[20px] opacity-70">tune</span>
                 <span className="text-sm">View all plans</span>
-              </button>
-
-              <button
-                onClick={() => setIsProfileMenuOpen(false)}
-                className="flex items-center justify-between w-full px-4 py-2.5 text-[#c5ccd4] hover:bg-white/10 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-[20px] opacity-70">info</span>
-                  <span className="text-sm">Learn more</span>
-                </div>
-                <span className="material-symbols-outlined text-[16px] opacity-50">chevron_right</span>
               </button>
             </div>
 
@@ -556,6 +515,12 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
           </div>
         </div>
       )}
+
+      {/* Pricing Modal */}
+      <PricingModal 
+        isOpen={isPricingModalOpen}
+        onClose={() => setIsPricingModalOpen(false)}
+      />
     </aside>
   );
 }

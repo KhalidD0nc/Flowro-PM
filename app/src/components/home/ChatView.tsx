@@ -1023,7 +1023,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
                                         </h1>
                                     ) : (
                                         <h1 className="text-sm font-semibold tracking-tight text-slate-200 truncate max-w-[160px] sm:max-w-none">
-                                            {project.projectName} <span className="ml-2 text-[10px] text-slate-500 font-medium uppercase">Discovery</span>
+                                            {project.projectName} <span className="ml-2 text-[10px] text-slate-500 font-medium uppercase"></span>
                                         </h1>
                                     )}
                                 </div>
