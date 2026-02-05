@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 
-export default function AppProjectRedirectPage({ params }: { params: { projectId: string } }) {
-    redirect(`/app?projectId=${params.projectId}`)
+export default async function AppProjectRedirectPage({ params }: { params: Promise<{ projectId: string }> }) {
+    const { projectId } = await params
+    redirect(`/app?projectId=${projectId}`)
 }

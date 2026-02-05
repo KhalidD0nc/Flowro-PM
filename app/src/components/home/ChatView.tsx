@@ -190,10 +190,19 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
             setThinkingPhase(0)
             return
         }
-        const timer = setInterval(() => {
-            setThinkingPhase(p => Math.min(p + 1, 2))
-        }, 2500)
-        return () => clearInterval(timer)
+
+        // Custom timing for each phase transition
+        const timer1 = setTimeout(() => setThinkingPhase(1), 2500)      // Phase 0→1 at 2.5s
+        const timer2 = setTimeout(() => setThinkingPhase(2), 5000)      // Phase 1→2 at 5s
+        const timer3 = setTimeout(() => setThinkingPhase(3), 24500)     // Phase 2→3 at 24.5s
+        const timer4 = setTimeout(() => setThinkingPhase(4), 26500)     // Phase 3→4 at 26.5s
+
+        return () => {
+            clearTimeout(timer1)
+            clearTimeout(timer2)
+            clearTimeout(timer3)
+            clearTimeout(timer4)
+        }
     }, [isGenerating])
 
     // Keep chatHistoryRef in sync
@@ -211,7 +220,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
         async function initializeProject() {
             try {
                 const token = await user.getIdToken()
-                
+
                 // Fetch the newly created project
                 const res = await fetch(`/api/projects/${projectId}`, {
                     headers: { Authorization: `Bearer ${token}` },
@@ -244,7 +253,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
                     ...data,
                     chatHistory: initialChatHistory,
                 }
-                
+
                 setProject(projectData)
 
                 if (data.latestBlueprint?.content) {
@@ -291,8 +300,8 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
     // =============================================================================
 
     const generateResponse = useCallback(async (
-        currentHistory: ChatMessage[], 
-        usersMessage: string, 
+        currentHistory: ChatMessage[],
+        usersMessage: string,
         skipPersist: boolean = false
     ) => {
         setIsGenerating(true)
@@ -994,45 +1003,41 @@ Return the updated blueprint JSON with the changes applied to that section.`
     return (
         <div className="flex flex-1 flex-col h-full overflow-hidden">
             {/* Header */}
-            <header className="relative shrink-0 z-10 border-b border-white/5 bg-[#0f1720]/90 backdrop-blur-md shadow-[0_2px_10px_rgba(3,10,20,0.35)]">
-                <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 sm:py-3">
-                    <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                        <div className="hidden xs:flex size-9 sm:size-10 items-center justify-center rounded-xl bg-gradient-to-b from-[#137fec]/20 to-[#137fec]/5 border border-white/5 shadow-inner shadow-[#137fec]/10 shrink-0">
+            <header className="relative shrink-0 z-10 border-b border-white/10 bg-[#0a0d12]">
+                <div className="flex items-center justify-between px-4 sm:px-6 py-2">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                        <div className="hidden xs:flex size-8 items-center justify-center rounded-lg bg-white/10 shrink-0">
                             {isGenerating && (!project.projectName || project.projectName === "Untitled Project" || project.projectName === "Project") ? (
-                                <span className="material-symbols-outlined text-[#137fec] text-lg animate-spin">progress_activity</span>
+                                <span className="material-symbols-outlined text-slate-300 text-base animate-spin">progress_activity</span>
                             ) : (
-                                <span className="material-symbols-outlined text-[#137fec] text-lg sm:text-xl">folder_open</span>
+                                <span className="material-symbols-outlined text-slate-300 text-base">hourglass_top</span>
                             )}
                         </div>
 
-                        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                             <div className="flex flex-col min-w-0 justify-center">
                                 <div className="flex items-center gap-2">
                                     {isGenerating && (!project.projectName || project.projectName === "Untitled Project" || project.projectName === "Project") ? (
-                                        <h1 className="text-sm sm:text-base font-medium text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 animate-pulse truncate">
+                                        <h1 className="text-sm font-semibold tracking-tight text-slate-200 animate-pulse truncate">
                                             Flowro is cooking...
                                         </h1>
                                     ) : (
-                                        <h1 className="text-sm sm:text-base font-medium text-white/90 truncate max-w-[160px] sm:max-w-none tracking-tight">
-                                            {project.projectName}
+                                        <h1 className="text-sm font-semibold tracking-tight text-slate-200 truncate max-w-[160px] sm:max-w-none">
+                                            {project.projectName} <span className="ml-2 text-[10px] text-slate-500 font-medium uppercase"></span>
                                         </h1>
-                                    )}
-
-                                    {!isGenerating && (
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
                                     )}
                                 </div>
                             </div>
 
                             <button
                                 onClick={() => setIsUBPViewerOpen(true)}
-                                className="group inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[#9dabb9] hover:text-white hover:bg-white/5 transition-all text-xs sm:text-sm font-medium"
+                                className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all text-xs font-medium"
                                 title="Blueprint"
                             >
-                                <span className="material-symbols-outlined text-[18px] sm:text-[20px] text-[#9dabb9] group-hover:text-[#137fec] transition-colors">description</span>
+                                <span className="material-symbols-outlined text-[16px] text-slate-400 group-hover:text-slate-200 transition-colors">description</span>
                                 <span className="hidden md:inline">Blueprint</span>
                                 {project.latestBlueprint && (
-                                    <span className="hidden lg:inline-flex items-center justify-center px-1.5 py-0.5 rounded-[4px] bg-[#137fec]/10 border border-[#137fec]/20 text-[#137fec] text-[10px] font-bold tracking-wide">
+                                    <span className="hidden lg:inline-flex items-center justify-center px-1.5 py-0.5 rounded-[4px] bg-white/10 text-slate-300 text-[10px] font-medium">
                                         v{project.latestBlueprint.version}
                                     </span>
                                 )}
@@ -1040,13 +1045,13 @@ Return the updated blueprint JSON with the changes applied to that section.`
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                         <button
                             onClick={() => setIsShareModalOpen(true)}
-                            className="flex items-center justify-center size-9 sm:size-10 rounded-lg sm:rounded-xl text-[#9dabb9] hover:text-white hover:bg-white/5 transition-all"
+                            className="flex items-center justify-center size-8 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all"
                             title="Share Project"
                         >
-                            <span className="material-symbols-outlined text-lg sm:text-[20px]">ios_share</span>
+                            <span className="material-symbols-outlined text-base">ios_share</span>
                         </button>
                     </div>
                 </div>

@@ -94,6 +94,11 @@ Export blueprints in formats optimized for AI coding agents:
 - **Workspaces**: Organize projects into shared workspaces (Beta).
 - **Export Options**: Download as JSON, Markdown, or copy directly as Cursor Rules.
 
+### 🌍 Global & Mobile Ready
+- **Responsive Design**: Seamless experience across all devices, from desktop to mobile.
+- **RTL Support**: First-class support for right-to-left languages (Arabic/Hebrew) built into the core.
+- **Accessibility**: High-contrast modes and screen reader optimization.
+
 ---
 
 ## 🏗️ Architecture

@@ -90,3 +90,18 @@ export async function authPut<T>(
 export async function authDelete(url: string, user: User | null): Promise<Response> {
     return authFetch(url, user, { method: "DELETE" })
 }
+
+/**
+ * Makes an authenticated PATCH request with JSON body
+ */
+export async function authPatch<T>(
+    url: string,
+    user: User | null,
+    body: T
+): Promise<Response> {
+    return authFetch(url, user, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    })
+}
