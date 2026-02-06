@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { AuthProvider } from "@/components/Providers";
 import Analytics from "@/components/Analytics";
@@ -118,6 +119,7 @@ export default function RootLayout({
             <AuthProvider>{children}</AuthProvider>
           </ToastProvider>
         </ErrorBoundary>
+        <VercelAnalytics />
       </body>
     </html>
   );
