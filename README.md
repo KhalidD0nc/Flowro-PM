@@ -13,7 +13,6 @@
   <img src="https://img.shields.io/badge/Firebase-12.7-orange?logo=firebase" alt="Firebase" />
   <img src="https://img.shields.io/badge/React-19-blue?logo=react" alt="React" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?logo=tailwind-css" alt="Tailwind CSS" />
-  <img src="https://img.shields.io/badge/License-MIT-green" alt="License" />
 </p>
 
 ---
@@ -84,14 +83,15 @@ Export blueprints in formats optimized for AI coding agents:
 - **Auto-Enhance**: One-click professional refinement of your requirements using "Consultant Logic".
 - **Contextual Ask**: Instruct Flowro AI to rewrite specific parts of your blueprint while maintaining global consistency.
 
-### 🚀 Launch Plan & Task Management
-- **Automated Roadmap**: AI transforms your UBP into a granular implementation plan.
-- **Kanban Board**: Drag-and-drop task management (`@dnd-kit`) to track progress from Backlog to Launch.
-- **Launch Readiness**: Track remaining tasks, blockers, and launch checklists.
+### ⚡ Real-Time AI Generation & Streaming
+- **Standard Generation**: `/api/generate` handles intent detection, UBP updates, and automatic version snapshots.
+- **Streaming Generation**: `/api/generate/stream` provides SSE responses for real-time output.
+- **Cost-Aware Guardrails**: Built-in rate limiting, token estimation, and budget checks for safer usage.
 
-### 🌐 Shareable Links & Workspaces
+### 🤝 Shareable Links, Collaboration & Workspaces
 - **Public Links**: Generate secure, read-only links for stakeholders.
-- **Workspaces**: Organize projects into shared workspaces (Beta).
+- **Collaborator Roles**: Invite and manage `viewer`, `commenter`, `editor`, and `admin` roles.
+- **Workspaces**: Auto-provision personal workspaces and create additional workspaces (Beta).
 - **Export Options**: Download as JSON, Markdown, or copy directly as Cursor Rules.
 
 ### 🌍 Global & Mobile Ready
@@ -106,29 +106,33 @@ Export blueprints in formats optimized for AI coding agents:
 ### Data Model
 
 ```
-User (Collection)
-└── userId
-    └── Projects (Subcollection)
-        └── Project
-            ├── projectName
-            ├── description
-            ├── chatHistory[]        ← Persistent across all versions
-            ├── createdAt / updatedAt
-            └── blueprints[]
-                ├── version: "0.1", "1.0", etc.
-                ├── status: draft | locked | approved
-                ├── content: { ...UBP sections }
-                └── lockedAt
+projects/{projectId}
+├── userId
+├── name / lastMessage
+├── collaborators[] / collaboratorUserIds[]
+├── createdAt / updatedAt
+└── messages/{messageId}        ← Unlimited chat history (subcollection)
+
+blueprints/{blueprintId}
+├── projectId                    ← 1:1 with projectId
+├── content                      ← Current living UBP
+├── updatedAt
+└── history/{snapshotId}         ← Version snapshots
+
+shareTokens/{tokenId}            ← Public share links
+workspaces/{workspaceId}         ← Workspace containers (Beta)
+Users/{userId}                   ← User profile documents
 ```
 
 ### System Flow
 
 ```mermaid
 flowchart LR
-    A[💡 Messy Idea] --> B[🤖 Flowro AI]
-    B --> C[📋 Unified Blueprint]
-    C --> D[🔧 Code Agent]
-    D --> E[✅ Working Product]
+    A[💡 Messy Idea] --> B[🤖 Flowro AI Chat]
+    B --> C[⚙️ OpenRouter/LangChain]
+    C --> D[📋 Live UBP]
+    D --> E[🧾 Version History Snapshot]
+    E --> F[🔗 Share / Export / Build]
 ```
 
 ---
@@ -154,7 +158,7 @@ flowchart LR
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - Firebase project with Firestore enabled
 - OpenRouter API key (free tier available)
 
@@ -163,9 +167,13 @@ flowchart LR
 ```bash
 # Clone the repository
 git clone https://github.com/your-username/Flowro-PM.git
-cd Flowro-PM/app
+cd Flowro-PM
 
-# Install dependencies
+# Install root scripts
+npm install
+
+# Install app dependencies
+cd app
 npm install
 
 # Set up environment variables
@@ -192,10 +200,23 @@ FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----E
 
 # OpenRouter
 OPENROUTER_API_KEY=sk-or-your-api-key-here
-OPENROUTER_MODEL=openai/gpt-oss-120b:free  # Optional, defaults to openai/gpt-oss-120b:free
+OPENROUTER_MODEL=deepseek/deepseek-v3.2  # Optional but recommended for consistency
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Optional: AI rollout controls
+USE_LANGCHAIN=false
+LANGCHAIN_ROLLOUT_PERCENT=0
+INTENT_LLM_ENABLED=true
+
+# Optional: Analytics / Monitoring
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
+NEXT_PUBLIC_SENTRY_DSN=https://xxxx@o0.ingest.sentry.io/0
+SENTRY_DSN=https://xxxx@o0.ingest.sentry.io/0
+
+# Optional: Admin API guard
+ADMIN_USER_ID=your-firebase-uid
 ```
 
 ### Development
@@ -205,6 +226,8 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+Root scripts proxy to app scripts (`cd app && npm run ...`), so you can run from repo root or from `/app`.
 
 ### Code Quality
 
@@ -236,11 +259,13 @@ npm start
 | `/api/projects` | `GET` | List all user projects |
 | `/api/projects` | `POST` | Create new project |
 | `/api/projects/[projectId]` | `GET` | Get project details with chat history |
-| `/api/projects/[projectId]` | `PATCH` | Update project (add messages, update blueprint) |
+| `/api/projects/[projectId]` | `PATCH` | Update project metadata and/or append chat messages |
 | `/api/projects/[projectId]` | `DELETE` | Delete project and all associated data |
-| `/api/projects/[projectId]/share` | `GET` | Get public share link details |
-| `/api/projects/[projectId]/share` | `POST` | Create or update public share link |
-| `/api/projects/[projectId]/share` | `DELETE` | Revoke public share link |
+| `/api/projects/[projectId]/messages` | `GET` | Fetch project messages (paginated or capped all) |
+| `/api/projects/[projectId]/messages` | `POST` | Add a single message to project history |
+| `/api/projects/[projectId]/share` | `GET` | Get collaborator + public link settings |
+| `/api/projects/[projectId]/share` | `POST` | Invite collaborator or toggle public link |
+| `/api/projects/[projectId]/share` | `DELETE` | Remove collaborator from project |
 
 ### Blueprints
 
@@ -249,6 +274,7 @@ npm start
 | `/api/blueprints?projectId=xxx` | `GET` | List blueprints for a project |
 | `/api/blueprints` | `POST` | Create new blueprint version |
 | `/api/blueprints` | `PATCH` | Update content, lock, or save-version |
+| `/api/blueprints/[blueprintId]/history` | `GET` | Fetch full version history or one snapshot |
 
 ### AI Generation
 
@@ -256,18 +282,6 @@ npm start
 |----------|--------|-------------|
 | `/api/generate` | `POST` | Generate AI response & update blueprint |
 | `/api/generate/stream` | `POST` | Stream AI response in real-time (SSE) |
-
-### Tasks
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/tasks?projectId=xxx` | `GET` | List tasks for a project |
-| `/api/tasks` | `POST` | Create new task |
-| `/api/tasks/[id]` | `GET` | Get task details |
-| `/api/tasks/[id]` | `PATCH` | Update task |
-| `/api/tasks/[id]` | `DELETE` | Delete task |
-| `/api/tasks/[id]/move` | `POST` | Move task between columns |
-| `/api/tasks/generate` | `POST` | Generate tasks from blueprint |
 
 ### Sharing
 
@@ -277,11 +291,18 @@ npm start
 | `/api/share` | `DELETE` | Revoke shareable link |
 | `/api/share/[token]` | `GET` | Get shared content |
 
+### Collaborations
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/collaborations` | `GET` | List projects where user has collaborative access |
+| `/api/collaborations/accept` | `POST` | Accept a collaboration invitation |
+
 ### Workspaces
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/workspaces` | `GET` | List user's workspaces |
+| `/api/workspaces` | `GET` | List user's workspaces (auto-creates personal workspace if needed) |
 | `/api/workspaces` | `POST` | Create new workspace |
 
 ### Admin
@@ -289,7 +310,7 @@ npm start
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/admin/logs` | `GET` | View system logs (admin only) |
-| `/api/admin/logs` | `PATCH` | Update log entries |
+| `/api/admin/logs` | `PATCH` | Update cost control configuration |
 
 ### Account
 
@@ -304,11 +325,11 @@ npm start
 ```
 Flowro-PM/
 ├── Docs/                            # Project documentation & specs
-│   ├── 2-Phase-Production-Plan.md   # Production roadmap
-│   ├── Agent-Enhancement-Roadmap.md # AI agent improvements
 │   ├── Unified-Blueprint.md         # UBP specification
+│   ├── Firestore-Security-Model.md  # Firestore security details
+│   ├── Collaboration-API.md         # Collaboration contracts
 │   ├── Brand-Guidelines.md          # Design system & brand rules
-│   └── Architecture-Benchmarks.md   # Competitive analysis
+│   └── Bug-Fixes-Production-Report.md
 │
 ├── app/                             # Next.js application
 │   ├── public/                      # Static assets
@@ -322,14 +343,14 @@ Flowro-PM/
 │       │   │   ├── account/         # Account management
 │       │   │   ├── admin/           # Admin endpoints
 │       │   │   ├── blueprints/      # Blueprint CRUD
+│       │   │   ├── collaborations/  # Collaboration APIs
 │       │   │   ├── generate/        # AI generation service
 │       │   │   ├── projects/        # Project CRUD
 │       │   │   ├── share/           # Public sharing
-│       │   │   ├── tasks/           # Task management
 │       │   │   └── workspaces/      # Workspace management
 │       │   ├── auth/                # Authentication pages
 │       │   ├── chat/[projectId]/    # Chat interface
-│       │   ├── dashboard/           # Project dashboard
+│       │   ├── app/                 # Command Center app shell
 │       │   ├── demo/                # Public demo routes
 │       │   ├── share/               # Public shared blueprints
 │       │   ├── settings/            # User settings
@@ -355,11 +376,13 @@ Flowro-PM/
 │       │   ├── memory/              # Agent Memory System
 │       │   ├── learning/            # Self-learning capabilities
 │       │   ├── firebase.ts          # Client SDK
-│       │   ├── firebaseAdmin.ts     # Server SDK
+│       │   ├── firebase-admin.ts    # Server SDK
 │       │   ├── openrouter.ts        # LLM client
 │       │   ├── analytics.ts         # Event tracking
 │       │   ├── contextBuilder.ts    # Context management
 │       │   ├── costTracking.ts      # Cost monitoring
+│       │   ├── rateLimit.ts         # API throttling logic
+│       │   ├── stream.ts            # SSE streaming helpers
 │       │   ├── exportBlueprint.ts   # Export utilities
 │       │   └── langchain/           # LangChain integration
 │       │       ├── chains.ts        # AI chains
@@ -368,9 +391,11 @@ Flowro-PM/
 │       │
 │       ├── hooks/
 │       │   └── useToast.ts          # Toast notifications
-│       │
-│       └── types/
-│           └── index.ts             # TypeScript definitions
+│       └── __tests__/               # Internal phase tests
+│
+├── firebase.json
+├── firestore.rules
+├── firestore.indexes.json
 │
 └── README.md
 ```
@@ -387,7 +412,10 @@ Flowro AI implements enterprise-grade security measures:
 - **Server-side Validation**: All API routes validate authentication tokens
 - **Input Sanitization**: PII protection and content filtering
 - **HTTPS Enforcement**: Strict transport security with preload
+- **Rate Limiting Middleware**: API throttling by route type (`generate`, `mutation`, `read`, `auth`)
 - **No Credentials in Code**: Environment-based configuration only
+
+> Note: rate limiting, logs, and blueprint caching currently use in-memory stores and reset on restart.
 
 ---
 
@@ -440,15 +468,15 @@ The Unified Blueprint is built on four core principles:
 - IDE Integration (Cursor Rules, Markdown, JSON)
 - PDF Export (Coming Soon)
 
-### Phase 4: Execution Layer ✅
-- AI Launch Plans
-- Interactive Kanban Board
-- Task Management
+### Phase 4: Collaboration Layer ✅
+- Project sharing via secure public links
+- Collaboration APIs with role-based project access
+- Invitation acceptance workflows
 
-### Phase 5: Team Collaboration 🚧 (In Progress)
-- Shared Workspaces (Beta)
-- Multi-user permissions
-- Real-time presence (Coming Soon)
+### Phase 5: Operational Hardening 🚧 (In Progress)
+- Workspace and team capability expansion
+- Persistent distributed rate limiting/logging/cache
+- Collaboration UX refinements and consistency fixes
 
 ---
 
@@ -464,17 +492,11 @@ Contributions are welcome! Please read our contributing guidelines before submit
 
 ---
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
 ## 🙏 Acknowledgments
 
 - Built for the **vibe coders** who prioritize speed without sacrificing structure
 - Inspired by the need to bridge human creativity and AI execution
-- Powered by the amazing open-source community
+
 
 ---
 
