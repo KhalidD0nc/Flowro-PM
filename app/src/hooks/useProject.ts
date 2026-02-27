@@ -537,23 +537,54 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                     const bpData = await bpRes.json()
                     const latestBp = bpData.blueprints?.[0]
 
-                    const targetBlueprintId = latestBp?.id || projectId
-                    if (!latestBp || latestBp.status === 'draft') {
-                        await fetch("/api/blueprints", {
-                            method: "PATCH",
+                    if (latestBp) {
+                        // Blueprint exists → PATCH to update (only if draft)
+                        if (latestBp.status === 'draft') {
+                            const patchRes = await fetch("/api/blueprints", {
+                                method: "PATCH",
+                                headers: {
+                                    Authorization: `Bearer ${token}`,
+                                    "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                    blueprintId: latestBp.id,
+                                    content: parsedContent,
+                                }),
+                            })
+                            if (!patchRes.ok) {
+                                console.error("Failed to update blueprint:", patchRes.status)
+                            }
+                        }
+                        setCurrentUBP(transformApiToUBP(parsedContent))
+                        setSelectedBlueprint({ ...latestBp, content: parsedContent })
+                    } else {
+                        // No blueprint yet → POST to create
+                        const postRes = await fetch("/api/blueprints", {
+                            method: "POST",
                             headers: {
                                 Authorization: `Bearer ${token}`,
                                 "Content-Type": "application/json",
                             },
                             body: JSON.stringify({
-                                blueprintId: targetBlueprintId,
+                                projectId,
                                 content: parsedContent,
                             }),
                         })
-
-                        setCurrentUBP(transformApiToUBP(parsedContent))
-                        if (latestBp) {
-                            setSelectedBlueprint({ ...latestBp, content: parsedContent })
+                        if (postRes.ok) {
+                            setCurrentUBP(transformApiToUBP(parsedContent))
+                            setProject(prev => prev ? {
+                                ...prev,
+                                latestBlueprint: {
+                                    id: projectId,
+                                    projectId,
+                                    version: "1.0",
+                                    status: "draft" as const,
+                                    content: parsedContent,
+                                    createdAt: new Date().toISOString(),
+                                },
+                            } : prev)
+                        } else {
+                            console.error("Failed to create blueprint:", postRes.status)
                         }
                     }
                 }
