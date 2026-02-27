@@ -9,7 +9,7 @@ import {
 } from "@/lib/firebase/collections"
 import { Timestamp } from "firebase-admin/firestore"
 import { timestampToISO, type MessageIntent, type MessageRole, type ProposedChanges } from "@/lib/firebase/schema"
-import { getCachedBlueprint, setCachedBlueprint } from "@/lib/blueprintCache"
+
 
 /**
  * Verify that the authenticated user owns the project
@@ -104,9 +104,6 @@ export async function GET(
         // Verify user owns this project
         await verifyOwnership(projectId, authResult.userId)
 
-        // Try cache first for blueprint data
-        const cachedBlueprint = getCachedBlueprint(projectId)
-
         const details = await getProjectWithDetails(projectId)
 
         if (!details) {
@@ -124,44 +121,17 @@ export async function GET(
             timestamp: timestampToISO(msg.timestamp),
         }))
 
-        // Use cached blueprint if available, otherwise fetch from DB and cache it
-        let latestBlueprint
-        if (cachedBlueprint) {
-            // Cache hit - use cached data
-            latestBlueprint = details.blueprint
-                ? {
-                      id: details.blueprint.id,
-                      projectId: details.blueprint.projectId,
-                      version: cachedBlueprint.version,
-                      status: (cachedBlueprint.content as any)?.metadata?.status || "draft",
-                      content: cachedBlueprint.content,
-                      createdAt: timestampToISO(details.blueprint.updatedAt),
-                      lockedAt: undefined,
-                  }
-                : undefined
-        } else {
-            // Cache miss - fetch from DB and cache it
-            latestBlueprint = details.blueprint
-                ? {
-                      id: details.blueprint.id,
-                      projectId: details.blueprint.projectId,
-                      version: details.blueprint.content?.metadata?.version || "1.0",
-                      status: details.blueprint.content?.metadata?.status || "draft",
-                      content: details.blueprint.content,
-                      createdAt: timestampToISO(details.blueprint.updatedAt),
-                      lockedAt: undefined,
-                  }
-                : undefined
-            
-            // Store in cache for next request
-            if (latestBlueprint?.content) {
-                setCachedBlueprint(
-                    projectId,
-                    latestBlueprint.content,
-                    latestBlueprint.version
-                )
+        const latestBlueprint = details.blueprint
+            ? {
+                id: details.blueprint.id,
+                projectId: details.blueprint.projectId,
+                version: details.blueprint.content?.metadata?.version || "1.0",
+                status: details.blueprint.content?.metadata?.status || "draft",
+                content: details.blueprint.content,
+                createdAt: timestampToISO(details.blueprint.updatedAt),
+                lockedAt: undefined,
             }
-        }
+            : undefined
 
         // Return legacy-compatible shape (top-level project fields)
         return NextResponse.json({
@@ -193,11 +163,11 @@ export async function GET(
             })),
             blueprint: details.blueprint
                 ? {
-                      id: details.blueprint.id,
-                      projectId: details.blueprint.projectId,
-                      content: details.blueprint.content,
-                      updatedAt: timestampToISO(details.blueprint.updatedAt),
-                  }
+                    id: details.blueprint.id,
+                    projectId: details.blueprint.projectId,
+                    content: details.blueprint.content,
+                    updatedAt: timestampToISO(details.blueprint.updatedAt),
+                }
                 : null,
         })
     } catch (error) {
@@ -206,8 +176,8 @@ export async function GET(
         const status = message.includes("Access denied")
             ? 403
             : message.includes("not found")
-              ? 404
-              : 500
+                ? 404
+                : 500
         return NextResponse.json({ error: message }, { status })
     }
 }
@@ -310,8 +280,8 @@ export async function PATCH(
         const status = message.includes("Access denied")
             ? 403
             : message.includes("not found")
-              ? 404
-              : 500
+                ? 404
+                : 500
         return NextResponse.json({ error: message }, { status })
     }
 }
@@ -357,8 +327,8 @@ export async function DELETE(
         const status = message.includes("Access denied")
             ? 403
             : message.includes("not found")
-              ? 404
-              : 500
+                ? 404
+                : 500
         return NextResponse.json({ error: message }, { status })
     }
 }

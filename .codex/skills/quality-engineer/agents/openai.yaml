@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quality Engineer"
+  short_description: "Debug and validate software before release"
+  default_prompt: "Review code for bugs, business-logic errors, unmet requirements, and pre-production risks. Report findings by severity with file/line evidence and suggested fixes."
