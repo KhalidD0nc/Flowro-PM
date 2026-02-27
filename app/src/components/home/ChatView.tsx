@@ -46,6 +46,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
         isStreaming,
         streamedContent,
         thinkingPhase,
+        generationMode,
         isSaving,
         error,
         message,
@@ -182,6 +183,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
                 isStreaming={isStreaming}
                 streamedContent={streamedContent}
                 thinkingPhase={thinkingPhase}
+                generationMode={generationMode}
                 message={message}
                 error={error}
                 selectionContext={selectionContext}

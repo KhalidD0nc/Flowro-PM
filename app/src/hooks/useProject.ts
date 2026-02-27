@@ -43,6 +43,7 @@ export interface UseProjectReturn {
     isStreaming: boolean
     streamedContent: string
     thinkingPhase: number
+    generationMode: 'initial' | 'update' | 'chat'
     isSaving: boolean
     error: string | null
     message: string
@@ -60,6 +61,76 @@ export interface UseProjectReturn {
     handleSaveVersion: () => Promise<void>
     handleVersionSelect: (blueprintId: string) => Promise<void>
     setProject: React.Dispatch<React.SetStateAction<ProjectView | null>>
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+/**
+ * Merge array by `id`: update existing items in-place, append truly new ones.
+ * Falls back to simple concat when items lack `id` fields (e.g. string arrays).
+ */
+function mergeArrays(existing: unknown[], incoming: unknown[]): unknown[] {
+    // If items are primitives (strings, numbers) — deduplicate & append
+    if (existing.length > 0 && typeof existing[0] !== 'object') {
+        const set = new Set(existing.map(String))
+        const merged = [...existing]
+        for (const item of incoming) {
+            if (!set.has(String(item))) {
+                merged.push(item)
+                set.add(String(item))
+            }
+        }
+        return merged
+    }
+
+    // Object items — merge by `id`
+    const merged = [...existing] as Record<string, unknown>[]
+    for (const item of incoming as Record<string, unknown>[]) {
+        if (item && typeof item === 'object' && item.id) {
+            const idx = merged.findIndex(e => e.id === item.id)
+            if (idx >= 0) {
+                merged[idx] = { ...merged[idx], ...item }
+            } else {
+                merged.push(item)
+            }
+        } else {
+            merged.push(item)
+        }
+    }
+    return merged
+}
+
+/**
+ * Apply proposed changes onto a UBP copy.
+ * Arrays are merged (not replaced), objects are shallow-merged, primitives overwritten.
+ */
+function applyChangesToUBP<T extends Record<string, unknown>>(
+    ubp: T,
+    changes: Record<string, unknown>,
+): T {
+    const updated = { ...ubp }
+    Object.entries(changes).forEach(([key, value]) => {
+        if (key in updated) {
+            if (Array.isArray(value) && Array.isArray(updated[key])) {
+                (updated as Record<string, unknown>)[key] = mergeArrays(
+                    updated[key] as unknown[],
+                    value,
+                )
+            } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                (updated as Record<string, unknown>)[key] = {
+                    ...(updated[key] as object),
+                    ...(value as object),
+                }
+            } else {
+                (updated as Record<string, unknown>)[key] = value
+            }
+        } else {
+            (updated as Record<string, unknown>)[key] = value
+        }
+    })
+    return updated
 }
 
 // =============================================================================
@@ -90,6 +161,7 @@ export function useProject(
     const [isStreaming, setIsStreaming] = useState(false)
     const [streamedContent, setStreamedContent] = useState("")
     const [thinkingPhase, setThinkingPhase] = useState(0)
+    const [generationMode, setGenerationMode] = useState<'initial' | 'update' | 'chat'>('chat')
 
     // Saving state
     const [isSaving, setIsSaving] = useState(false)
@@ -97,6 +169,7 @@ export function useProject(
     // Refs
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const chatHistoryRef = useRef<MessageView[]>([])
+    const currentUBPRef = useRef<UBPContent | null>(null)
     const lastUserMessageRef = useRef<string | null>(null)
     const hasInitialized = useRef(false)
 
@@ -130,6 +203,11 @@ export function useProject(
             chatHistoryRef.current = project.chatHistory
         }
     }, [project?.chatHistory])
+
+    // Keep currentUBPRef in sync so generateResponse always sees the latest value
+    useEffect(() => {
+        currentUBPRef.current = currentUBP
+    }, [currentUBP])
 
     // Initialize project and auto-generate
     useEffect(() => {
@@ -261,6 +339,7 @@ export function useProject(
         setIsStreaming(true)
         setStreamedContent("")
         setError(null)
+        setGenerationMode(currentUBPRef.current === null ? 'initial' : 'chat')
 
         try {
             const token = await user.getIdToken()
@@ -354,6 +433,10 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                     if (parsed.type === "chunk" && parsed.content) {
                         accumulated += parsed.content as string
                         setStreamedContent(accumulated)
+                        // Switch to update mode when a proposal is detected mid-stream
+                        if (accumulated.includes('"intent":"proposal"') || accumulated.includes('"intent": "proposal"')) {
+                            setGenerationMode('update')
+                        }
                     } else if (parsed.type === "done") {
                         let parsedIntent: Intent = 'discussion'
                         let ubpContent: unknown = null
@@ -688,26 +771,9 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
 
         setIsSaving(true)
         try {
-            const updatedUBP = { ...currentUBP }
-
-            if (proposedChanges.changes) {
-                Object.entries(proposedChanges.changes).forEach(([key, value]) => {
-                    if (key in updatedUBP) {
-                        if (Array.isArray(value) && Array.isArray((updatedUBP as Record<string, unknown>)[key])) {
-                            (updatedUBP as Record<string, unknown>)[key] = value
-                        } else if (typeof value === 'object' && value !== null) {
-                            (updatedUBP as Record<string, unknown>)[key] = {
-                                ...((updatedUBP as Record<string, unknown>)[key] as object),
-                                ...(value as object)
-                            }
-                        } else {
-                            (updatedUBP as Record<string, unknown>)[key] = value
-                        }
-                    } else {
-                        (updatedUBP as Record<string, unknown>)[key] = value
-                    }
-                })
-            }
+            const updatedUBP = proposedChanges.changes
+                ? applyChangesToUBP(currentUBP as Record<string, unknown>, proposedChanges.changes)
+                : { ...currentUBP }
 
             const token = await user.getIdToken()
             const res = await fetch("/api/blueprints", {
@@ -797,26 +863,10 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
 
             if (data.intent === 'proposal' && data.proposedChanges) {
                 if (!currentUBP) return
-                const updatedUBP = { ...currentUBP }
-                if (data.proposedChanges.changes) {
-                    Object.entries(data.proposedChanges.changes).forEach(([key, value]) => {
-                        if (key in updatedUBP) {
-                            if (Array.isArray(value) && Array.isArray((updatedUBP as Record<string, unknown>)[key])) {
-                                (updatedUBP as Record<string, unknown>)[key] = value
-                            } else if (typeof value === 'object' && value !== null) {
-                                (updatedUBP as Record<string, unknown>)[key] = {
-                                    ...((updatedUBP as Record<string, unknown>)[key] as object),
-                                    ...(value as object)
-                                }
-                            } else {
-                                (updatedUBP as Record<string, unknown>)[key] = value
-                            }
-                        } else {
-                            (updatedUBP as Record<string, unknown>)[key] = value
-                        }
-                    })
-                }
-                await updateBlueprint(updatedUBP)
+                const updatedUBP = data.proposedChanges.changes
+                    ? applyChangesToUBP(currentUBP as Record<string, unknown>, data.proposedChanges.changes)
+                    : { ...currentUBP }
+                await updateBlueprint(updatedUBP as UBPContent)
             }
 
             setTimeout(() => {
@@ -965,6 +1015,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
         isStreaming,
         streamedContent,
         thinkingPhase,
+        generationMode,
         isSaving,
         error,
         message,

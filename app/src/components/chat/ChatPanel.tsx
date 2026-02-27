@@ -22,6 +22,7 @@ export default function ChatPanel({
   isStreaming,
   streamedContent,
   thinkingPhase,
+  generationMode,
   message,
   error,
   selectionContext,
@@ -58,6 +59,7 @@ export default function ChatPanel({
           streamedContent={streamedContent}
           isGenerating={isGenerating}
           thinkingPhase={thinkingPhase}
+          generationMode={generationMode}
           onOpenBlueprint={onOpenBlueprint}
           onApplyProposedChanges={handleApplyProposedChanges}
           messagesEndRef={messagesEndRef}
