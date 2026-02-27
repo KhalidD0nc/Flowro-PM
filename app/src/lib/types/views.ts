@@ -160,6 +160,7 @@ export interface MessageListProps {
     streamedContent: string
     isGenerating: boolean
     thinkingPhase: number
+    generationMode: 'initial' | 'update' | 'chat'
     onOpenBlueprint: () => void
     onApplyProposedChanges: (changes: ProposedChanges, index: number) => void
     messagesEndRef: React.RefObject<HTMLDivElement | null>
@@ -175,6 +176,7 @@ export interface ChatPanelProps {
     isStreaming: boolean
     streamedContent: string
     thinkingPhase: number
+    generationMode: 'initial' | 'update' | 'chat'
     message: string
     error: string | null
     selectionContext: SelectionContext | null
