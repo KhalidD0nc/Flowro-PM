@@ -339,73 +339,77 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
 
                     const data = line.slice(6)
 
+                    let parsed: Record<string, unknown> | null = null
                     try {
-                        const parsed = JSON.parse(data)
-
-                        if (parsed.type === "chunk" && parsed.content) {
-                            accumulated += parsed.content
-                            setStreamedContent(accumulated)
-                        } else if (parsed.type === "done") {
-                            let parsedIntent: Intent = 'discussion'
-                            let ubpContent: unknown = null
-                            let parsedProposedChanges: ProposedChanges | undefined = undefined
-
-                            const parseResult = parseJSONSafe(accumulated)
-
-                            if (parseResult.success) {
-                                const fullParsed = parseResult.data as Record<string, unknown>
-
-                                if (fullParsed.intent === 'initial' || fullParsed.intent === 'discussion' || fullParsed.intent === 'proposal') {
-                                    parsedIntent = fullParsed.intent as Intent
-                                }
-
-                                if (fullParsed.proposedChanges && typeof fullParsed.proposedChanges === 'object') {
-                                    const pc = fullParsed.proposedChanges as Record<string, unknown>
-                                    parsedProposedChanges = {
-                                        action: (pc.action as 'add' | 'update' | 'remove') || 'update',
-                                        summary: (pc.summary as string) || 'Blueprint update',
-                                        sections: (pc.sections as string[]) || [],
-                                        changes: (pc.changes as Record<string, unknown>) || {}
-                                    }
-                                }
-
-                                if (parsedIntent === 'initial') {
-                                    const { intent: _i, message: _m, proposedChanges: _pc, metadata: _meta, ...rest } = fullParsed
-                                    ubpContent = rest
-
-                                    if (isUBPContent(ubpContent)) {
-                                        setCurrentUBP(transformApiToUBP(ubpContent))
-                                    }
-                                }
-                            } else {
-                                console.error("Failed to parse accumulated JSON:", parseResult.error, "at position:", parseResult.position)
-                                if (parseResult.position) {
-                                    console.error("JSON near error:", accumulated.substring(Math.max(0, parseResult.position - 50), parseResult.position + 50))
-                                }
-                            }
-
-                            const optimisticAssistantMsg: MessageView = {
-                                role: "assistant",
-                                content: accumulated,
-                                timestamp: new Date().toISOString(),
-                                intent: parsedIntent,
-                                proposedChanges: parsedProposedChanges,
-                            }
-
-                            setProject(prev => prev ? {
-                                ...prev,
-                                chatHistory: [...prev.chatHistory, optimisticAssistantMsg]
-                            } : prev)
-
-                            setIsStreaming(false)
-                            setStreamedContent("")
-
-                            await saveCompleteResponse(accumulated, token)
-                        } else if (parsed.type === "error") {
-                            throw new Error(parsed.error)
-                        }
+                        parsed = JSON.parse(data)
                     } catch {
                         // Not complete JSON yet
+                        continue
+                    }
+
+                    if (parsed.type === "error") {
+                        throw new Error(parsed.error as string)
+                    }
+
+                    if (parsed.type === "chunk" && parsed.content) {
+                        accumulated += parsed.content as string
+                        setStreamedContent(accumulated)
+                    } else if (parsed.type === "done") {
+                        let parsedIntent: Intent = 'discussion'
+                        let ubpContent: unknown = null
+                        let parsedProposedChanges: ProposedChanges | undefined = undefined
+
+                        const parseResult = parseJSONSafe(accumulated)
+
+                        if (parseResult.success) {
+                            const fullParsed = parseResult.data as Record<string, unknown>
+
+                            if (fullParsed.intent === 'initial' || fullParsed.intent === 'discussion' || fullParsed.intent === 'proposal') {
+                                parsedIntent = fullParsed.intent as Intent
+                            }
+
+                            if (fullParsed.proposedChanges && typeof fullParsed.proposedChanges === 'object') {
+                                const pc = fullParsed.proposedChanges as Record<string, unknown>
+                                parsedProposedChanges = {
+                                    action: (pc.action as 'add' | 'update' | 'remove') || 'update',
+                                    summary: (pc.summary as string) || 'Blueprint update',
+                                    sections: (pc.sections as string[]) || [],
+                                    changes: (pc.changes as Record<string, unknown>) || {}
+                                }
+                            }
+
+                            if (parsedIntent === 'initial') {
+                                const { intent: _i, message: _m, proposedChanges: _pc, metadata: _meta, ...rest } = fullParsed
+                                ubpContent = rest
+
+                                if (isUBPContent(ubpContent)) {
+                                    setCurrentUBP(transformApiToUBP(ubpContent))
+                                }
+                            }
+                        } else {
+                            console.error("Failed to parse accumulated JSON:", parseResult.error, "at position:", parseResult.position)
+                            if (parseResult.position) {
+                                console.error("JSON near error:", accumulated.substring(Math.max(0, parseResult.position - 50), parseResult.position + 50))
+                            }
+                        }
+
+                        const optimisticAssistantMsg: MessageView = {
+                            role: "assistant",
+                            content: accumulated,
+                            timestamp: new Date().toISOString(),
+                            intent: parsedIntent,
+                            proposedChanges: parsedProposedChanges,
+                        }
+
+                        setProject(prev => prev ? {
+                            ...prev,
+                            chatHistory: [...prev.chatHistory, optimisticAssistantMsg]
+                        } : prev)
+
+                        setIsStreaming(false)
+                        setStreamedContent("")
+
+                        await saveCompleteResponse(accumulated, token)
                     }
                 }
             }
@@ -553,6 +557,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                             })
                             if (!patchRes.ok) {
                                 console.error("Failed to update blueprint:", patchRes.status)
+                                return
                             }
                         }
                         setCurrentUBP(transformApiToUBP(parsedContent))
@@ -590,7 +595,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                 }
 
                 if (productName) {
-                    await fetch(`/api/projects/${projectId}`, {
+                    const nameRes = await fetch(`/api/projects/${projectId}`, {
                         method: "PATCH",
                         headers: {
                             Authorization: `Bearer ${token}`,
@@ -598,7 +603,11 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
                         },
                         body: JSON.stringify({ projectName: productName }),
                     })
-                    setProject(prev => prev ? { ...prev, projectName: productName } : prev)
+                    if (nameRes.ok) {
+                        setProject(prev => prev ? { ...prev, projectName: productName } : prev)
+                    } else {
+                        console.error("Failed to update project name:", nameRes.status)
+                    }
                 }
             }
 
