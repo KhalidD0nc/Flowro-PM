@@ -339,7 +339,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
 
                     const data = line.slice(6)
 
-                    let parsed: Record<string, unknown> | null = null
+                    let parsed: Record<string, unknown>
                     try {
                         parsed = JSON.parse(data)
                     } catch {
