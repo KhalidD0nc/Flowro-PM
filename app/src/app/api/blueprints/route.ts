@@ -11,7 +11,7 @@ import {
 import { getAdminDb } from "@/lib/firebase-admin"
 import { Timestamp } from "firebase-admin/firestore"
 import { COLLECTIONS, timestampToISO, type UBPContent } from "@/lib/firebase/schema"
-import { invalidateCache } from "@/lib/blueprintCache"
+
 
 async function verifyProjectOwnership(projectId: string, userId: string): Promise<void> {
     const project = await getProject(projectId)
@@ -185,8 +185,7 @@ export async function PATCH(request: NextRequest) {
                 createdAt: timestampToISO(result.blueprint.updatedAt),
             })
 
-            // Invalidate cache after saving new version
-            invalidateCache(result.blueprint.projectId)
+
 
             return NextResponse.json({
                 success: true,
@@ -217,8 +216,7 @@ export async function PATCH(request: NextRequest) {
                 updatedAt: now,
             })
 
-            // Invalidate cache after lock/unlock
-            invalidateCache(blueprint.projectId)
+
 
             return NextResponse.json({
                 success: true,
@@ -228,10 +226,9 @@ export async function PATCH(request: NextRequest) {
 
         if (content !== undefined) {
             await upsertBlueprintFromAI(blueprint.projectId, content as UBPContent, undefined, "Manual update")
-            
-            // Invalidate cache so next fetch gets fresh data
-            invalidateCache(blueprint.projectId)
-            
+
+
+
             return NextResponse.json({ success: true, message: "Blueprint content updated" })
         }
 
