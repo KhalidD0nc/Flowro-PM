@@ -16,6 +16,8 @@ The core UI will act as a control center using a **Split-Pane Layout**:
 ### Phase 1: The Data Engine & API (Immediate Impact)
 *Goal: Stop producing unstructured text. Start producing explicit PRD JSON. Skip the slow migration, rip the bandaid off regarding naming and data structure.*
 
+**Status:** In progress. Core PRD schema, persistence, generate flow, and project API cutover are implemented. Full legacy blueprint cleanup is not finished yet.
+
 1. **Nuke 'UBP' & Blueprint:** Delete all legacy blueprint database schemas and types immediately.
 2. **Define Strict PRD Schema (`PRDConfig`):** Create the TypeScript schema forcing only what Stitch needs:
    - `metadata`: Platforms (Web/iOS), Target Audience, Design Vibe.
@@ -26,9 +28,13 @@ The core UI will act as a control center using a **Split-Pane Layout**:
 
 **Actionable Tasks:**
 - [ ] Delete `blueprint` schemas, types, and DB migrations.
-- [ ] Create `PRDConfig` Zod schema and TypeScript interface in a new `types/prd.ts`.
-- [ ] Update `/api/generate` to enforce the output using `zodResponseFormat` (or equivalent structured outputs).
+  Active runtime paths were cut over to `prds`, but full legacy blueprint cleanup across the repo is still pending.
+- [x] Create `PRDConfig` Zod schema and TypeScript interface in a new `types/prd.ts`.
+  Implemented in `app/src/lib/prd/schema.ts`.
+- [x] Update `/api/generate` to enforce the output using `zodResponseFormat` (or equivalent structured outputs).
+  Implemented with structured LangChain output and strict Zod validation for `PRDConfig`.
 - [ ] Test the API with an automated call to ensure it returns the exact valid JSON.
+  TypeScript validation passes and targeted schema tests were added, but an automated end-to-end API call is still pending.
 
 ### Phase 2: The Dashboard UI & Diagram Rendering
 *Goal: Build the split-pane control center. The user should feel like they are "configuring" software, not writing an essay.*
