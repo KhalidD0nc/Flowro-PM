@@ -18,6 +18,7 @@ import type { ChatPanelProps, ProposedChanges } from "./types"
 
 export default function ChatPanel({
   project,
+  currentPrd: _currentPrd,
   isGenerating,
   isStreaming,
   streamedContent,
@@ -34,6 +35,7 @@ export default function ChatPanel({
   onQuickAction,
   onRetry,
 }: ChatPanelProps) {
+  void _currentPrd
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const handleQuickAction = (actionMessage: string) => {
