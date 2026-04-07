@@ -79,12 +79,12 @@ function extractProposedChanges(content: string, fallback?: unknown): ProposedCh
 }
 
 /**
- * GET /api/projects/[projectId] - Get project with messages and blueprint
+ * GET /api/projects/[projectId] - Get project with messages and PRD
  * 
  * Returns full project details including:
  * - Project metadata
  * - All messages from subcollection
- * - Current blueprint state
+ * - Current PRD state
  * 
  * @returns ProjectWithDetails
  */
@@ -121,15 +121,12 @@ export async function GET(
             timestamp: timestampToISO(msg.timestamp),
         }))
 
-        const latestBlueprint = details.blueprint
+        const latestPrd = details.prd
             ? {
-                id: details.blueprint.id,
-                projectId: details.blueprint.projectId,
-                version: details.blueprint.content?.metadata?.version || "1.0",
-                status: details.blueprint.content?.metadata?.status || "draft",
-                content: details.blueprint.content,
-                createdAt: timestampToISO(details.blueprint.updatedAt),
-                lockedAt: undefined,
+                id: details.prd.id,
+                projectId: details.prd.projectId,
+                config: details.prd.config,
+                updatedAt: timestampToISO(details.prd.updatedAt),
             }
             : undefined
 
@@ -142,7 +139,7 @@ export async function GET(
             chatHistory,
             createdAt: timestampToISO(details.project.createdAt),
             updatedAt: timestampToISO(details.project.updatedAt),
-            latestBlueprint,
+            latestPrd,
             // Keep detailed payload for newer clients/debugging
             project: {
                 id: details.project.id,
@@ -161,12 +158,12 @@ export async function GET(
                 proposedChanges: msg.proposedChanges,
                 timestamp: timestampToISO(msg.timestamp),
             })),
-            blueprint: details.blueprint
+            prd: details.prd
                 ? {
-                    id: details.blueprint.id,
-                    projectId: details.blueprint.projectId,
-                    content: details.blueprint.content,
-                    updatedAt: timestampToISO(details.blueprint.updatedAt),
+                    id: details.prd.id,
+                    projectId: details.prd.projectId,
+                    config: details.prd.config,
+                    updatedAt: timestampToISO(details.prd.updatedAt),
                 }
                 : null,
         })

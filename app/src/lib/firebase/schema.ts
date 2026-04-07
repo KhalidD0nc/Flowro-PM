@@ -1,3 +1,5 @@
+import type { PRDConfig } from "@/lib/prd/schema"
+
 /**
  * Firebase Schema Definitions
  * 
@@ -260,6 +262,19 @@ export interface BlueprintDocument {
     updatedAt: FirestoreTimestamp
 }
 
+export interface PRDDocument {
+    id: string
+    projectId: string
+    config: PRDConfig
+    updatedAt: FirestoreTimestamp
+}
+
+export interface PRDCreateData {
+    projectId: string
+    config: PRDConfig
+    updatedAt: FirestoreTimestamp
+}
+
 /**
  * Blueprint Document for Create Operations
  */
@@ -320,6 +335,7 @@ export interface ProjectWithDetails {
     project: ProjectDocument
     messages: MessageDocument[]
     blueprint: BlueprintDocument | null
+    prd: PRDDocument | null
 }
 
 /**
@@ -404,6 +420,7 @@ export function createEmptyUBPContent(): UBPContent {
 export const COLLECTIONS = {
     PROJECTS: "projects",
     BLUEPRINTS: "blueprints",
+    PRDS: "prds",
     MESSAGES: "messages", // Subcollection under projects
     HISTORY: "history", // Subcollection under blueprints
     USERS: "Users",
