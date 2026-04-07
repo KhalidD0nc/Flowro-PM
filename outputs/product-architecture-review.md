@@ -70,4 +70,4 @@ The core UI will act as a control center using a **Split-Pane Layout**:
 
 - **No Migration Needed:** We are treating Phase 1 as a hard reset. No backward-compatible DB migrations for the old UBP structure will be written.
 - **Phase Branching:** Each of the 3 phases must have its own dedicated Git branch (e.g., `feature/phase-1-data-engine`).
-- **Atomic Commits:** Make a separate commit for every several minor changes. Avoid huge, overwhelming commits to ensure the history is easy to track and revert.
+- **Atomic Commits:** Make a separate commit for each minor logical change. Avoid huge, overwhelming commits to ensure the history is easy to track and revert.
