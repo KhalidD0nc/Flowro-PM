@@ -1,114 +1,73 @@
-# Flowro Execution Roadmap: PRD-First System with ReACT Enhancement Agent
+# Flowro Execution Roadmap: Config-Driven PRD System
 
 ## Goal
+Evolve Flowro from a vague text-blueprint generator into a **Deterministic PRD Configurator**, perfectly optimized for a downstream AI Designer Agent (e.g., Google Stitch). The system will move away from "writing a document" towards a dashboard of structured controls, real-time visual diagrams, and an iterative ReACT enhancement agent.
 
-Flowro should evolve from a blueprint-centered prototype (UBP) into a PRD-first system. The target experience is an interactive process: a user starts with an idea, Flowro generates a structured PRD draft, and the user refines that PRD using a combination of manual editing and an AI Enhancement Agent powered by a ReACT (Reasoning and Acting) architecture with a robust human-in-the-loop workflow.
+## The Strategy: Config over Document
+A large text document is overwhelming for users and useless for a Designer Agent. The PRD must be strict data. 
+The core UI will act as a control center using a **Split-Pane Layout**:
+- **Left Side (Configuration):** Toggles for platforms, dropdowns for design themes, and structured CRUD lists for features and acceptance criteria.
+- **Right Side (Live Preview):** Dynamic Mermaid.js diagrams (User Flowcharts, Data ERDs) and a clean, read-only summary that update instantly as the left pane changes.
 
-## Current State
+---
 
-The current repo is built around the "blueprint" (UBP) concept. A user enters an idea, and the system auto-generates a blueprint. The persistence naming, UI labels, routes, and docs all reinforce the assumption that the main product artifact is a UBP model. 
 
-This architecture is coherent for a simple prototype, but it lacks the depth required for a true product management tool. A PRD-first system needs a richer explicit requirements model. The current blueprint-centered architecture should be treated as migration source state, to be completely replaced.
 
-## Target Architecture
+### Phase 1: The Data Engine & API (Immediate Impact)
+*Goal: Stop producing unstructured text. Start producing explicit PRD JSON. Skip the slow migration, rip the bandaid off regarding naming and data structure.*
 
-The target system workflow is:
+1. **Nuke 'UBP' & Blueprint:** Delete all legacy blueprint database schemas and types immediately.
+2. **Define Strict PRD Schema (`PRDConfig`):** Create the TypeScript schema forcing only what Stitch needs:
+   - `metadata`: Platforms (Web/iOS), Target Audience, Design Vibe.
+   - `entities`: Array of data models (for the Entity Relationship Diagram).
+   - `flows`: Step-by-step navigation paths (for the User Flowchart).
+   - `features`: Array of core requirements with Priority/Scope limits.
+3. **Refactor Initial Generation:** Force the `/api/generate` LLM endpoint to utilize structured outputs (Zod validation) to return this exact JSON schema, failing if it deviates.
 
-`idea input -> initial PRD generation -> human-in-the-loop editing & ReACT agent enhancements -> locked PRD version -> export`
+**Actionable Tasks:**
+- [ ] Delete `blueprint` schemas, types, and DB migrations.
+- [ ] Create `PRDConfig` Zod schema and TypeScript interface in a new `types/prd.ts`.
+- [ ] Update `/api/generate` to enforce the output using `zodResponseFormat` (or equivalent structured outputs).
+- [ ] Test the API with an automated call to ensure it returns the exact valid JSON.
 
-In this model, the PRD is the canonical product artifact. It contains product summary, users, goals, scope, key flows, requirements, edge cases, acceptance criteria, constraints, and implementation notes. The enhancement agent acts as an iterative partner to improve these sections based on user feedback.
+### Phase 2: The Dashboard UI & Diagram Rendering
+*Goal: Build the split-pane control center. The user should feel like they are "configuring" software, not writing an essay.*
 
-## Execution Phases
+1. **Left Pane (Form Controls):** Build React components that let the PM manually edit the `PRDConfig` JSON in a user-friendly way (check boxes, input fields, Add/Remove feature lists).
+2. **Right Pane (Live Diagrams):** Implement Mermaid.js rendering. 
+   - Dynamically map the `flows` array to a navigation flowchart.
+   - Dynamically map the `entities` array to a database ERD.
+3. **State Sync:** Wire the UI so that changing a text field in the left pane instantly re-renders the diagram on the right. 
 
-### Phase 1: Transform from UBP to PRD
+**Actionable Tasks:**
+- [ ] Build the base grid/flex layout for the Split-Pane view.
+- [ ] Create basic React forms (Inputs/Checkboxes/Lists) to edit the `PRDConfig` object in state.
+- [ ] Create a `<MermaidRenderer />` component that dynamically mounts Mermaid charts.
+- [ ] Write a parser function: `mapPRDFlowsToMermaid(flows)`.
+- [ ] Write a parser function: `mapPRDEntitiesToMermaid(entities)`.
 
-The core structural change: remove UBP and blueprint concepts entirely. The system needs a single PRD schema with deep coverage.
+### Phase 3: ReACT Agent "Auto-Pilot"
+*Goal: Eliminate manual data entry. The user acts as a reviewer while the agent patches the config.*
 
-The PRD model should cover:
-- product summary
-- target users
-- goals and success criteria
-- scope boundaries
-- primary user flows
-- functional requirements
-- edge cases and failure states
-- acceptance criteria
-- constraints and assumptions
-- implementation notes
+1. **The Loop:** Introduce a chat input on the split-pane UI. The user types a command (e.g., "Add an admin reporting dashboard").
+2. **The JSON Patch:** The ReACT agent does *not* rewrite the document. It specifically targets and proposes precise patches to the `PRDConfig` arrays (adding to `flows`, adding to `features`).
+3. **The Result:** The user sees the visual diagrams branch out and the UI lists populate automatically based on the chat command. The user clicks "Approve Change".
 
-This phase establishes the target terminology across the system. Schema names, types, API responses, storage concepts, and UI labels must move to `prd` vocabulary. 
+**Actionable Tasks:**
+- [ ] Build a Floating Chat UI component attached to the Left Pane dashboard.
+- [ ] Create an API route `POST /api/enhance-prd` taking the existing `PRDConfig` and the user's string prompt.
+- [ ] Implement a LangChain/OpenAI prompt instructing the model to return a valid JSON patch (using the same Zod schema) rather than writing text.
+- [ ] Implement an "Approve/Reject" button in the UI before applying the AI's patch to the frontend state.
 
-**Evaluatable Tasks:**
-- [ ] Define the definitive TypeScript interface/schema for the new `PRD` object.
-- [ ] Remove all existing `blueprint` schema definitions and interfaces.
-- [ ] Update the database/storage schema to support the new `PRD` structure.
-- [ ] Run type-checks to verify all legacy `Blueprint` types have been replaced with `PRD`.
+---
 
-### Phase 2: Refactor Generation Flow
+## Why this works faster:
+- We group technical debt cleanup and schema creation into Phase 1, treating it as a hard cutover.
+- We skip building complex text-editor modules in favor of fast, native React form controls.
+- By enforcing JSON upfront, the AI integration (Phase 3) and downstream Designer Agent integration become plug-and-play.
 
-The generation pipeline should produce a structured PRD draft instead of a blueprint. The output becomes explicit sections suitable for revision, versioning, and direct human intervention.
+## Execution Rules & Git Workflow
 
-**Evaluatable Tasks:**
-- [ ] Update the initial LLM generation prompt to output data matching the new `PRD` schema.
-- [ ] Refactor the generation API endpoint to return the structured PRD.
-- [ ] Implement validation (e.g., Zod) on the LLM output to ensure it matches the PRD schema before persisting.
-- [ ] Write an automated test confirming a sample idea input results in a correctly formatted PRD object.
-
-### Phase 3: Build the Human-in-the-Loop PRD Editor
-
-A clear lifecycle is needed around the artifact. The workflow is:
-1. Create initial PRD draft from the idea input.
-2. **Human-in-the-loop Editing:** Allow the user to edit PRD sections directly or leave comments/instructions for specific areas.
-3. Review and accept/reject changes to guarantee human control over the product definition.
-4. Save important milestones as PRD versions.
-
-**Evaluatable Tasks:**
-- [ ] Build UI components for viewing and manually editing each PRD section independently.
-- [ ] Implement an "Approve/Reject" interface for proposed PRD changes.
-- [ ] Create a versioning mechanism in the database to save locked milestones of a PRD.
-- [ ] Conduct a manual QA test: Create a PRD, edit a section, and save a new version.
-
-### Phase 4: Implement ReACT Enhancement Agent
-
-Instead of a basic one-shot prompt update, the system will introduce a **ReACT-based Enhancement Agent** to assist the PM.
-- **Reasoning:** The agent analyzes the user's feedback, the current state of the PRD, and identifies gaps (e.g., missing edge cases, conflicting requirements).
-- **Acting:** The agent proposes targeted updates to specific PRD sections, rather than blind full-document rewrites.
-- **Human Review:** The proposed changes are presented to the user as diffs or suggestions for approval.
-
-**Evaluatable Tasks:**
-- [ ] Develop the ReACT agent prompt loop (Reason/Act) tailored to PRD review.
-- [ ] Integrate the agent to receive user comments and the current PRD state as context.
-- [ ] Build the downstream action logic where the agent outputs targeted edits for specific PRD sections instead of the whole document.
-- [ ] Test the agent by providing a vague user comment and verifying it proposes a logical, contained section update.
-
-### Phase 5: Clean up Data and Naming Debt
-
-Address the technical debt related to `blueprint` and `UBP`.
-1. Introduce an artifact abstraction.
-2. Rename surface areas (UI labels, route contracts, exported terminology).
-3. Migrate persistence semantics and stored artifact structure.
-
-**Evaluatable Tasks:**
-- [ ] Perform a global find-and-replace for legacy `UBP` and `Blueprint` strings in the UI layer.
-- [ ] Rename existing routes (e.g., `/api/blueprints`) to reflect the new `prd` naming conventions.
-- [ ] Write and execute a database migration script to rename old tables/collections.
-- [ ] Verify the application builds without warnings and all frontend flows pass under the new naming.
-
-## Execution Rules and Git Workflow
-
-To maintain a clean history and isolate feature development during this massive architectural shift, the following Git rules must be strictly observed:
-
-1. **Phase-Based Branching:** Every execution phase must have its own dedicated feature branch (e.g., `feature/phase-1-prd-schema`, `feature/phase-2-generation`). Do not start a new phase on an existing branch.
-2. **Atomic Commits:** Each minor logical change (e.g., creating the schema, renaming a single API route, adding a component) must have its own discrete commit. Large, sweeping commits are prohibited to ensure changes are reversible.
-3. **Task Completion Checklist:** A phase branch can only be merged when all "Evaluatable Tasks" for that phase have been completed and verified.
-
-## Risks and Acceptance Criteria
-
-**Risks:**
-- The primary risk is the ReACT agent becoming overly autonomous and changing sections without clear user consent. The human-in-the-loop approval mechanism must be rock solid to maintain trust.
-
-**Acceptance Criteria:**
-- Uses a rich PRD schema as the only canonical product artifact.
-- All "UBP" and "Blueprint" terminology is fully replaced.
-- Users can manually edit the PRD and version it.
-- A ReACT Enhancement agent can intelligently reason about gaps and propose targeted revisions that the user can review and approve.
+- **No Migration Needed:** We are treating Phase 1 as a hard reset. No backward-compatible DB migrations for the old UBP structure will be written.
+- **Phase Branching:** Each of the 3 phases must have its own dedicated Git branch (e.g., `feature/phase-1-data-engine`).
+- **Atomic Commits:** Make a separate commit for each minor logical change. Avoid huge, overwhelming commits to ensure the history is easy to track and revert.

@@ -233,7 +233,6 @@ export default function MessageList({
   streamedContent,
   isGenerating,
   thinkingPhase,
-  generationMode,
   onOpenBlueprint,
   onApplyProposedChanges,
   messagesEndRef,
@@ -323,55 +322,75 @@ export default function MessageList({
           )
         })}
 
-        {/* Chat mode: streaming text word-by-word */}
-        {isGenerating && generationMode === 'chat' && (
+        {/* Streaming response with smooth word-by-word animation */}
+        {/* DISABLED: Show only progress indicator until blueprint complete */}
+        {/* {isStreaming && streamedContent && (
           <StreamingMessage rawContent={streamedContent} isStreaming={isStreaming} />
-        )}
+        )} */}
 
-        {/* Initial / Update mode: blueprint progress stages */}
-        {isGenerating && (generationMode === 'initial' || generationMode === 'update') && (
+        {/* Blueprint progress indicator - shows throughout entire generation */}
+        {isGenerating && (
           <div className="flex flex-col gap-3 w-full max-w-2xl animate-slide-in-left">
+            {/* Flowro AI label */}
             <span className="text-sm font-semibold text-slate-400">Flowro AI</span>
 
+            {/* Progress card */}
             <div className="ai-message-bubble-dark rounded-xl p-4">
               <div className="flex flex-col gap-3">
+                {/* Blueprint sections progress */}
                 <div className="flex flex-col gap-2.5">
-                  {(generationMode === 'initial'
-                    ? [
-                        'Product Vision',
-                        'Actors & Entities',
-                        'Behaviors',
-                        'Constraints & Risks',
-                        'TechStack & Integrations',
-                      ]
-                    : [
-                        'Analyzing request',
-                        'Planning changes',
-                        'Drafting updates',
-                        'Reviewing sections',
-                        'Finalizing',
-                      ]
-                  ).map((label, i) => (
-                    <div
-                      key={label}
-                      className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= i ? 'opacity-100' : 'opacity-40'}`}
-                    >
-                      <div className="relative flex size-2.5 items-center justify-center">
-                        {thinkingPhase === i && (
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
-                        )}
-                        <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= i ? 'bg-cyan-500' : 'bg-slate-600'}`} />
-                      </div>
-                      <span className="text-xs font-medium text-slate-300">{label}</span>
+                  <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 0 ? 'opacity-100' : 'opacity-40'}`}>
+                    <div className="relative flex size-2.5 items-center justify-center">
+                      {thinkingPhase === 0 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
+                      <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 0 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
                     </div>
-                  ))}
-                </div>
+                    <span className="text-xs font-medium text-slate-300">Product Vision</span>
+                  </div>
+                  
+                  <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 1 ? 'opacity-100' : 'opacity-40'}`}>
+                    <div className="relative flex size-2.5 items-center justify-center">
+                      {thinkingPhase === 1 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
+                      <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 1 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
+                    </div>
+                    <span className="text-xs font-medium text-slate-300">Actors & Entities</span>
+                  </div>
+                  
+                  <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 2 ? 'opacity-100' : 'opacity-40'}`}>
+                    <div className="relative flex size-2.5 items-center justify-center">
+                      {thinkingPhase === 2 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
+                      <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 2 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
+                    </div>
+                    <span className="text-xs font-medium text-slate-300">Behaviors</span>
+                  </div>
+                  
+                  <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 3 ? 'opacity-100' : 'opacity-40'}`}>
+                    <div className="relative flex size-2.5 items-center justify-center">
+                      {thinkingPhase === 3 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
+                      <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 3 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
+                    </div>
+                    <span className="text-xs font-medium text-slate-300">Constraints & Risks</span>
+                  </div>
+                  
+                  <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 4 ? 'opacity-100' : 'opacity-40'}`}>
+                    <div className="relative flex size-2.5 items-center justify-center">
+                      {thinkingPhase === 4 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
+                      <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 4 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
+                    </div>
+                    <span className="text-xs font-medium text-slate-300">TechStack & Integrations</span>
+                  </div>                  
+                  <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 4 ? 'opacity-100' : 'opacity-40'}`}>
+                    <div className="relative flex size-2.5 items-center justify-center">
+                      {thinkingPhase === 4 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
+                      <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 4 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
+                    </div>
+                    <span className="text-xs font-medium text-slate-300">TechStack & Integrations</span>
+                  </div>                </div>
 
                 {/* Typing dots */}
                 <div className="flex gap-1 pt-1">
-                  <span className="size-1.5 rounded-full bg-slate-500 typing-dot" />
-                  <span className="size-1.5 rounded-full bg-slate-500 typing-dot" />
-                  <span className="size-1.5 rounded-full bg-slate-500 typing-dot" />
+                  <span className="size-1.5 rounded-full bg-slate-500 typing-dot"></span>
+                  <span className="size-1.5 rounded-full bg-slate-500 typing-dot"></span>
+                  <span className="size-1.5 rounded-full bg-slate-500 typing-dot"></span>
                 </div>
               </div>
             </div>
