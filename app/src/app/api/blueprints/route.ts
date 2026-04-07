@@ -12,7 +12,6 @@ import { getAdminDb } from "@/lib/firebase-admin"
 import { Timestamp } from "firebase-admin/firestore"
 import { COLLECTIONS, timestampToISO, type UBPContent } from "@/lib/firebase/schema"
 
-
 async function verifyProjectOwnership(projectId: string, userId: string): Promise<void> {
     const project = await getProject(projectId)
     if (!project) {
@@ -185,8 +184,6 @@ export async function PATCH(request: NextRequest) {
                 createdAt: timestampToISO(result.blueprint.updatedAt),
             })
 
-
-
             return NextResponse.json({
                 success: true,
                 message: "Version saved as milestone",
@@ -216,8 +213,6 @@ export async function PATCH(request: NextRequest) {
                 updatedAt: now,
             })
 
-
-
             return NextResponse.json({
                 success: true,
                 message: action === "lock" ? "Blueprint locked" : "Blueprint unlocked",
@@ -226,9 +221,7 @@ export async function PATCH(request: NextRequest) {
 
         if (content !== undefined) {
             await upsertBlueprintFromAI(blueprint.projectId, content as UBPContent, undefined, "Manual update")
-
-
-
+            
             return NextResponse.json({ success: true, message: "Blueprint content updated" })
         }
 
