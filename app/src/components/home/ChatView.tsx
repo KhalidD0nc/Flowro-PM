@@ -1065,6 +1065,7 @@ Return the updated blueprint JSON with the changes applied to that section.`
                 isStreaming={isStreaming}
                 streamedContent={streamedContent}
                 thinkingPhase={thinkingPhase}
+                generationMode={!currentUBP ? 'initial' : (selectionContext ? 'update' : 'chat')}
                 message={message}
                 error={error}
                 selectionContext={selectionContext}
