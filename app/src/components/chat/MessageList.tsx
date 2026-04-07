@@ -14,7 +14,7 @@
 
 "use client"
 
-import type { MessageListProps, ChatMessage, Intent, DisplayInfo, ProposedChanges } from "./types"
+import type { MessageListProps, Intent, DisplayInfo, ProposedChanges } from "./types"
 import { isUBPContent } from "./types"
 import { useStreamingText } from "@/hooks/useStreamingText"
 
@@ -35,7 +35,7 @@ function getDisplayMessage(
       return obj.message
     }
     if (fallbackIntent === "initial") {
-      return "I've created your Unified Blueprint! Check it out and let me know what you think."
+      return "I've created your PRD config. Open it and review the structure."
     }
     if (fallbackIntent === "proposal") {
       return "I have some suggested changes for your blueprint."
@@ -238,7 +238,7 @@ export default function MessageList({
   messagesEndRef,
 }: MessageListProps) {
   return (
-    <main className="flex-1 overflow-y-auto p-4 md:px-8 lg:px-12 scroll-smooth pb-40 bg-[#0a0d12]">
+    <main className="flex-1 overflow-y-auto p-4 md:px-8 lg:px-12 scroll-smooth pb-40 bg-[#111a27]">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         {messages.map((msg, index) => {
           const isUser = msg.role === "user"
@@ -304,7 +304,7 @@ export default function MessageList({
                       className="mt-3 flex items-center gap-2 bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 font-medium py-2 px-3 rounded-lg transition-colors text-sm"
                     >
                       <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-                      Open Blueprint
+                      Open PRD
                     </button>
                   )}
 
@@ -314,7 +314,7 @@ export default function MessageList({
                       className="mt-3 flex items-center gap-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-medium py-2 px-3 rounded-lg transition-colors text-sm"
                     >
                       <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                      Update Blueprint
+                      Update PRD
                     </button>
                   )}
                 </div>
@@ -344,7 +344,7 @@ export default function MessageList({
                       {thinkingPhase === 0 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
                       <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 0 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
                     </div>
-                    <span className="text-xs font-medium text-slate-300">Product Vision</span>
+                    <span className="text-xs font-medium text-slate-300">Metadata</span>
                   </div>
                   
                   <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 1 ? 'opacity-100' : 'opacity-40'}`}>
@@ -352,7 +352,7 @@ export default function MessageList({
                       {thinkingPhase === 1 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
                       <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 1 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
                     </div>
-                    <span className="text-xs font-medium text-slate-300">Actors & Entities</span>
+                    <span className="text-xs font-medium text-slate-300">Entities</span>
                   </div>
                   
                   <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 2 ? 'opacity-100' : 'opacity-40'}`}>
@@ -360,7 +360,7 @@ export default function MessageList({
                       {thinkingPhase === 2 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
                       <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 2 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
                     </div>
-                    <span className="text-xs font-medium text-slate-300">Behaviors</span>
+                    <span className="text-xs font-medium text-slate-300">Flows</span>
                   </div>
                   
                   <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 3 ? 'opacity-100' : 'opacity-40'}`}>
@@ -368,7 +368,7 @@ export default function MessageList({
                       {thinkingPhase === 3 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
                       <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 3 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
                     </div>
-                    <span className="text-xs font-medium text-slate-300">Constraints & Risks</span>
+                    <span className="text-xs font-medium text-slate-300">Features</span>
                   </div>
                   
                   <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 4 ? 'opacity-100' : 'opacity-40'}`}>
@@ -376,14 +376,7 @@ export default function MessageList({
                       {thinkingPhase === 4 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
                       <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 4 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
                     </div>
-                    <span className="text-xs font-medium text-slate-300">TechStack & Integrations</span>
-                  </div>                  
-                  <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 4 ? 'opacity-100' : 'opacity-40'}`}>
-                    <div className="relative flex size-2.5 items-center justify-center">
-                      {thinkingPhase === 4 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
-                      <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 4 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
-                    </div>
-                    <span className="text-xs font-medium text-slate-300">TechStack & Integrations</span>
+                    <span className="text-xs font-medium text-slate-300">Validation</span>
                   </div>                </div>
 
                 {/* Typing dots */}
