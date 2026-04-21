@@ -1,5 +1,33 @@
 # Progress Log
 
+## 2026-04-08 00:00:00 +03
+
+### Phase 2: Split-Pane PRD Configurator
+
+- Replaced the chat-first project surface with a split-pane PRD workspace in [app/src/components/home/ChatView.tsx](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/components/home/ChatView.tsx).
+- Added local draft editing, validation, normalization, dirty-state tracking, and explicit save behavior in:
+  [app/src/components/home/ChatView.tsx](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/components/home/ChatView.tsx)
+  [app/src/lib/prd/editor.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/lib/prd/editor.ts)
+- Added Mermaid chart generation and isolated rendering for live flow and ERD previews in:
+  [app/src/lib/prd/mermaid.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/lib/prd/mermaid.ts)
+  [app/src/components/prd/MermaidRenderer.tsx](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/components/prd/MermaidRenderer.tsx)
+- Extended the canonical PRD schema with optional entity relationships via `relationshipTo` in [app/src/lib/prd/schema.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/lib/prd/schema.ts).
+- Added targeted PRD editor coverage for Mermaid mapping, normalization, and draft validation in:
+  [app/src/__tests__/prdEditorTests.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/__tests__/prdEditorTests.ts)
+  [app/src/__tests__/prdConfigTests.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/__tests__/prdConfigTests.ts)
+
+### Estimate
+
+- Original Phase 2 estimate: `7 engineering days`
+- Completed deliverables:
+  split-pane editor shell, PRD form controls, Mermaid flow renderer, Mermaid entity renderer, local draft state with dirty/save handling, schema extension for entity relationships, responsive mobile editor/preview switcher, and targeted validation/tests
+
+### Verification
+
+- `npx tsc --noEmit`: passed
+- `npx eslint src/components/home/ChatView.tsx src/components/prd/MermaidRenderer.tsx src/lib/prd/editor.ts src/lib/prd/mermaid.ts src/lib/prd/schema.ts src/__tests__/prdEditorTests.ts src/__tests__/prdConfigTests.ts`: passed
+- `npx tsx src/__tests__/prdEditorTests.ts`: passed
+
 ## 2026-04-07 13:09:37 +03
 
 ### Phase 1: PRDConfig Cutover

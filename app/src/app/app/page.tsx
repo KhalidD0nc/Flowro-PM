@@ -98,21 +98,31 @@ function AppHomeContent() {
       return;
     }
 
-    setIsTransitioning(true);
-    setTimeout(() => {
-      setActiveSession({ projectId, initialMessage: "", isExisting: true });
-      setIsTransitioning(false);
-      window.history.replaceState(null, "", `/app/${projectId}`);
-    }, 150);
+    let finishTimer: ReturnType<typeof setTimeout> | undefined;
+    const startTimer = setTimeout(() => {
+      setIsTransitioning(true);
+      finishTimer = setTimeout(() => {
+        setActiveSession({ projectId, initialMessage: "", isExisting: true });
+        setIsTransitioning(false);
+        window.history.replaceState(null, "", `/app/${projectId}`);
+      }, 150);
+    }, 0);
+
+    return () => {
+      clearTimeout(startTimer);
+      if (finishTimer) {
+        clearTimeout(finishTimer);
+      }
+    };
   }, [activeSession?.projectId, loading, searchParams, user]);
 
   // Show loading state while checking auth
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#020204] flex items-center justify-center">
+      <div className="min-h-screen premium-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <img src="/logo.svg" alt="Flowro Logo" className="w-16 h-16 animate-spin" />
-          <span className="text-[#9dabb9] text-sm">Loading...</span>
+          <span className="text-slate-500 text-sm">Loading...</span>
         </div>
       </div>
     );
@@ -121,10 +131,10 @@ function AppHomeContent() {
   // Don't render if not authenticated (will redirect)
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#020204] flex items-center justify-center">
+      <div className="min-h-screen premium-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <img src="/logo.svg" alt="Flowro Logo" className="w-16 h-16 animate-spin" />
-          <span className="text-[#9dabb9] text-sm animate-pulse">
+          <span className="text-slate-500 text-sm animate-pulse">
             Redirecting to login...
           </span>
         </div>
@@ -133,7 +143,7 @@ function AppHomeContent() {
   }
 
   return (
-    <div className="flex h-screen w-full flex-row bg-[#020204] font-sans text-white overflow-hidden selection:bg-violet-500/30 selection:text-white premium-bg">
+    <div className="premium-bg flex h-screen w-full flex-row overflow-hidden font-sans text-slate-900 selection:bg-blue-200 selection:text-slate-900">
       {/* Sidebar Navigation - Always visible */}
       <Sidebar
         onProjectSelect={handleProjectSelect}
@@ -142,10 +152,10 @@ function AppHomeContent() {
       />
 
       {/* Main Content Area with seamless transitions */}
-      <div className="relative flex-1 flex flex-col overflow-hidden bg-[#0a0d12]">
+      <div className="relative flex-1 flex flex-col overflow-hidden bg-transparent">
         {/* Transition overlay */}
         <div
-          className={`absolute inset-0 bg-[#0a0d12] pointer-events-none z-50 transition-opacity duration-150 ${isTransitioning ? "opacity-100" : "opacity-0"
+          className={`pointer-events-none absolute inset-0 z-50 bg-[#f5efe7] transition-opacity duration-150 ${isTransitioning ? "opacity-100" : "opacity-0"
             }`}
         />
 
@@ -169,10 +179,10 @@ function AppHomeContent() {
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen bg-[#020204] flex items-center justify-center">
+    <div className="min-h-screen premium-bg flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         <img src="/logo.svg" alt="Flowro Logo" className="w-16 h-16 animate-spin" />
-        <span className="text-[#9dabb9] text-sm">Loading...</span>
+        <span className="text-slate-500 text-sm">Loading...</span>
       </div>
     </div>
   );
