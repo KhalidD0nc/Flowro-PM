@@ -94,13 +94,13 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
     <div className="w-full relative group mt-4">
       {/* Glow Effect - enhanced when focused */}
       <div
-        className={`absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-violet-500 rounded-2xl blur transition-opacity duration-500 ${isFocused ? "opacity-40" : "opacity-20"
+        className={`absolute -inset-0.5 rounded-[1.75rem] bg-gradient-to-r from-[#d5e6ff] via-[#f5ebe0] to-[#d8e8ff] blur transition-opacity duration-500 ${isFocused ? "opacity-80" : "opacity-40"
           }`}
       />
 
       {/* Glass Panel */}
       <div
-        className={`relative glass-panel rounded-2xl p-2 transition-all duration-300 ${isFocused ? "ring-1 ring-violet-500/40 shadow-[0_0_50px_-10px_rgba(139,92,246,0.2)]" : ""
+        className={`glass-panel relative rounded-[1.75rem] p-2 transition-all duration-300 ${isFocused ? "ring-1 ring-[#2f8fff]/30 shadow-[0_24px_50px_-28px_rgba(47,143,255,0.35)]" : ""
           }`}
       >
         <div className="relative flex flex-col">
@@ -112,7 +112,7 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
             onBlur={() => setIsFocused(false)}
             onKeyDown={handleKeyDown}
             disabled={isSubmitting}
-            className="w-full bg-transparent border-0 text-white placeholder-slate-500 focus:ring-0 focus:outline-none resize-none min-h-[60px] max-h-[200px] py-3 px-4 text-lg leading-relaxed disabled:opacity-50"
+            className="min-h-[72px] max-h-[200px] w-full resize-none border-0 bg-transparent px-5 py-4 text-lg leading-relaxed text-slate-900 placeholder:text-slate-400 focus:ring-0 focus:outline-none disabled:opacity-50"
             placeholder={placeholder}
             rows={2}
           />
@@ -124,7 +124,7 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
               <button
                 type="button"
                 disabled
-                className="p-2 rounded-lg text-slate-400 cursor-not-allowed opacity-50"
+                className="cursor-not-allowed rounded-xl p-2 text-slate-300 opacity-60"
                 title="Attach file (coming soon)"
               >
                 <span className="material-symbols-outlined text-[20px]">
@@ -136,7 +136,7 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
               <button
                 type="button"
                 disabled
-                className="p-2 rounded-lg text-slate-400 cursor-not-allowed opacity-50"
+                className="cursor-not-allowed rounded-xl p-2 text-slate-300 opacity-60"
                 title="Use microphone (coming soon)"
               >
                 <span className="material-symbols-outlined text-[20px]">
@@ -146,7 +146,7 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-500 font-medium hidden sm:inline-block">
+              <span className="hidden text-xs font-medium text-slate-500 sm:inline-block">
                 {isSubmitting ? "Creating project..." : "Press Enter to submit"}
               </span>
 
@@ -155,9 +155,9 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
                 type="button"
                 onClick={handleSubmit}
                 disabled={!value.trim() || isSubmitting}
-                className={`flex items-center justify-center rounded-lg p-2 shadow-lg transition-all ${value.trim() && !isSubmitting
-                  ? "bg-white text-slate-900 shadow-white/10 hover:bg-gray-100 cursor-pointer"
-                  : "bg-slate-700 text-slate-400 cursor-not-allowed"
+                className={`flex items-center justify-center rounded-2xl p-2.5 shadow-lg transition-all ${value.trim() && !isSubmitting
+                  ? "bg-[#2f8fff] text-white shadow-[0_18px_30px_-18px_rgba(47,143,255,0.6)] hover:bg-[#267ce6] cursor-pointer"
+                  : "bg-slate-300 text-slate-500 cursor-not-allowed"
                   }`}
                 title={isSubmitting ? "Creating..." : "Submit"}
               >

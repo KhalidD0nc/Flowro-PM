@@ -38,6 +38,7 @@ The core UI will act as a control center using a **Split-Pane Layout**:
 
 ### Phase 2: The Dashboard UI & Diagram Rendering
 *Goal: Build the split-pane control center. The user should feel like they are "configuring" software, not writing an essay.*
+**Status:** Completed. Split-pane PRD configurator, live Mermaid rendering, and editor-to-preview state sync are implemented and verified.
 
 1. **Left Pane (Form Controls):** Build React components that let the PM manually edit the `PRDConfig` JSON in a user-friendly way (check boxes, input fields, Add/Remove feature lists).
 2. **Right Pane (Live Diagrams):** Implement Mermaid.js rendering. 
@@ -46,11 +47,11 @@ The core UI will act as a control center using a **Split-Pane Layout**:
 3. **State Sync:** Wire the UI so that changing a text field in the left pane instantly re-renders the diagram on the right. 
 
 **Actionable Tasks:**
-- [ ] Build the base grid/flex layout for the Split-Pane view.
-- [ ] Create basic React forms (Inputs/Checkboxes/Lists) to edit the `PRDConfig` object in state.
-- [ ] Create a `<MermaidRenderer />` component that dynamically mounts Mermaid charts.
-- [ ] Write a parser function: `mapPRDFlowsToMermaid(flows)`.
-- [ ] Write a parser function: `mapPRDEntitiesToMermaid(entities)`.
+- [x] Build the base grid/flex layout for the Split-Pane view.
+- [x] Create basic React forms (Inputs/Checkboxes/Lists) to edit the `PRDConfig` object in state.
+- [x] Create a `<MermaidRenderer />` component that dynamically mounts Mermaid charts.
+- [x] Write a parser function: `mapPRDFlowsToMermaid(flows)`.
+- [x] Write a parser function: `mapPRDEntitiesToMermaid(entities)`.
 
 ### Phase 3: ReACT Agent "Auto-Pilot"
 *Goal: Eliminate manual data entry. The user acts as a reviewer while the agent patches the config.*

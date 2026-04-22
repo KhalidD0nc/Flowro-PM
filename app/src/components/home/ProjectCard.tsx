@@ -52,7 +52,7 @@ export default function ProjectCard({
 
       {/* Text Content */}
       <div className="flex flex-col min-w-0 flex-1">
-        <h3 className="truncate text-sm font-bold text-white group-hover:text-cyan-200 transition-colors">
+        <h3 className="truncate text-sm font-bold text-slate-100 group-hover:text-cyan-200 transition-colors">
           {safeTitle}
         </h3>
         {safeSubtitle && (

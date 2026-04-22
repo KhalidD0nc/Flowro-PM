@@ -16,6 +16,14 @@ const validPrd = {
                 { name: "name", type: "string", required: true },
             ],
         },
+        {
+            name: "RoadmapItem",
+            description: "A prioritized work item linked to a workspace.",
+            fields: [
+                { name: "id", type: "string", required: true },
+                { name: "workspaceId", type: "string", required: true, relationshipTo: "Workspace" },
+            ],
+        },
     ],
     flows: [
         {
@@ -115,6 +123,11 @@ export function runPrdConfigTests(): Array<{ name: string; passed: boolean }> {
                 },
             ],
         }).success,
+    })
+
+    results.push({
+        name: "accepts entity field relationships",
+        passed: prdConfigSchema.safeParse(validPrd).success,
     })
 
     return results

@@ -62,11 +62,11 @@ export default function QuickActions() {
           onMouseEnter={() => setHoveredId(action.id)}
           onMouseLeave={() => setHoveredId(null)}
           className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-all ${hoveredId === action.id
-            ? "border-white/10 bg-white/10 text-white"
-            : "border-white/5 bg-white/5 text-slate-300"
+            ? "border-[#bfd8ff] bg-[#edf5ff] text-slate-900 shadow-[0_16px_24px_-22px_rgba(47,143,255,0.55)]"
+            : "border-[#e4ddd4] bg-white/76 text-slate-600"
             }`}
         >
-          <span className={`material-symbols-outlined text-[18px] ${action.iconColor}`}>
+          <span className={`material-symbols-outlined text-[18px] ${hoveredId === action.id ? "text-[#2f8fff]" : action.iconColor}`}>
             {action.icon}
           </span>
           {action.title}

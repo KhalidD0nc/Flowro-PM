@@ -166,7 +166,7 @@ export interface MessageListProps {
     isStreaming: boolean
     streamedContent: string
     isGenerating: boolean
-    thinkingPhase: number
+    thinkingPhase?: number
     generationMode: 'initial' | 'update' | 'chat'
     onOpenBlueprint: () => void
     onApplyProposedChanges: (changes: ProposedChanges, index: number) => void
@@ -178,11 +178,11 @@ export interface MessageListProps {
  */
 export interface ChatPanelProps {
     project: ProjectView
-    currentPrd: PRDConfig | null
+    currentPrd?: PRDConfig | null
     isGenerating: boolean
     isStreaming: boolean
     streamedContent: string
-    thinkingPhase: number
+    thinkingPhase?: number
     generationMode: 'initial' | 'update' | 'chat'
     message: string
     error: string | null

@@ -6,6 +6,7 @@ export const prdFieldSchema = z.object({
     name: z.string().min(1),
     type: z.string().min(1),
     required: z.boolean(),
+    relationshipTo: z.string().min(1).optional(),
 })
 
 export const prdEntitySchema = z.object({
