@@ -24,6 +24,8 @@ import {
     type MessageCreateData,
     type BlueprintDocument,
     type BlueprintCreateData,
+    type PRDDocument,
+    type PRDCreateData,
     type BlueprintHistoryDocument,
     type BlueprintHistoryCreateData,
     type UBPContent,
@@ -32,6 +34,7 @@ import {
     timestampToISO,
     incrementVersion,
 } from "./schema"
+import { validatePRDConfig, type PRDConfig } from "@/lib/prd/schema"
 
 // =============================================================================
 // Utility Functions
@@ -224,6 +227,8 @@ export async function deleteProject(projectId: string): Promise<void> {
     // Delete all messages in subcollection
     const messagesPath = `${COLLECTIONS.PROJECTS}/${projectId}/${COLLECTIONS.MESSAGES}`
     await deleteCollectionDocs(messagesPath)
+
+    await deletePrd(projectId)
 
     // Find blueprint and delete history + blueprint docs
     const blueprintSnap = await db
@@ -436,6 +441,80 @@ export async function getBlueprint(blueprintId: string): Promise<BlueprintDocume
     } as BlueprintDocument
 }
 
+export async function createPrd(data: PRDCreateData): Promise<PRDDocument> {
+    const db = getDb()
+    const prdId = data.projectId
+    const docRef = db.collection(COLLECTIONS.PRDS).doc(prdId)
+    const existingDoc = await docRef.get()
+
+    if (existingDoc.exists) {
+        throw new Error(`PRD already exists for project ${data.projectId}`)
+    }
+
+    const validatedConfig = validatePRDConfig(data.config)
+    await docRef.set({
+        ...data,
+        config: validatedConfig,
+    })
+
+    return {
+        id: prdId,
+        ...data,
+        config: validatedConfig,
+    }
+}
+
+export async function getPrdByProjectId(projectId: string): Promise<PRDDocument | null> {
+    const db = getDb()
+    const docSnap = await db.collection(COLLECTIONS.PRDS).doc(projectId).get()
+
+    if (!docSnap.exists) {
+        return null
+    }
+
+    return {
+        id: docSnap.id,
+        ...docSnap.data(),
+    } as PRDDocument
+}
+
+export async function replacePrd(projectId: string, config: PRDConfig): Promise<PRDDocument> {
+    const db = getDb()
+    const validatedConfig = validatePRDConfig(config)
+    const now = Timestamp.now()
+
+    await db.collection(COLLECTIONS.PRDS).doc(projectId).set({
+        projectId,
+        config: validatedConfig,
+        updatedAt: now,
+    })
+
+    return {
+        id: projectId,
+        projectId,
+        config: validatedConfig,
+        updatedAt: now,
+    }
+}
+
+export async function upsertPrd(projectId: string, config: PRDConfig): Promise<PRDDocument> {
+    const existingPrd = await getPrdByProjectId(projectId)
+    if (existingPrd) {
+        return replacePrd(projectId, config)
+    }
+
+    return createPrd({
+        projectId,
+        config,
+        updatedAt: Timestamp.now(),
+    })
+}
+
+export async function deletePrd(projectId: string): Promise<void> {
+    const db = getDb()
+    await db.collection(COLLECTIONS.PRDS).doc(projectId).delete()
+}
+
 /**
  * Update a blueprint with automatic version history.
  * Uses safe merge semantics to preserve existing sections not in incoming content.
@@ -583,21 +662,24 @@ export async function getProjectWithDetails(projectId: string): Promise<{
     project: ProjectDocument
     messages: MessageDocument[]
     blueprint: BlueprintDocument | null
+    prd: PRDDocument | null
 } | null> {
     const project = await getProject(projectId)
     if (!project) {
         return null
     }
 
-    const [messages, blueprint] = await Promise.all([
+    const [messages, blueprint, prd] = await Promise.all([
         getMessages(projectId),
         getBlueprintByProjectId(projectId),
+        getPrdByProjectId(projectId),
     ])
 
     return {
         project,
         messages,
         blueprint,
+        prd,
     }
 }
 

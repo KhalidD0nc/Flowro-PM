@@ -1,6 +1,6 @@
 "use client"
 
-import { Blueprint } from "@/app/api/blueprints/service"
+import type { BlueprintView as Blueprint } from "@/lib/types/views"
 
 interface UBPListProps {
     blueprints: Blueprint[]

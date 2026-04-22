@@ -80,7 +80,13 @@ export function useStreamingText(
   // Reset when streaming starts fresh
   useEffect(() => {
     if (isStreaming && rawContent === '') {
-      reset()
+      const frame = requestAnimationFrame(() => {
+        reset()
+      })
+
+      return () => {
+        cancelAnimationFrame(frame)
+      }
     }
   }, [isStreaming, rawContent, reset])
 
@@ -92,11 +98,18 @@ export function useStreamingText(
 
     // If we've already displayed everything, nothing to do
     if (positionRef.current >= rawContent.length) {
-      setIsTyping(false)
-      return
+      const frame = requestAnimationFrame(() => {
+        setIsTyping(false)
+      })
+
+      return () => {
+        cancelAnimationFrame(frame)
+      }
     }
 
-    setIsTyping(true)
+    const typingFrame = requestAnimationFrame(() => {
+      setIsTyping(true)
+    })
 
     const revealNext = () => {
       const now = performance.now()
@@ -154,6 +167,7 @@ export function useStreamingText(
     animationFrameRef.current = requestAnimationFrame(revealNext)
 
     return () => {
+      cancelAnimationFrame(typingFrame)
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
       }

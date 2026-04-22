@@ -9,7 +9,7 @@
  * Frontend types live HERE.
  */
 
-import type { UBPContent } from "@/components/UBPViewer"
+import type { PRDConfig } from "@/lib/prd/schema"
 
 // =============================================================================
 // Intent Types
@@ -76,6 +76,15 @@ export interface BlueprintView {
 // Backward-compatible alias
 export type Blueprint = BlueprintView
 
+export interface PRDView {
+    id: string
+    projectId: string
+    config: PRDConfig
+    updatedAt: string
+}
+
+export type PRD = PRDView
+
 // =============================================================================
 // Project Types
 // =============================================================================
@@ -91,7 +100,7 @@ export interface ProjectView {
     chatHistory: MessageView[]
     createdAt: string
     updatedAt: string
-    latestBlueprint?: BlueprintView
+    latestPrd?: PRDView
 }
 
 // Backward-compatible alias
@@ -107,9 +116,7 @@ export type Project = ProjectView
 export interface GenerateResult {
     intent: Intent
     message: string
-    content: unknown
-    proposedChanges?: ProposedChanges
-    rawContent: string
+    prdConfig?: PRDConfig
     productName?: string
 }
 
@@ -159,7 +166,7 @@ export interface MessageListProps {
     isStreaming: boolean
     streamedContent: string
     isGenerating: boolean
-    thinkingPhase: number
+    thinkingPhase?: number
     generationMode: 'initial' | 'update' | 'chat'
     onOpenBlueprint: () => void
     onApplyProposedChanges: (changes: ProposedChanges, index: number) => void
@@ -171,11 +178,11 @@ export interface MessageListProps {
  */
 export interface ChatPanelProps {
     project: ProjectView
-    currentUBP: UBPContent | null
+    currentPrd?: PRDConfig | null
     isGenerating: boolean
     isStreaming: boolean
     streamedContent: string
-    thinkingPhase: number
+    thinkingPhase?: number
     generationMode: 'initial' | 'update' | 'chat'
     message: string
     error: string | null
@@ -191,3 +198,4 @@ export interface ChatPanelProps {
 
 // Re-export UBPContent for convenience
 export type { UBPContent } from "@/components/UBPViewer"
+export type { PRDConfig } from "@/lib/prd/schema"

@@ -112,7 +112,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable} font-sans antialiased bg-background-dark text-white`}>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable} bg-background-light font-sans antialiased text-slate-900`}>
         <Analytics />
         <ErrorBoundary>
           <ToastProvider>
