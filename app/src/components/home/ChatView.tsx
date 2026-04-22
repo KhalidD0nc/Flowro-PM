@@ -299,6 +299,38 @@ export default function ChatView({ projectId, initialMessage, user, onBack, isEx
     // API Functions
     // =============================================================================
 
+    const saveUserMessage = useCallback(async (
+        token: string,
+        userMessage: string
+    ): Promise<boolean> => {
+        try {
+            const res = await fetch(`/api/projects/${projectId}`, {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    appendChat: [{
+                        role: "user",
+                        content: userMessage,
+                        timestamp: new Date().toISOString(),
+                        intent: null,
+                    }],
+                }),
+            })
+
+            if (!res.ok) {
+                console.error("Failed to save user message, status:", res.status)
+                return false
+            }
+            return true
+        } catch (err) {
+            console.error("Failed to save user message:", err)
+            return false
+        }
+    }, [projectId])
+
     const generateResponse = useCallback(async (
         currentHistory: ChatMessage[],
         usersMessage: string,
@@ -334,21 +366,21 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
 
             // Save user message to DB first
             if (!skipPersist) {
-                fetch(`/api/projects/${projectId}`, {
-                    method: "PATCH",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        appendChat: [{
-                            role: "user",
-                            content: usersMessage,
-                            timestamp: new Date().toISOString(),
-                            intent: null,
-                        }],
-                    }),
-                }).catch(err => console.error("Failed to save user message:", err))
+                const saved = await saveUserMessage(token, usersMessage)
+                if (!saved) {
+                    // Revert optimistic update when persistence fails.
+                    setProject(prev => {
+                        if (!prev) return prev
+                        return {
+                            ...prev,
+                            chatHistory: prev.chatHistory.slice(0, -1)
+                        }
+                    })
+                    setError("Failed to save your message. Please try again.")
+                    setIsGenerating(false)
+                    setIsStreaming(false)
+                    return
+                }
             }
 
             const res = await fetch("/api/generate/stream", {
@@ -466,7 +498,7 @@ Keep messages concise (2-4 sentences). Be helpful and friendly.`
             setIsGenerating(false)
             setIsStreaming(false)
         }
-    }, [projectId, user])
+    }, [projectId, user, saveUserMessage])
 
     const generateResponseNonStreaming = async (
         usersMessage: string,

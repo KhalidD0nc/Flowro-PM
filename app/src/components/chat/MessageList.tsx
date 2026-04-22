@@ -233,6 +233,7 @@ export default function MessageList({
   streamedContent,
   isGenerating,
   thinkingPhase,
+  generationMode,
   onOpenBlueprint,
   onApplyProposedChanges,
   messagesEndRef,
@@ -322,14 +323,13 @@ export default function MessageList({
           )
         })}
 
-        {/* Streaming response with smooth word-by-word animation */}
-        {/* DISABLED: Show only progress indicator until blueprint complete */}
-        {/* {isStreaming && streamedContent && (
+        {/* Chat mode: streaming text word-by-word */}
+        {isGenerating && generationMode === 'chat' && (
           <StreamingMessage rawContent={streamedContent} isStreaming={isStreaming} />
-        )} */}
+        )}
 
         {/* Blueprint progress indicator - shows throughout entire generation */}
-        {isGenerating && (
+        {isGenerating && (generationMode === 'initial' || generationMode === 'update') && (
           <div className="flex flex-col gap-3 w-full max-w-2xl animate-slide-in-left">
             {/* Flowro AI label */}
             <span className="text-sm font-semibold text-slate-400">Flowro AI</span>
@@ -377,14 +377,8 @@ export default function MessageList({
                       <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 4 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
                     </div>
                     <span className="text-xs font-medium text-slate-300">TechStack & Integrations</span>
-                  </div>                  
-                  <div className={`flex items-center gap-2.5 transition-all duration-500 ${thinkingPhase >= 4 ? 'opacity-100' : 'opacity-40'}`}>
-                    <div className="relative flex size-2.5 items-center justify-center">
-                      {thinkingPhase === 4 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75"></span>}
-                      <span className={`relative inline-flex size-2 rounded-full ${thinkingPhase >= 4 ? 'bg-cyan-500' : 'bg-slate-600'}`}></span>
-                    </div>
-                    <span className="text-xs font-medium text-slate-300">TechStack & Integrations</span>
-                  </div>                </div>
+                  </div>
+                </div>
 
                 {/* Typing dots */}
                 <div className="flex gap-1 pt-1">
