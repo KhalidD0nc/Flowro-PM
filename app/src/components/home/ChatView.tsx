@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useDeferredValue, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { User } from "firebase/auth";
 import { authGet, authPatch, authPost } from "@/lib/authFetch";
@@ -198,6 +198,14 @@ export default function ChatView({ projectId, initialMessage, user, onBack }: Ch
   const [lastSubmittedMessage, setLastSubmittedMessage] = useState<string | null>(null);
   const [lastFailedSubmission, setLastFailedSubmission] = useState<string | null>(null);
   const hasInitialized = useRef(false);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const [chatWidthPct, setChatWidthPct] = useState<number>(() => {
+    if (typeof window === "undefined") return 38;
+    const saved = localStorage.getItem("flowro_chat_width_pct");
+    const parsed = saved ? parseFloat(saved) : NaN;
+    return isNaN(parsed) ? 38 : Math.min(65, Math.max(18, parsed));
+  });
 
   const deferredDraft = useDeferredValue(draftPrd);
   const normalizedDraft = draftPrd ? normalizePrdConfig(draftPrd) : null;
@@ -339,6 +347,38 @@ export default function ChatView({ projectId, initialMessage, user, onBack }: Ch
       setDesktopPane("editor");
       setMobilePane("editor");
     });
+  }
+
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function onMouseMove(ev: MouseEvent) {
+      if (!isDraggingRef.current || !splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const pct = Math.min(65, Math.max(18, (x / rect.width) * 100));
+      setChatWidthPct(pct);
+      localStorage.setItem("flowro_chat_width_pct", String(Math.round(pct * 10) / 10));
+    }
+
+    function onMouseUp() {
+      isDraggingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, []);
+
+  function handleDividerDoubleClick() {
+    setChatWidthPct(38);
+    localStorage.setItem("flowro_chat_width_pct", "38");
   }
 
   async function handleSendMessage(customMessage?: string) {
@@ -618,11 +658,15 @@ export default function ChatView({ projectId, initialMessage, user, onBack }: Ch
       </header>
 
       {/* Replit-style split: Chat (left) | PRD (right) */}
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        {/* Chat panel */}
+      <div
+        ref={splitContainerRef}
+        className="relative flex min-h-0 flex-1 overflow-hidden"
+        style={{ "--chat-w": `${chatWidthPct}%` } as React.CSSProperties}
+      >
+        {/* Chat panel — width controlled by drag handle on desktop */}
         <div
-          className={`h-full shrink-0 border-r border-[#e7dfd5] bg-[#fcf8f3]/78 lg:flex lg:w-[38%] lg:max-w-[480px] xl:w-[36%] ${
-            mobilePane === "chat" ? "flex w-full" : "hidden"
+          className={`h-full shrink-0 bg-[#fcf8f3]/78 lg:[width:var(--chat-w)] ${
+            mobilePane === "chat" ? "flex w-full" : "hidden lg:flex"
           }`}
         >
           <ChatPanel
@@ -648,6 +692,26 @@ export default function ChatView({ projectId, initialMessage, user, onBack }: Ch
             }}
             onRetry={handleRetry}
           />
+        </div>
+
+        {/* Draggable resize handle — desktop only */}
+        <div
+          onMouseDown={handleDividerMouseDown}
+          onDoubleClick={handleDividerDoubleClick}
+          title="Drag to resize · Double-click to reset"
+          className="group relative hidden w-2 shrink-0 cursor-col-resize items-center justify-center lg:flex"
+        >
+          {/* Thin visual track */}
+          <div className="h-full w-px bg-[#e7dfd5] transition-colors group-hover:bg-[#2f8fff]/40 group-active:bg-[#2f8fff]/60" />
+          {/* Floating grip pill */}
+          <div className="pointer-events-none absolute z-10 flex flex-col items-center gap-[3px] rounded-full bg-white px-[5px] py-3 opacity-0 shadow-[0_4px_14px_rgba(22,31,49,0.14)] ring-1 ring-[#ddd6cd] transition-all duration-150 group-hover:opacity-100 group-hover:shadow-[0_6px_20px_rgba(22,31,49,0.18)]">
+            <span className="h-[3px] w-[3px] rounded-full bg-slate-400" />
+            <span className="h-[3px] w-[3px] rounded-full bg-slate-400" />
+            <span className="h-[3px] w-[3px] rounded-full bg-slate-400" />
+            <span className="h-[3px] w-[3px] rounded-full bg-slate-400" />
+            <span className="h-[3px] w-[3px] rounded-full bg-slate-400" />
+            <span className="h-[3px] w-[3px] rounded-full bg-slate-400" />
+          </div>
         </div>
 
         {/* PRD panel */}
