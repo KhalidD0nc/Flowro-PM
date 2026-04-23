@@ -7,7 +7,7 @@ import type { ChatPanelProps, ProposedChanges } from "./types";
 
 export default function ChatPanel({
   project,
-  currentPrd: _currentPrd,
+  currentPrd,
   isGenerating,
   isStreaming,
   streamedContent,
@@ -24,8 +24,6 @@ export default function ChatPanel({
   onQuickAction,
   onRetry,
 }: ChatPanelProps) {
-  void _currentPrd;
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handleApplyProposedChanges = (changes: ProposedChanges, index: number) => {
@@ -51,6 +49,7 @@ export default function ChatPanel({
         ) : (
           <MessageList
             messages={project.chatHistory}
+            currentPrd={currentPrd}
             isStreaming={isStreaming}
             streamedContent={streamedContent}
             isGenerating={isGenerating}

@@ -3,6 +3,8 @@
 import type { MessageListProps, Intent, DisplayInfo, ProposedChanges } from "./types";
 import { isUBPContent } from "./types";
 import { useStreamingText } from "@/hooks/useStreamingText";
+import { getProposalDraftState, hashPrdConfig } from "@/lib/prd/editor";
+import { parseProposedPrdChanges } from "@/lib/prd/schema";
 
 function getDisplayMessage(
   content: string | object,
@@ -88,16 +90,7 @@ function getDisplayMessage(
 
     const text = extractMessage(obj, intent);
 
-    let proposedChanges: ProposedChanges | undefined;
-    if (obj.proposedChanges && typeof obj.proposedChanges === "object") {
-      const changes = obj.proposedChanges as Record<string, unknown>;
-      proposedChanges = {
-        action: (changes.action as "add" | "update" | "remove") || "update",
-        summary: (changes.summary as string) || "Blueprint update",
-        sections: (changes.sections as string[]) || [],
-        changes: (changes.changes as Record<string, unknown>) || {},
-      };
-    }
+    const proposedChanges = parseProposedPrdChanges(obj.proposedChanges);
 
     return { text, intent, proposedChanges };
   }
@@ -151,6 +144,7 @@ function StreamingMessage({ rawContent, isStreaming }: { rawContent: string; isS
 
 export default function MessageList({
   messages,
+  currentPrd,
   isStreaming,
   streamedContent,
   isGenerating,
@@ -159,6 +153,8 @@ export default function MessageList({
   onApplyProposedChanges,
   messagesEndRef,
 }: MessageListProps) {
+  const currentPrdHash = currentPrd ? hashPrdConfig(currentPrd) : null;
+
   return (
     <main className="flex-1 overflow-y-auto bg-transparent px-4 py-5 md:px-6 lg:px-7">
       <div className="mx-auto flex max-w-3xl flex-col gap-6 pb-8">
@@ -195,8 +191,18 @@ export default function MessageList({
               <div className="ai-message-bubble rounded-[1.5rem] p-4">
                 <p className="mb-2 whitespace-pre-wrap leading-7 text-slate-700">{displayInfo.text}</p>
 
-                {displayInfo.intent === "proposal" && displayInfo.proposedChanges ? (
-                  <div className="mt-4 rounded-[1rem] border border-[#dde8f7] bg-[#f8fbff] p-3">
+                {displayInfo.intent === "proposal" && displayInfo.proposedChanges ? (() => {
+                  const proposalState = getProposalDraftState(displayInfo.proposedChanges, currentPrd ?? null);
+                  const nextPrdHash = hashPrdConfig(displayInfo.proposedChanges.nextPrdConfig);
+                  const stateLabel =
+                    proposalState === "applied"
+                      ? "Applied to draft"
+                      : proposalState === "stale"
+                        ? "Proposal is stale"
+                        : "Ready to apply";
+
+                  return (
+                    <div className="mt-4 rounded-[1rem] border border-[#dde8f7] bg-[#f8fbff] p-3">
                     <div className="mb-2 flex items-center gap-2 text-sm text-slate-500">
                       <span className="material-symbols-outlined text-[14px]">edit_note</span>
                       Proposed changes
@@ -207,8 +213,32 @@ export default function MessageList({
                         Sections: {displayInfo.proposedChanges.sections.join(", ")}
                       </p>
                     ) : null}
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                      <span
+                        className={`rounded-full px-2.5 py-1 font-semibold uppercase tracking-[0.12em] ${
+                          proposalState === "applied"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : proposalState === "stale"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-[#dcecff] text-[#2f8fff]"
+                        }`}
+                      >
+                        {stateLabel}
+                      </span>
+                      {currentPrdHash && proposalState !== "ready" ? (
+                        <span className="text-slate-500">
+                          {proposalState === "applied"
+                            ? "The draft already matches this proposal."
+                            : `Current draft no longer matches base ${displayInfo.proposedChanges.basePrdHash}.`}
+                        </span>
+                      ) : null}
+                      {proposalState === "ready" ? (
+                        <span className="text-slate-500">Candidate draft {nextPrdHash} is ready for review.</span>
+                      ) : null}
+                    </div>
                   </div>
-                ) : null}
+                  );
+                })() : null}
 
                 {displayInfo.intent === "initial" ? (
                   <button
@@ -220,15 +250,33 @@ export default function MessageList({
                   </button>
                 ) : null}
 
-                {displayInfo.intent === "proposal" && displayInfo.proposedChanges ? (
-                  <button
-                    onClick={() => onApplyProposedChanges(displayInfo.proposedChanges!, index)}
-                    className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                    Update PRD
-                  </button>
-                ) : null}
+                {displayInfo.intent === "proposal" && displayInfo.proposedChanges ? (() => {
+                  const proposalState = getProposalDraftState(displayInfo.proposedChanges, currentPrd ?? null);
+                  const disabled = proposalState !== "ready";
+                  const label =
+                    proposalState === "applied"
+                      ? "Applied"
+                      : proposalState === "stale"
+                        ? "Stale Proposal"
+                        : "Apply To Draft";
+
+                  return (
+                    <button
+                      onClick={() => onApplyProposedChanges(displayInfo.proposedChanges!, index)}
+                      disabled={disabled}
+                      className={`mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${
+                        disabled
+                          ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        {proposalState === "applied" ? "task_alt" : proposalState === "stale" ? "history" : "check_circle"}
+                      </span>
+                      {label}
+                    </button>
+                  );
+                })() : null}
               </div>
             </div>
           );

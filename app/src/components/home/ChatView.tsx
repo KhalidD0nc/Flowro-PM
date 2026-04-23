@@ -7,11 +7,13 @@ import { authGet, authPatch, authPost } from "@/lib/authFetch";
 import type { ProjectView, PRDView } from "@/lib/types/views";
 import type { PRDConfig, PRDPlatform } from "@/lib/prd/schema";
 import {
+  canApplyProposal,
   clonePrdConfig,
   createEmptyFeature,
   createEmptyFlow,
   createEmptyFlowStep,
   createEmptyPrdConfig,
+  getProposalDraftState,
   normalizePrdConfig,
   validatePrdDraft,
   type PRDEditorValidationIssue,
@@ -70,6 +72,10 @@ function deriveSeedMessage(project: ProjectView, initialMessage: string): string
   }
 
   return project.projectName.trim();
+}
+
+function createTemporaryMessageId() {
+  return `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function getIssue(issues: PRDEditorValidationIssue[], path: string): string | null {
@@ -184,11 +190,14 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
   const [mobilePane, setMobilePane] = useState<"chat" | "editor" | "preview">("chat");
   const [desktopPane, setDesktopPane] = useState<"editor" | "preview">("editor");
   const [message, setMessage] = useState("");
+  const [chatRequestState, setChatRequestState] = useState<"idle" | "submitting" | "error">("idle");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamedContent, setStreamedContent] = useState("");
   const [thinkingPhase, setThinkingPhase] = useState<number | undefined>();
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [lastSubmittedMessage, setLastSubmittedMessage] = useState<string | null>(null);
+  const [lastFailedSubmission, setLastFailedSubmission] = useState<string | null>(null);
   const hasInitialized = useRef(false);
 
   const deferredDraft = useDeferredValue(draftPrd);
@@ -199,6 +208,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
   const baselineSnapshot = baselinePrd ? JSON.stringify(normalizePrdConfig(baselinePrd)) : "";
   const isDirty = draftSnapshot !== baselineSnapshot;
   const generationMode = "chat" as const;
+  const isChatSubmitting = chatRequestState === "submitting";
 
   useEffect(() => {
     if (hasInitialized.current) return;
@@ -267,6 +277,21 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
         }
 
         const nextPrd = clonePrdConfig(data.prdConfig);
+        const assistantMessage: ChatMessage = {
+          id: createTemporaryMessageId(),
+          role: "assistant",
+          content: data.message,
+          intent: data.intent,
+          timestamp: new Date().toISOString(),
+        };
+        const userMessage: ChatMessage = {
+          id: createTemporaryMessageId(),
+          role: "user",
+          content: seedMessage,
+          intent: "discussion",
+          timestamp: new Date().toISOString(),
+        };
+
         setDraftPrd(nextPrd);
         setBaselinePrd(clonePrdConfig(data.prdConfig));
         setLastSavedAt(new Date().toISOString());
@@ -275,6 +300,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
             ? {
                 ...prev,
                 projectName: data.productName || prev.projectName,
+                chatHistory: [...prev.chatHistory, userMessage, assistantMessage],
                 latestPrd: buildLocalPrdView(projectId, data.prdConfig),
               }
             : prev
@@ -302,23 +328,41 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
     setSaveError(null);
   }
 
+  function openPreviewPane() {
+    startTransition(() => {
+      setDesktopPane("preview");
+      setMobilePane("preview");
+    });
+  }
+
+  function openEditorPane() {
+    startTransition(() => {
+      setDesktopPane("editor");
+      setMobilePane("editor");
+    });
+  }
+
   async function handleSendMessage(customMessage?: string) {
-    const messageToSend = customMessage || message;
-    if (!messageToSend.trim() || !project) return;
+    const messageToSend = (customMessage ?? message).trim();
+    if (!messageToSend || !project || !draftPrd || isChatSubmitting) return;
+
+    const optimisticUserMessage: ChatMessage = {
+      id: createTemporaryMessageId(),
+      role: "user",
+      content: messageToSend,
+      intent: "discussion",
+      timestamp: new Date().toISOString(),
+    };
 
     try {
-      const userMessage: ChatMessage = {
-        role: "user",
-        content: messageToSend,
-        intent: "discussion",
-        timestamp: new Date().toISOString(),
-      };
-
+      setChatRequestState("submitting");
+      setLastSubmittedMessage(messageToSend);
+      setLastFailedSubmission(null);
       setProject((prev) =>
         prev
           ? {
               ...prev,
-              chatHistory: [...prev.chatHistory, userMessage],
+              chatHistory: [...prev.chatHistory, optimisticUserMessage],
             }
           : prev
       );
@@ -328,9 +372,10 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
       setStreamedContent("");
       setThinkingPhase(0);
 
-      const response = await authPost("/api/generate", user, {
-        message: messageToSend,
+      const response = await authPost("/api/enhance-prd", user, {
+        prompt: messageToSend,
         projectId,
+        currentPrd: normalizePrdConfig(draftPrd),
         context: project.chatHistory,
       });
 
@@ -339,35 +384,77 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
         throw new Error(data.error || "Failed to get a response from the assistant");
       }
 
-      const assistantMessage: ChatMessage = {
+      const persistedUserMessage: ChatMessage = data.userMessage || optimisticUserMessage;
+      const assistantMessage: ChatMessage = data.assistantMessage || {
+        id: createTemporaryMessageId(),
         role: "assistant",
         content: data.message,
         intent: data.intent,
+        proposedChanges: data.proposedChanges,
         timestamp: new Date().toISOString(),
       };
 
+      setProject((prev) => {
+        if (!prev) return prev;
+
+        const nextHistory = prev.chatHistory
+          .filter((chatMessage) => chatMessage.id !== optimisticUserMessage.id)
+          .concat(persistedUserMessage, assistantMessage);
+
+        return {
+          ...prev,
+          chatHistory: nextHistory,
+        };
+      });
+      setChatRequestState("idle");
+    } catch (error) {
+      console.error("Chat failed:", error);
       setProject((prev) =>
         prev
           ? {
               ...prev,
-              chatHistory: [...prev.chatHistory, assistantMessage],
-              ...(data.prdConfig ? { latestPrd: buildLocalPrdView(projectId, data.prdConfig) } : {}),
-              ...(data.productName ? { projectName: data.productName } : {}),
+              chatHistory: prev.chatHistory.filter((chatMessage) => chatMessage.id !== optimisticUserMessage.id),
             }
           : prev
       );
-
-      if (data.prdConfig) {
-        setDraftPrd(clonePrdConfig(data.prdConfig));
-      }
-    } catch (error) {
-      console.error("Chat failed:", error);
+      setChatRequestState("error");
       setChatError(error instanceof Error ? error.message : "Failed to send message");
+      setLastFailedSubmission(messageToSend);
     } finally {
       setIsStreaming(false);
       setStreamedContent("");
       setThinkingPhase(undefined);
     }
+  }
+
+  function handleRetry() {
+    const messageToRetry = lastFailedSubmission || lastSubmittedMessage;
+    if (!messageToRetry || isChatSubmitting) return;
+    void handleSendMessage(messageToRetry);
+  }
+
+  function handleApplyProposedChanges(changes: NonNullable<ChatMessage["proposedChanges"]>) {
+    if (!draftPrd) {
+      setChatError("Draft is unavailable. Reload the project and try again.");
+      setChatRequestState("error");
+      return;
+    }
+
+    if (!canApplyProposal(changes, draftPrd)) {
+      const proposalState = getProposalDraftState(changes, draftPrd);
+      setChatError(
+        proposalState === "applied"
+          ? "This proposal is already applied to the draft."
+          : "Proposal is stale. Generate a new one."
+      );
+      setChatRequestState("error");
+      return;
+    }
+
+    setDraftPrd(clonePrdConfig(changes.nextPrdConfig));
+    setChatError(null);
+    setChatRequestState("idle");
+    openEditorPane();
   }
 
   async function handleSave() {
@@ -526,7 +613,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
           <ChatPanel
             project={project}
             currentPrd={draftPrd}
-            isGenerating={isGeneratingPrd}
+            isGenerating={isGeneratingPrd || isChatSubmitting}
             isStreaming={isStreaming}
             streamedContent={streamedContent}
             thinkingPhase={thinkingPhase}
@@ -535,12 +622,16 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
             error={chatError}
             selectionContext={selectionContext}
             onMessageChange={setMessage}
-            onSendMessage={() => handleSendMessage()}
-            onOpenBlueprint={() => {}}
-            onApplyProposedChanges={() => {}}
+            onSendMessage={() => {
+              void handleSendMessage();
+            }}
+            onOpenBlueprint={openPreviewPane}
+            onApplyProposedChanges={(changes) => handleApplyProposedChanges(changes)}
             onClearContext={() => setSelectionContext(null)}
-            onQuickAction={(nextMessage) => handleSendMessage(nextMessage)}
-            onRetry={() => handleSendMessage()}
+            onQuickAction={(nextMessage) => {
+              void handleSendMessage(nextMessage);
+            }}
+            onRetry={handleRetry}
           />
         </div>
 
