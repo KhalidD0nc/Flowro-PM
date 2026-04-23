@@ -1,4 +1,4 @@
-import type { PRDConfig } from "@/lib/prd/schema"
+import type { PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
 
 /**
  * Firebase Schema Definitions
@@ -43,15 +43,7 @@ export type MessageIntent = "initial" | "discussion" | "proposal"
  */
 export type MessageRole = "user" | "assistant"
 
-/**
- * Proposed changes structure for AI suggestions
- */
-export interface ProposedChanges {
-    action: "add" | "update" | "remove"
-    summary: string
-    sections: string[]
-    changes: Record<string, unknown>
-}
+export type ProposedChanges = ProposedPrdChanges
 
 /**
  * Blueprint status lifecycle
@@ -230,7 +222,7 @@ export interface MessageDocument {
     id: string
     role: MessageRole
     content: string
-    proposedChanges?: Partial<UBPContent> | ProposedChanges // Optional proposed UBP changes
+    proposedChanges?: ProposedChanges
     intent: MessageIntent
     timestamp: FirestoreTimestamp
 }
@@ -241,7 +233,7 @@ export interface MessageDocument {
 export interface MessageCreateData {
     role: MessageRole
     content: string
-    proposedChanges?: Partial<UBPContent> | ProposedChanges
+    proposedChanges?: ProposedChanges
     intent: MessageIntent
     timestamp: FirestoreTimestamp
 }

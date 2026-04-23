@@ -1,4 +1,4 @@
-import type { PRDConfig, PRDFeature, PRDFlow, PRDFlowStep } from "@/lib/prd/schema"
+import type { PRDConfig, PRDFeature, PRDFlow, PRDFlowStep, ProposedPrdChanges } from "@/lib/prd/schema"
 import { prdConfigSchema } from "@/lib/prd/schema"
 
 export interface PRDEditorValidationIssue {
@@ -12,6 +12,8 @@ export interface PRDEditorSaveState {
     saveError: string | null
     lastSavedAt: string | null
 }
+
+export type ProposalDraftState = "ready" | "stale" | "applied"
 
 function optionalString(value?: string): string | undefined {
     const trimmed = value?.trim()
@@ -105,6 +107,45 @@ export function normalizePrdConfig(prd: PRDConfig): PRDConfig {
             acceptanceCriteria: feature.acceptanceCriteria.map((criterion) => criterion.trim()),
         })),
     }
+}
+
+export function serializeNormalizedPrd(prd: PRDConfig): string {
+    return JSON.stringify(normalizePrdConfig(prd))
+}
+
+export function hashPrdConfig(prd: PRDConfig): string {
+    const input = serializeNormalizedPrd(prd)
+    let hash = 0x811c9dc5
+
+    for (let index = 0; index < input.length; index += 1) {
+        hash ^= input.charCodeAt(index)
+        hash = Math.imul(hash, 0x01000193)
+    }
+
+    return `fnv1a-${(hash >>> 0).toString(16).padStart(8, "0")}`
+}
+
+export function getProposalDraftState(
+    proposedChanges: ProposedPrdChanges,
+    currentPrd: PRDConfig | null
+): ProposalDraftState {
+    if (!currentPrd) {
+        return "stale"
+    }
+
+    const currentHash = hashPrdConfig(currentPrd)
+    if (currentHash === hashPrdConfig(proposedChanges.nextPrdConfig)) {
+        return "applied"
+    }
+
+    return currentHash === proposedChanges.basePrdHash ? "ready" : "stale"
+}
+
+export function canApplyProposal(
+    proposedChanges: ProposedPrdChanges,
+    currentPrd: PRDConfig | null
+): boolean {
+    return getProposalDraftState(proposedChanges, currentPrd) === "ready"
 }
 
 export function validatePrdDraft(prd: PRDConfig | null): PRDEditorValidationIssue[] {
