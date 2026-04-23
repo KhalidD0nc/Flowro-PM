@@ -109,6 +109,20 @@ function runAutopilotTests(): TestResult[] {
         details: "Informational prompts should stay in discussion mode.",
     })
 
+    results.push({
+        name: "Prompt classifier treats polite edit questions as proposals",
+        passed:
+            classifyEnhancementIntent("Can you add SSO?") === "proposal" &&
+            classifyEnhancementIntent("Could you update the onboarding flow?") === "proposal",
+        details: "Polite requests to mutate the PRD should still enter proposal mode.",
+    })
+
+    results.push({
+        name: "Prompt classifier keeps advisory mutation questions as discussion",
+        passed: classifyEnhancementIntent("Should we add admin analytics?") === "discussion",
+        details: "Advice-seeking questions should not trigger proposal generation.",
+    })
+
     if (parsedProposal) {
         results.push({
             name: "Proposal state is ready when draft hash matches base hash",

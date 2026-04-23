@@ -64,11 +64,6 @@ export function classifyEnhancementIntent(prompt: string): EnhanceIntent {
         return "discussion"
     }
 
-    const isQuestion = /^(how|what|why|when|where|who|is|are|can|should|could|would|do|does|did)\b/.test(normalized) || normalized.endsWith("?")
-    if (isQuestion) {
-        return "discussion"
-    }
-
     const proposalPatterns = [
         /\badd\b/,
         /\bremove\b/,
@@ -86,7 +81,21 @@ export function classifyEnhancementIntent(prompt: string): EnhanceIntent {
         /\bmake\b.+\b(flow|feature|screen|entity|journey|platform|criteria)\b/,
     ]
 
-    return proposalPatterns.some((pattern) => pattern.test(normalized)) ? "proposal" : "discussion"
+    const containsProposalVerb = proposalPatterns.some((pattern) => pattern.test(normalized))
+    if (!containsProposalVerb) {
+        return "discussion"
+    }
+
+    const isPoliteEditRequest = /^(?:please\s+)?(?:can|could|would|will)\s+(?:you|we)\b/.test(normalized)
+    if (isPoliteEditRequest) {
+        return "proposal"
+    }
+
+    const isAdvisoryQuestion =
+        /^(?:how|what|why|when|where|who|is|are|should|do|does|did)\b/.test(normalized) ||
+        normalized.endsWith("?")
+
+    return isAdvisoryQuestion ? "discussion" : "proposal"
 }
 
 const discussionPrompt = ChatPromptTemplate.fromMessages([
