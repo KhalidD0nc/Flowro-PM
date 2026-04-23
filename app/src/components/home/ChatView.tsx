@@ -175,8 +175,7 @@ function PreviewMeta({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function ChatView({ projectId, initialMessage, user, onBack: _onBack }: ChatViewProps) {
-  void _onBack;
+export default function ChatView({ projectId, initialMessage, user, onBack }: ChatViewProps) {
 
   const [project, setProject] = useState<ProjectView | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
@@ -559,55 +558,71 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
   const linkButtonClass = "text-xs font-semibold text-[#2f8fff] transition hover:text-[#1e6dd1]";
 
   return (
-    <div className="relative flex h-full flex-1 flex-col overflow-hidden">
-      <header className="border-b border-[#e7dfd5] bg-[#fbf7f1]/75 backdrop-blur-xl">
-        <div className="px-4 py-5 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Phase 2 Workspace</p>
-              <h1 className="mt-3 truncate font-[family-name:var(--font-display)] text-3xl tracking-tight text-slate-900">
-                {project.projectName}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                Keep the conversation on the left and shape the structured PRD in a focused editor or preview canvas.
-              </p>
-            </div>
+    <div className="flex h-full w-full flex-col overflow-hidden bg-[#faf8f4]">
+      {/* Slim Replit-style top bar */}
+      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-[#e7dfd5] bg-[#fbf7f1]/92 px-3 backdrop-blur-xl">
+        {/* Back to Command Center */}
+        <button
+          onClick={onBack}
+          title="Back to home"
+          className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-slate-500 transition hover:bg-[#f0ece5] hover:text-slate-800"
+        >
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+        </button>
 
-            <div className="flex flex-col items-start gap-3 lg:items-end">
-              <div className="flex items-center gap-2 rounded-full border border-[#e4ddd4] bg-white/86 px-3 py-2 text-xs text-slate-500 shadow-[0_14px_26px_-24px_rgba(22,31,49,0.28)]">
-                <span className="material-symbols-outlined text-[16px] text-[#2f8fff]">schedule</span>
-                {savedLabel}
-              </div>
+        <div className="h-4 w-px shrink-0 bg-[#e4ddd4]" />
 
-              <div className="hidden items-center gap-2 rounded-full border border-[#e4ddd4] bg-white/82 p-1 lg:inline-flex">
-                <button onClick={() => startTransition(() => setDesktopPane("editor"))} className={desktopToggleClass(desktopPane === "editor")}>
-                  Editor
-                </button>
-                <button onClick={() => startTransition(() => setDesktopPane("preview"))} className={desktopToggleClass(desktopPane === "preview")}>
-                  Preview
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* Project name */}
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{project.projectName}</span>
 
-          <div className="mt-4 flex items-center gap-2 rounded-full border border-[#e4ddd4] bg-white/86 p-1 lg:hidden">
-            <button onClick={() => startTransition(() => setMobilePane("chat"))} className={mobileToggleClass(mobilePane === "chat")}>
-              Chat
-            </button>
-            <button onClick={() => startTransition(() => setMobilePane("editor"))} className={mobileToggleClass(mobilePane === "editor")}>
-              Editor
-            </button>
-            <button onClick={() => startTransition(() => setMobilePane("preview"))} className={mobileToggleClass(mobilePane === "preview")}>
-              Preview
-            </button>
-          </div>
+        {/* Editor / Preview toggle — desktop */}
+        <div className="hidden shrink-0 items-center gap-0.5 rounded-full border border-[#e4ddd4] bg-white/82 p-0.5 lg:flex">
+          <button onClick={() => startTransition(() => setDesktopPane("editor"))} className={desktopToggleClass(desktopPane === "editor")}>
+            Editor
+          </button>
+          <button onClick={() => startTransition(() => setDesktopPane("preview"))} className={desktopToggleClass(desktopPane === "preview")}>
+            Preview
+          </button>
+        </div>
+
+        {/* Save status */}
+        <div className="hidden shrink-0 items-center gap-1 text-xs text-slate-400 sm:flex">
+          <span className="material-symbols-outlined text-[13px] text-[#2f8fff]">schedule</span>
+          {savedLabel}
+        </div>
+
+        {/* Save button — desktop */}
+        {isDirty && (
+          <button
+            onClick={() => void handleSave()}
+            disabled={isSaving || validationIssues.length > 0}
+            className={`hidden shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition sm:inline-flex ${
+              isSaving || validationIssues.length > 0
+                ? "cursor-not-allowed bg-slate-200 text-slate-500"
+                : "bg-[#2f8fff] text-white shadow-[0_10px_20px_-12px_rgba(47,143,255,0.55)] hover:bg-[#267ce6]"
+            }`}
+          >
+            <span className={`material-symbols-outlined text-[14px] ${isSaving ? "animate-spin" : ""}`}>
+              {isSaving ? "progress_activity" : "save"}
+            </span>
+            {isSaving ? "Saving…" : "Save"}
+          </button>
+        )}
+
+        {/* Chat / Editor / Preview tabs — mobile */}
+        <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-[#e4ddd4] bg-white/86 p-0.5 lg:hidden">
+          <button onClick={() => startTransition(() => setMobilePane("chat"))} className={mobileToggleClass(mobilePane === "chat")}>Chat</button>
+          <button onClick={() => startTransition(() => setMobilePane("editor"))} className={mobileToggleClass(mobilePane === "editor")}>Editor</button>
+          <button onClick={() => startTransition(() => setMobilePane("preview"))} className={mobileToggleClass(mobilePane === "preview")}>Preview</button>
         </div>
       </header>
 
+      {/* Replit-style split: Chat (left) | PRD (right) */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        {/* Chat panel */}
         <div
-          className={`h-full w-full shrink-0 border-r border-[#e7dfd5] bg-[#fcf8f3]/78 lg:flex lg:w-[390px] xl:w-[420px] ${
-            mobilePane === "chat" ? "flex" : "hidden"
+          className={`h-full shrink-0 border-r border-[#e7dfd5] bg-[#fcf8f3]/78 lg:flex lg:w-[38%] lg:max-w-[480px] xl:w-[36%] ${
+            mobilePane === "chat" ? "flex w-full" : "hidden"
           }`}
         >
           <ChatPanel
@@ -635,6 +650,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
           />
         </div>
 
+        {/* PRD panel */}
         <div className={`min-h-0 flex-1 overflow-hidden ${mobilePane === "chat" ? "hidden" : "flex"} lg:flex`}>
           <div className={`min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 ${mobilePane === "editor" ? "block" : "hidden"} ${desktopPane === "editor" ? "lg:block" : "lg:hidden"}`}>
             <div className="mx-auto max-w-5xl space-y-6 pb-32">
@@ -1149,17 +1165,18 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
           </div>
         </div>
 
+        {/* Mobile save bar — desktop save lives in the top bar */}
         {isDirty ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-4 sm:px-6">
-            <div className="pointer-events-auto flex w-full max-w-4xl flex-col gap-4 rounded-[1.75rem] border border-[#e4ddd4] bg-white/92 px-4 py-4 shadow-[0_34px_80px_-44px_rgba(29,41,65,0.3)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-4 sm:hidden">
+            <div className="pointer-events-auto flex w-full flex-col gap-3 rounded-[1.75rem] border border-[#e4ddd4] bg-white/92 px-4 py-3 shadow-[0_34px_80px_-44px_rgba(29,41,65,0.3)] backdrop-blur-xl">
               <div>
-                <p className="text-sm font-medium text-slate-900">Draft has unsaved changes</p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="text-sm font-medium text-slate-900">Unsaved changes</p>
+                <p className="mt-0.5 text-xs text-slate-500">
                   {validationIssues.length > 0
-                    ? `${validationIssues.length} validation issue${validationIssues.length === 1 ? "" : "s"} must be resolved before saving.`
-                    : "Save the draft to persist metadata, diagrams, and summary updates."}
+                    ? `${validationIssues.length} issue${validationIssues.length === 1 ? "" : "s"} must be resolved before saving.`
+                    : "Save the draft to persist your changes."}
                 </p>
-                {saveError ? <p className="mt-2 text-xs text-red-500">{saveError}</p> : null}
+                {saveError ? <p className="mt-1 text-xs text-red-500">{saveError}</p> : null}
               </div>
               <button
                 onClick={() => void handleSave()}
@@ -1173,7 +1190,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
                 <span className={`material-symbols-outlined text-[18px] ${isSaving ? "animate-spin" : ""}`}>
                   {isSaving ? "progress_activity" : "save"}
                 </span>
-                {isSaving ? "Saving..." : "Save draft"}
+                {isSaving ? "Saving…" : "Save draft"}
               </button>
             </div>
           </div>

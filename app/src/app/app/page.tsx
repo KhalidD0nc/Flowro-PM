@@ -144,12 +144,14 @@ function AppHomeContent() {
 
   return (
     <div className="premium-bg flex h-screen w-full flex-row overflow-hidden font-sans text-slate-900 selection:bg-blue-200 selection:text-slate-900">
-      {/* Sidebar Navigation - Always visible */}
-      <Sidebar
-        onProjectSelect={handleProjectSelect}
-        onNewChat={handleNewChat}
-        activeProjectId={activeSession?.projectId || null}
-      />
+      {/* Sidebar — only shown in Command Center, hidden in project view (Replit-style) */}
+      {!activeSession && (
+        <Sidebar
+          onProjectSelect={handleProjectSelect}
+          onNewChat={handleNewChat}
+          activeProjectId={null}
+        />
+      )}
 
       {/* Main Content Area with seamless transitions */}
       <div className="relative flex-1 flex flex-col overflow-hidden bg-transparent">
