@@ -64,6 +64,11 @@ export function classifyEnhancementIntent(prompt: string): EnhanceIntent {
         return "discussion"
     }
 
+    const isQuestion = /^(how|what|why|when|where|who|is|are|can|should|could|would|do|does|did)\b/.test(normalized) || normalized.endsWith("?")
+    if (isQuestion) {
+        return "discussion"
+    }
+
     const proposalPatterns = [
         /\badd\b/,
         /\bremove\b/,
