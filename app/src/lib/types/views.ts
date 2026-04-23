@@ -9,7 +9,7 @@
  * Frontend types live HERE.
  */
 
-import type { PRDConfig } from "@/lib/prd/schema"
+import type { PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
 
 // =============================================================================
 // Intent Types
@@ -27,15 +27,7 @@ export type Intent = "initial" | "discussion" | "proposal"
 // Message Types
 // =============================================================================
 
-/**
- * Proposed changes structure for proposal intents
- */
-export interface ProposedChanges {
-    action: "add" | "update" | "remove"
-    summary: string
-    sections: string[]
-    changes: Record<string, unknown>
-}
+export type ProposedChanges = ProposedPrdChanges
 
 /**
  * Frontend view of a chat message (after API transformation).
@@ -120,6 +112,12 @@ export interface GenerateResult {
     productName?: string
 }
 
+export interface EnhanceResult {
+    intent: Extract<Intent, "discussion" | "proposal">
+    message: string
+    proposedChanges?: ProposedChanges
+}
+
 // =============================================================================
 // Display Types
 // =============================================================================
@@ -163,6 +161,7 @@ export interface ChatInputProps {
  */
 export interface MessageListProps {
     messages: MessageView[]
+    currentPrd?: PRDConfig | null
     isStreaming: boolean
     streamedContent: string
     isGenerating: boolean

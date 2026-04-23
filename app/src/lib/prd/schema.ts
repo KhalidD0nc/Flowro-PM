@@ -53,6 +53,17 @@ export const prdConfigSchema = z.object({
     features: z.array(prdFeatureSchema).min(1),
 })
 
+export const prdProposalActionSchema = z.enum(["add", "update", "remove"])
+
+export const proposedPrdChangesSchema = z.object({
+    action: prdProposalActionSchema,
+    summary: z.string().min(1),
+    sections: z.array(z.string().min(1)).min(1),
+    changes: z.record(z.string(), z.unknown()),
+    basePrdHash: z.string().min(1),
+    nextPrdConfig: prdConfigSchema,
+})
+
 export const generatePrdResponseSchema = z.object({
     intent: z.literal("initial"),
     message: z.string().min(1),
@@ -63,6 +74,19 @@ export const discussionResponseSchema = z.object({
     intent: z.literal("discussion"),
     message: z.string().min(1),
 })
+
+export const proposalResponseSchema = z.object({
+    intent: z.literal("proposal"),
+    message: z.string().min(1),
+    proposedChanges: proposedPrdChangesSchema,
+})
+
+export const enhanceDiscussionResponseSchema = discussionResponseSchema
+
+export const enhanceResponseSchema = z.union([
+    enhanceDiscussionResponseSchema,
+    proposalResponseSchema,
+])
 
 export const anyGenerateResponseSchema = z.union([
     generatePrdResponseSchema,
@@ -77,9 +101,18 @@ export type PRDFlow = z.infer<typeof prdFlowSchema>
 export type PRDFeature = z.infer<typeof prdFeatureSchema>
 export type PRDMetadata = z.infer<typeof prdMetadataSchema>
 export type PRDConfig = z.infer<typeof prdConfigSchema>
+export type PRDProposalAction = z.infer<typeof prdProposalActionSchema>
+export type ProposedPrdChanges = z.infer<typeof proposedPrdChangesSchema>
 export type GeneratePRDResponse = z.infer<typeof generatePrdResponseSchema>
 export type DiscussionResponse = z.infer<typeof discussionResponseSchema>
+export type ProposalResponse = z.infer<typeof proposalResponseSchema>
+export type EnhanceResponse = z.infer<typeof enhanceResponseSchema>
 
 export function validatePRDConfig(input: unknown): PRDConfig {
     return prdConfigSchema.parse(input)
+}
+
+export function parseProposedPrdChanges(input: unknown): ProposedPrdChanges | undefined {
+    const result = proposedPrdChangesSchema.safeParse(input)
+    return result.success ? result.data : undefined
 }

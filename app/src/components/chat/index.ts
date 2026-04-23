@@ -22,6 +22,7 @@ export type {
   Project,
   ProjectView,
   GenerateResult,
+  EnhanceResult,
   DisplayInfo,
   SelectionContext,
   ChatInputProps,

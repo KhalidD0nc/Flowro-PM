@@ -9,6 +9,7 @@ import {
 } from "@/lib/firebase/collections"
 import { Timestamp } from "firebase-admin/firestore"
 import { timestampToISO, type MessageIntent, type MessageRole, type ProposedChanges } from "@/lib/firebase/schema"
+import { parseProposedPrdChanges } from "@/lib/prd/schema"
 
 
 /**
@@ -32,18 +33,6 @@ type ChatMessagePayload = {
     timestamp?: string
 }
 
-function isProposedChanges(value: unknown): value is ProposedChanges {
-    if (!value || typeof value !== "object") return false
-    const pc = value as Record<string, unknown>
-    return (
-        (pc.action === "add" || pc.action === "update" || pc.action === "remove") &&
-        typeof pc.summary === "string" &&
-        Array.isArray(pc.sections) &&
-        typeof pc.changes === "object" &&
-        pc.changes !== null
-    )
-}
-
 function cleanJsonString(raw: string): string {
     let clean = raw.trim()
     if (clean.startsWith("```")) {
@@ -53,23 +42,15 @@ function cleanJsonString(raw: string): string {
 }
 
 function extractProposedChanges(content: string, fallback?: unknown): ProposedChanges | undefined {
-    if (isProposedChanges(fallback)) {
-        return fallback
+    const parsedFallback = parseProposedPrdChanges(fallback)
+    if (parsedFallback) {
+        return parsedFallback
     }
 
     try {
         const parsed = JSON.parse(cleanJsonString(content))
         if (parsed && typeof parsed === "object" && "proposedChanges" in parsed) {
-            const pc = (parsed as Record<string, unknown>).proposedChanges
-            if (pc && typeof pc === "object") {
-                const obj = pc as Record<string, unknown>
-                return {
-                    action: (obj.action as "add" | "update" | "remove") || "update",
-                    summary: (obj.summary as string) || "Blueprint update",
-                    sections: (obj.sections as string[]) || [],
-                    changes: (obj.changes as Record<string, unknown>) || {},
-                }
-            }
+            return parseProposedPrdChanges((parsed as Record<string, unknown>).proposedChanges)
         }
     } catch {
         // Ignore parse errors

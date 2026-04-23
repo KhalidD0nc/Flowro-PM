@@ -11,9 +11,9 @@ import {
     timestampToISO,
     type MessageIntent,
     type MessageRole,
-    type UBPContent,
     type ProposedChanges,
 } from "@/lib/firebase/schema"
+import { parseProposedPrdChanges } from "@/lib/prd/schema"
 
 // Pagination safety constants
 const PAGINATION = {
@@ -140,7 +140,7 @@ export async function GET(
  *   role: "user" | "assistant",
  *   content: string,
  *   intent: "initial" | "discussion" | "proposal",
- *   proposedChanges?: Partial<UBPContent>
+ *   proposedChanges?: ProposedChanges
  * }
  * @returns MessageDocument with ISO timestamp
  */
@@ -163,7 +163,7 @@ export async function POST(
             role?: MessageRole
             content?: string
             intent?: MessageIntent
-            proposedChanges?: Partial<UBPContent> | ProposedChanges
+            proposedChanges?: ProposedChanges
         }
 
         if (!role || !["user", "assistant"].includes(role)) {
@@ -187,6 +187,14 @@ export async function POST(
             )
         }
 
+        const parsedProposedChanges = parseProposedPrdChanges(proposedChanges)
+        if (proposedChanges !== undefined && !parsedProposedChanges) {
+            return NextResponse.json(
+                { error: "Invalid proposedChanges payload." },
+                { status: 400 }
+            )
+        }
+
         // Verify ownership
         await verifyOwnership(projectId, authResult.userId)
 
@@ -195,7 +203,7 @@ export async function POST(
             role,
             content,
             intent,
-            proposedChanges,
+            proposedChanges: parsedProposedChanges,
             timestamp: Timestamp.now(),
         })
 

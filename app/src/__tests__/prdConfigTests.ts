@@ -132,3 +132,18 @@ export function runPrdConfigTests(): Array<{ name: string; passed: boolean }> {
 
     return results
 }
+
+if (require.main === module) {
+    const results = runPrdConfigTests()
+    const passed = results.filter((result) => result.passed).length
+
+    console.log("\nPRD Config Tests\n")
+    results.forEach((result) => {
+        console.log(`${result.passed ? "PASS" : "FAIL"}  ${result.name}`)
+    })
+    console.log(`\nSummary: ${passed}/${results.length} passed`)
+
+    if (passed !== results.length) {
+        process.exit(1)
+    }
+}
