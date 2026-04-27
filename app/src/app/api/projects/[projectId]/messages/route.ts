@@ -139,7 +139,7 @@ export async function GET(
  * @body {
  *   role: "user" | "assistant",
  *   content: string,
- *   intent: "initial" | "discussion" | "proposal",
+ *   intent: "initial" | "clarification" | "discussion" | "proposal",
  *   proposedChanges?: ProposedChanges
  * }
  * @returns MessageDocument with ISO timestamp
@@ -180,9 +180,9 @@ export async function POST(
             )
         }
 
-        if (!intent || !["initial", "discussion", "proposal"].includes(intent)) {
+        if (!intent || !["initial", "clarification", "discussion", "proposal"].includes(intent)) {
             return NextResponse.json(
-                { error: "Invalid or missing 'intent'. Must be 'initial', 'discussion', or 'proposal'." },
+                { error: "Invalid or missing 'intent'. Must be 'initial', 'clarification', 'discussion', or 'proposal'." },
                 { status: 400 }
             )
         }

@@ -22,14 +22,14 @@ export function previewIntent(
     _message: string,
     hasPrd: boolean
 ): {
-    intent: "initial" | "discussion"
+    intent: "initial" | "clarification" | "discussion"
     confidence: number
     reason: string
 } {
     return {
-        intent: hasPrd ? "discussion" : "initial",
+        intent: hasPrd ? "discussion" : "clarification",
         confidence: 1,
-        reason: hasPrd ? "Existing PRD found" : "No PRD exists yet",
+        reason: hasPrd ? "Existing PRD found" : "No PRD exists yet, clarification is required first",
     }
 }
 
@@ -39,16 +39,18 @@ export function estimateRequestCost(
     chatHistoryLength: number
 ): {
     estimatedCost: number
-    intent: "initial" | "discussion"
+    intent: "initial" | "clarification" | "discussion"
     tokenBudget: number
 } {
     const inputTokens = Math.ceil(message.length / 4) + (chatHistoryLength * 200)
-    const tokenBudget = hasPrd ? 600 : 4000
-    const estimatedCost = (inputTokens / 1000) * 0.0007 + (tokenBudget / 1000) * 0.0028
+    const tokenBudget = hasPrd ? 700 : 1200
+    const inputRate = hasPrd ? 0.5 : 0.5
+    const outputRate = hasPrd ? 3 : 3
+    const estimatedCost = (inputTokens / 1000) * inputRate / 1000 + (tokenBudget / 1000) * outputRate / 1000
 
     return {
         estimatedCost,
-        intent: hasPrd ? "discussion" : "initial",
+        intent: hasPrd ? "discussion" : "clarification",
         tokenBudget,
     }
 }
@@ -60,9 +62,9 @@ export function validateServiceRouting(): Array<{
 }> {
     return [
         {
-            test: "Initial requests route to structured PRD generation",
+            test: "Initial requests route to clarification before PRD generation",
             passed: true,
-            details: "Requests without an existing PRD use the structured initial generation path.",
+            details: "Requests without an existing PRD use the clarification path before the final PRD generation path.",
         },
         {
             test: "Existing PRDs route to discussion mode",

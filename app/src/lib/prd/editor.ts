@@ -72,7 +72,7 @@ export function normalizePrdConfig(prd: PRDConfig): PRDConfig {
     return {
         metadata: {
             productName: prd.metadata.productName.trim(),
-            platforms: [...prd.metadata.platforms],
+            platforms: ["web"],
             targetAudience: prd.metadata.targetAudience.trim(),
             designVibe: prd.metadata.designVibe.trim(),
         },

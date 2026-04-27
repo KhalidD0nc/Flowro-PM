@@ -520,6 +520,7 @@ export async function runChainForIntent(
     switch (intent) {
         case 'initial':
             return runInitialChain(chainInput)
+        case 'clarification':
         case 'discussion':
             return runDiscussionChain(chainInput)
         case 'proposal':
@@ -540,9 +541,10 @@ export async function runFallbackChain(
     intent: Intent = 'discussion'
 ): Promise<{ success: boolean; message: string; error?: string }> {
     try {
-        const model = createModelForIntent(intent)
+        const effectiveIntent = intent === 'clarification' ? 'discussion' : intent
+        const model = createModelForIntent(effectiveIntent)
         const systemPrompt = buildSystemPrompt(
-            intent,
+            effectiveIntent,
             chainInput.blueprintContext,
             chainInput.topicSummary
         )

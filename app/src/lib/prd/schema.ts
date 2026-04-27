@@ -70,6 +70,28 @@ export const generatePrdResponseSchema = z.object({
     prdConfig: prdConfigSchema,
 })
 
+export const clarificationOptionSchema = z.object({
+    id: z.string().min(1),
+    label: z.string().min(1),
+    description: z.string().min(1).optional(),
+    kind: z.enum(["preset", "other"]).default("preset"),
+})
+
+export const clarificationQuestionSchema = z.object({
+    id: z.string().min(1),
+    prompt: z.string().min(1),
+    selectionMode: z.enum(["single", "multiple"]),
+    options: z.array(clarificationOptionSchema).min(2).max(5),
+})
+
+export const clarificationResponseSchema = z.object({
+    intent: z.literal("clarification"),
+    message: z.string().min(1),
+    questions: z.array(clarificationQuestionSchema).min(1).max(5),
+    remainingRequired: z.number().int().min(0).max(5),
+    stage: z.literal("clarify"),
+})
+
 export const discussionResponseSchema = z.object({
     intent: z.literal("discussion"),
     message: z.string().min(1),
@@ -90,6 +112,7 @@ export const enhanceResponseSchema = z.union([
 
 export const anyGenerateResponseSchema = z.union([
     generatePrdResponseSchema,
+    clarificationResponseSchema,
     discussionResponseSchema,
 ])
 
@@ -104,9 +127,20 @@ export type PRDConfig = z.infer<typeof prdConfigSchema>
 export type PRDProposalAction = z.infer<typeof prdProposalActionSchema>
 export type ProposedPrdChanges = z.infer<typeof proposedPrdChangesSchema>
 export type GeneratePRDResponse = z.infer<typeof generatePrdResponseSchema>
+export type ClarificationOption = z.infer<typeof clarificationOptionSchema>
+export type ClarificationQuestion = z.infer<typeof clarificationQuestionSchema>
+export type ClarificationResponse = z.infer<typeof clarificationResponseSchema>
 export type DiscussionResponse = z.infer<typeof discussionResponseSchema>
 export type ProposalResponse = z.infer<typeof proposalResponseSchema>
 export type EnhanceResponse = z.infer<typeof enhanceResponseSchema>
+
+function cleanJsonString(raw: string): string {
+    let clean = raw.trim()
+    if (clean.startsWith("```")) {
+        clean = clean.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "")
+    }
+    return clean
+}
 
 export function validatePRDConfig(input: unknown): PRDConfig {
     return prdConfigSchema.parse(input)
@@ -115,4 +149,38 @@ export function validatePRDConfig(input: unknown): PRDConfig {
 export function parseProposedPrdChanges(input: unknown): ProposedPrdChanges | undefined {
     const result = proposedPrdChangesSchema.safeParse(input)
     return result.success ? result.data : undefined
+}
+
+export function parseClarificationResponse(input: unknown): ClarificationResponse | undefined {
+    const result = clarificationResponseSchema.safeParse(input)
+    return result.success ? result.data : undefined
+}
+
+export function parseClarificationResponseContent(input: unknown): ClarificationResponse | undefined {
+    if (typeof input === "string") {
+        try {
+            return parseClarificationResponse(JSON.parse(cleanJsonString(input)))
+        } catch {
+            return undefined
+        }
+    }
+
+    return parseClarificationResponse(input)
+}
+
+export function getLatestClarificationResponse(
+    messages: Array<{ role?: string; intent?: string; content?: unknown }>
+): ClarificationResponse | undefined {
+    for (const message of [...messages].reverse()) {
+        if (message.role !== "assistant" || message.intent !== "clarification") {
+            continue
+        }
+
+        const parsed = parseClarificationResponseContent(message.content)
+        if (parsed) {
+            return parsed
+        }
+    }
+
+    return undefined
 }

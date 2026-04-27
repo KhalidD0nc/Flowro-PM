@@ -1,5 +1,53 @@
 # Progress Log
 
+## 2026-04-25 00:30:00 +03
+
+### Loveable-Style Step Clarification UI
+
+- Converted the clarification composer from an all-at-once selection form into a stepped, one-question-at-a-time flow with collapsed answer summaries in:
+  [app/src/components/chat/ChatInput.tsx](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/components/chat/ChatInput.tsx)
+  [app/src/components/chat/ChatPanel.tsx](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/components/chat/ChatPanel.tsx)
+  [app/src/components/home/ChatView.tsx](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/components/home/ChatView.tsx)
+- Added explicit clarification option kinds and support for inline custom `Other` answers in:
+  [app/src/lib/prd/schema.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/lib/prd/schema.ts)
+  [app/src/app/api/generate/service.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/app/api/generate/service.ts)
+- Added reusable clarification flow helpers and focused tests for progression, summaries, custom answers, and payload serialization in:
+  [app/src/lib/clarificationFlow.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/lib/clarificationFlow.ts)
+  [app/src/__tests__/clarificationFlowTests.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/__tests__/clarificationFlowTests.ts)
+- Simplified clarification transcript rendering so the assistant message no longer repeats all question options in [app/src/components/chat/MessageList.tsx](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/components/chat/MessageList.tsx).
+
+### Verification
+
+- `npx tsc --noEmit`: passed
+- `npx tsx src/__tests__/clarificationFlowTests.ts`: passed
+- `npx tsx src/__tests__/generateClarificationTests.ts`: passed
+
+## 2026-04-23 22:45:00 +03
+
+### Three-Layer Pre-PRD Pipeline
+
+- Replaced the immediate first-run PRD generation path with a three-layer pipeline in:
+  [app/src/app/api/generate/service.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/app/api/generate/service.ts)
+  [app/src/app/api/generate/route.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/app/api/generate/route.ts)
+  [app/src/lib/langchain/client.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/lib/langchain/client.ts)
+- Added a public `clarification` response contract and intent coverage in:
+  [app/src/lib/prd/schema.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/lib/prd/schema.ts)
+  [app/src/lib/firebase/schema.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/lib/firebase/schema.ts)
+  [app/src/lib/types/views.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/lib/types/views.ts)
+- Updated chat workspace behavior so projects can open before a PRD exists and continue through clarification without breaking reload or chat history in:
+  [app/src/components/home/ChatView.tsx](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/components/home/ChatView.tsx)
+  [app/src/components/chat/ChatPanel.tsx](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/components/chat/ChatPanel.tsx)
+  [app/src/components/chat/MessageList.tsx](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/components/chat/MessageList.tsx)
+- Added dedicated OpenRouter env vars for prompt enhancement, clarification, and PRD generation in [app/env.example](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/env.example).
+- Added focused clarification-flow coverage in [app/src/__tests__/generateClarificationTests.ts](/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/app/src/__tests__/generateClarificationTests.ts).
+
+### Verification
+
+- `npx tsc --noEmit`: passed
+- `npx tsx src/__tests__/generateClarificationTests.ts`: passed
+- `npx tsx src/__tests__/prdAutopilotTests.ts`: passed
+- `npx tsx src/__tests__/phase2Tests.ts`: passed
+
 ## 2026-04-08 00:00:00 +03
 
 ### Phase 2: Split-Pane PRD Configurator

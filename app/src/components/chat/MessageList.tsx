@@ -4,7 +4,7 @@ import type { MessageListProps, Intent, DisplayInfo, ProposedChanges } from "./t
 import { isUBPContent } from "./types";
 import { useStreamingText } from "@/hooks/useStreamingText";
 import { getProposalDraftState, hashPrdConfig } from "@/lib/prd/editor";
-import { parseProposedPrdChanges } from "@/lib/prd/schema";
+import { parseClarificationResponseContent, parseProposedPrdChanges } from "@/lib/prd/schema";
 
 function getDisplayMessage(
   content: string | object,
@@ -17,6 +17,9 @@ function getDisplayMessage(
     }
     if (fallbackIntent === "initial") {
       return "I've created your PRD config. Open it and review the structure.";
+    }
+    if (fallbackIntent === "clarification") {
+      return "I need a few details before I generate the PRD.";
     }
     if (fallbackIntent === "proposal") {
       return "I have some suggested changes for your blueprint.";
@@ -64,6 +67,7 @@ function getDisplayMessage(
       text,
       intent: msgIntent,
       proposedChanges: msgProposedChanges,
+      clarificationQuestions: msgIntent === "clarification" ? parseClarificationResponseContent(parsed)?.questions : undefined,
     };
   }
 
@@ -82,7 +86,7 @@ function getDisplayMessage(
   if (parsed && typeof parsed === "object") {
     const obj = parsed as Record<string, unknown>;
     const intent =
-      obj.intent === "initial" || obj.intent === "discussion" || obj.intent === "proposal"
+      obj.intent === "initial" || obj.intent === "clarification" || obj.intent === "discussion" || obj.intent === "proposal"
         ? (obj.intent as Intent)
         : isUBPContent(obj)
           ? "initial"
@@ -91,8 +95,9 @@ function getDisplayMessage(
     const text = extractMessage(obj, intent);
 
     const proposedChanges = parseProposedPrdChanges(obj.proposedChanges);
+    const clarificationQuestions = parseClarificationResponseContent(parsed)?.questions;
 
-    return { text, intent, proposedChanges };
+    return { text, intent, proposedChanges, clarificationQuestions };
   }
 
   const contentStr = String(content);
@@ -190,7 +195,6 @@ export default function MessageList({
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Flowro AI</span>
               <div className="ai-message-bubble rounded-[1.5rem] p-4">
                 <p className="mb-2 whitespace-pre-wrap leading-7 text-slate-700">{displayInfo.text}</p>
-
                 {displayInfo.intent === "proposal" && displayInfo.proposedChanges ? (() => {
                   const proposalState = getProposalDraftState(displayInfo.proposedChanges, currentPrd ?? null);
                   const nextPrdHash = hashPrdConfig(displayInfo.proposedChanges.nextPrdConfig);

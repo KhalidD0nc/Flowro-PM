@@ -226,7 +226,7 @@ export async function PATCH(
         if (validMessages.length > 0) {
             for (const msg of validMessages) {
                 const intent: MessageIntent =
-                    msg.intent === "initial" || msg.intent === "discussion" || msg.intent === "proposal"
+                    msg.intent === "initial" || msg.intent === "clarification" || msg.intent === "discussion" || msg.intent === "proposal"
                         ? msg.intent
                         : "discussion"
 

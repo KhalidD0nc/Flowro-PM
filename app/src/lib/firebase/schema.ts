@@ -36,7 +36,7 @@ export interface FirestoreTimestamp {
 /**
  * Message intent types for LLM responses
  */
-export type MessageIntent = "initial" | "discussion" | "proposal"
+export type MessageIntent = "initial" | "clarification" | "discussion" | "proposal"
 
 /**
  * Message role in conversation
