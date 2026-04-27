@@ -115,6 +115,7 @@ function BuilderWorkspace({
   project,
   planView,
   designArtifacts,
+  imageAuthToken,
   buildRuns,
   busyAction,
   error,
@@ -127,6 +128,7 @@ function BuilderWorkspace({
   project: ProjectView
   planView: PlanView | null
   designArtifacts: DesignArtifact[]
+  imageAuthToken: string | null
   buildRuns: BuildRun[]
   busyAction: string | null
   error: string | null
@@ -140,6 +142,12 @@ function BuilderWorkspace({
   const approvedPlan = planView?.status === "approved"
   const approvedDesign = designArtifacts.find((artifact) => artifact.status === "approved") ?? null
   const latestBuild = buildRuns[0] ?? null
+  const buildDesignImageSrc = useCallback((artifact: DesignArtifact) => {
+    if (!artifact.imageUrl || !imageAuthToken) return null
+
+    const params = new URLSearchParams({ token: imageAuthToken })
+    return `/api/projects/${project.id}/design/screens/${artifact.screenId}/image?${params.toString()}`
+  }, [imageAuthToken, project.id])
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-32">
@@ -257,13 +265,31 @@ function BuilderWorkspace({
                 {designArtifacts.map((artifact) => (
                   <div key={artifact.id} className="overflow-hidden rounded-[1.5rem] border border-[#ebe4db] bg-white">
                     <div className="aspect-[16/10] bg-[#f1f5f9]">
-                      {artifact.imageUrl ? (
-                        <img src={artifact.imageUrl} alt={artifact.name} className="h-full w-full object-cover" />
+                      {buildDesignImageSrc(artifact) ? (
+                        <img
+                          src={buildDesignImageSrc(artifact) || undefined}
+                          alt={artifact.name}
+                          className="h-full w-full object-cover"
+                          onError={(event) => {
+                            event.currentTarget.style.display = "none"
+                            const fallback = event.currentTarget.nextElementSibling
+                            if (fallback instanceof HTMLElement) {
+                              fallback.style.display = "flex"
+                            }
+                          }}
+                        />
                       ) : artifact.htmlSnapshot ? (
                         <iframe title={artifact.name} srcDoc={artifact.htmlSnapshot} className="h-full w-full border-0" />
                       ) : (
                         <div className="flex h-full items-center justify-center text-sm text-slate-500">Preview unavailable</div>
                       )}
+                      {artifact.htmlSnapshot ? (
+                        <iframe
+                          title={`${artifact.name} fallback`}
+                          srcDoc={artifact.htmlSnapshot}
+                          className="hidden h-full w-full border-0"
+                        />
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-3 p-4">
                       <div>
@@ -327,6 +353,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
   const [project, setProject] = useState<ProjectView | null>(null)
   const [draftPlan, setDraftPlan] = useState<PlanView | null>(null)
   const [designArtifacts, setDesignArtifacts] = useState<DesignArtifact[]>([])
+  const [imageAuthToken, setImageAuthToken] = useState<string | null>(null)
   const [buildRuns, setBuildRuns] = useState<BuildRun[]>([])
   const [loadingProject, setLoadingProject] = useState(true)
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
@@ -437,6 +464,33 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
 
     void initializeWorkspace()
   }, [projectId, user])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function syncImageAuthToken(forceRefresh = false) {
+      try {
+        const token = await user.getIdToken(forceRefresh)
+        if (!cancelled) {
+          setImageAuthToken(token)
+        }
+      } catch {
+        if (!cancelled) {
+          setImageAuthToken(null)
+        }
+      }
+    }
+
+    void syncImageAuthToken(false)
+    const refreshInterval = window.setInterval(() => {
+      void syncImageAuthToken(true)
+    }, 45 * 60 * 1000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(refreshInterval)
+    }
+  }, [user])
 
   useEffect(() => {
     if (!project || draftPlan || hasBootstrappedSeed.current) return
@@ -738,6 +792,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
             project={project}
             planView={draftPlan}
             designArtifacts={designArtifacts}
+            imageAuthToken={imageAuthToken}
             buildRuns={buildRuns}
             busyAction={busyAction}
             error={workspaceError}
