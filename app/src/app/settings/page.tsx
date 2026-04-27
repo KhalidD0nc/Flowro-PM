@@ -1,6 +1,7 @@
 "use client"
 
 import { useAuth } from "@/components/Providers"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { signOut } from "firebase/auth"
@@ -114,14 +115,14 @@ export default function SettingsPage() {
 
                     {/* Navigation Links */}
                     <nav className="flex flex-col gap-2">
-                        <a
+                        <Link
                             className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[#9dabb9] transition-colors hover:bg-white/5 group"
                             href="/app"
                             onClick={() => setIsMobileMenuOpen(false)}
                         >
                             <span className="material-symbols-outlined text-slate-400 transition-colors group-hover:text-white">home</span>
                             <p className="text-sm font-medium leading-normal transition-colors group-hover:text-white">Command Center</p>
-                        </a>
+                        </Link>
                         <a
                             className="flex items-center gap-3 rounded-lg bg-[#137fec] px-3 py-2.5 transition-colors"
                             href="#"
@@ -338,4 +339,3 @@ export default function SettingsPage() {
         </div>
     )
 }
-

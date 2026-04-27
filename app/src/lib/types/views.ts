@@ -10,6 +10,7 @@
  */
 
 import type { ClarificationQuestion, ClarificationResponse, PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
+import type { BuildRun, DesignArtifact, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
 
 // =============================================================================
 // Intent Types
@@ -77,6 +78,17 @@ export interface PRDView {
 
 export type PRD = PRDView
 
+export interface ProjectPlanView {
+    id: string
+    projectId: string
+    plan: ProjectPlan
+    status: "draft" | "approved"
+    approvedAt?: string
+    approvedBy?: string
+    updatedAt: string
+    legacyPrd?: boolean
+}
+
 // =============================================================================
 // Project Types
 // =============================================================================
@@ -89,10 +101,14 @@ export interface ProjectView {
     id: string
     projectName: string
     description?: string
+    stage?: ProjectStage
     chatHistory: MessageView[]
     createdAt: string
     updatedAt: string
     latestPrd?: PRDView
+    latestPlan?: ProjectPlanView
+    designArtifacts?: DesignArtifact[]
+    buildRuns?: BuildRun[]
 }
 
 // Backward-compatible alias
@@ -109,6 +125,7 @@ export interface GenerateResult {
     intent: Intent
     message: string
     prdConfig?: PRDConfig
+    projectPlan?: ProjectPlan
     productName?: string
     questions?: ClarificationResponse["questions"]
     remainingRequired?: ClarificationResponse["remainingRequired"]

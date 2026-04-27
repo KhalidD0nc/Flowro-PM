@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Timestamp } from "firebase-admin/firestore"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../blueprints/auth"
-import { addMessage, getPrdByProjectId, getProject, upsertPrd, updateProject } from "@/lib/firebase/collections"
+import { addMessage, getProject, getProjectPlanByProjectId, upsertProjectPlan, updateProject } from "@/lib/firebase/collections"
 import { generateFromMessage } from "./service"
 import { log, logError, logInfo, logWarn } from "@/lib/logger"
 import { sanitizeInputForLLM, detectPII } from "@/lib/sanitize"
@@ -82,12 +82,13 @@ export async function POST(request: NextRequest) {
         const message = typeof body.message === "string" ? body.message : ""
         const context = Array.isArray(body.context) ? body.context : undefined
         projectId = typeof body.projectId === "string" ? body.projectId : undefined
+        const forceRegenerate = body.forceRegenerate === true
 
         if (!message.trim()) {
             return NextResponse.json({ error: "Message required" }, { status: 400 })
         }
 
-        let existingPrd = null
+        let existingPlan = null
         if (projectId) {
             const project = await getProject(projectId)
             if (!project) {
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
             if (project.userId !== userId) {
                 return NextResponse.json({ error: "Access denied" }, { status: 403 })
             }
-            existingPrd = await getPrdByProjectId(projectId)
+            existingPlan = await getProjectPlanByProjectId(projectId)
         }
 
         if (typeof message !== "string" || message.length > 10000) {
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
             userId,
             projectId,
             details: {
-                hasExistingPrd: !!existingPrd,
+                hasExistingPlan: !!existingPlan,
                 messageLength: sanitizedMessage.length,
                 estimatedTokens,
             },
@@ -146,7 +147,7 @@ export async function POST(request: NextRequest) {
         const result = await generateFromMessage({
             message: sanitizedMessage,
             context,
-            currentPrd: existingPrd?.config ?? null,
+            currentPlan: forceRegenerate ? null : existingPlan?.plan ?? null,
         })
 
         const responseTokens = estimateMessageTokens([
@@ -159,7 +160,7 @@ export async function POST(request: NextRequest) {
             await addMessage(projectId, {
                 role: "user",
                 content: message,
-                intent: existingPrd ? "discussion" : "clarification",
+                intent: existingPlan ? "discussion" : "clarification",
                 timestamp: Timestamp.now(),
             })
 
@@ -170,9 +171,9 @@ export async function POST(request: NextRequest) {
                 timestamp: Timestamp.now(),
             })
 
-            if (result.intent === "initial" && result.prdConfig && !existingPrd) {
-                await upsertPrd(projectId, result.prdConfig)
-                logInfo("prd_created", { projectId })
+            if (result.intent === "initial" && result.projectPlan) {
+                await upsertProjectPlan(projectId, result.projectPlan)
+                logInfo("project_plan_created", { projectId })
             }
 
             if (result.intent === "initial" && result.productName) {
@@ -189,7 +190,7 @@ export async function POST(request: NextRequest) {
             details: {
                 durationMs: duration,
                 intent: result.intent,
-                hasPrdConfig: !!result.prdConfig,
+                hasProjectPlan: !!result.projectPlan,
             },
         })
 
@@ -199,7 +200,7 @@ export async function POST(request: NextRequest) {
             ...(result.questions ? { questions: result.questions } : {}),
             ...(result.remainingRequired !== undefined ? { remainingRequired: result.remainingRequired } : {}),
             ...(result.stage ? { stage: result.stage } : {}),
-            ...(result.prdConfig ? { prdConfig: result.prdConfig } : {}),
+            ...(result.projectPlan ? { projectPlan: result.projectPlan } : {}),
             ...(result.productName ? { productName: result.productName } : {}),
         })
     } catch (error) {
