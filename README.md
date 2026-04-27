@@ -5,7 +5,7 @@
 <h1 align="center">Flowro AI</h1>
 
 <p align="center">
-  <strong>Unified Blueprint Engine</strong> — Transform messy ideas into structured, agent-ready project blueprints
+  <strong>Open-source plan-to-app builder</strong> — Turn ideas into approved plans, generated UI, and local build runs
 </p>
 
 <p align="center">
@@ -16,6 +16,18 @@
 </p>
 
 ---
+
+## 2026 Product Direction
+
+Flowro is moving from a PRD/blueprint generator into a staged app builder:
+
+```text
+Idea -> Project Plan -> Approve Plan -> Product Design Agent -> Approve UI -> Local Build Worker
+```
+
+The project plan is now the execution contract for design and coding agents. Flowro remains template-first: AI can fill in app-specific routes, screens, data models, and build tasks, but it cannot invent the base stack. The first supported template is `nextjs-app`.
+
+Flowro is designed for open-source/self-run usage. Users bring their own API keys, including `STITCH_API_KEY` for the Product Design Agent.
 
 ## 🎯 The Problem We Solve
 

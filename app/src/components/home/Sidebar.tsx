@@ -338,7 +338,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                 })
               ) : (
                 <div className="px-3 py-4 text-sm text-slate-500">
-                  No projects yet. Start a new chat to generate your first PRD.
+                  No projects yet. Start a new chat to generate your first project plan.
                 </div>
               )}
             </div>

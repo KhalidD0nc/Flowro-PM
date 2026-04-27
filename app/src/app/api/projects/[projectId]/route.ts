@@ -10,6 +10,7 @@ import {
 import { Timestamp } from "firebase-admin/firestore"
 import { timestampToISO, type MessageIntent, type MessageRole, type ProposedChanges } from "@/lib/firebase/schema"
 import { parseProposedPrdChanges } from "@/lib/prd/schema"
+import { prdToProjectPlan } from "@/lib/project-plan/schema"
 
 
 /**
@@ -110,6 +111,26 @@ export async function GET(
                 updatedAt: timestampToISO(details.prd.updatedAt),
             }
             : undefined
+        const latestPlan = details.projectPlan
+            ? {
+                id: details.projectPlan.id,
+                projectId: details.projectPlan.projectId,
+                plan: details.projectPlan.plan,
+                status: details.projectPlan.status,
+                approvedAt: details.projectPlan.approvedAt ? timestampToISO(details.projectPlan.approvedAt) : undefined,
+                approvedBy: details.projectPlan.approvedBy,
+                updatedAt: timestampToISO(details.projectPlan.updatedAt),
+            }
+            : details.prd
+                ? {
+                    id: details.prd.id,
+                    projectId: details.prd.projectId,
+                    plan: prdToProjectPlan(details.prd.config),
+                    status: "draft" as const,
+                    updatedAt: timestampToISO(details.prd.updatedAt),
+                    legacyPrd: true,
+                }
+                : undefined
 
         // Return legacy-compatible shape (top-level project fields)
         return NextResponse.json({
@@ -117,10 +138,22 @@ export async function GET(
             name: details.project.name,
             projectName: details.project.name,
             description: (details.project as { description?: string }).description,
+            stage: details.project.stage || (latestPlan?.status === "approved" ? "plan_approved" : "planning"),
             chatHistory,
             createdAt: timestampToISO(details.project.createdAt),
             updatedAt: timestampToISO(details.project.updatedAt),
             latestPrd,
+            latestPlan,
+            designArtifacts: details.designArtifacts.map((artifact) => ({
+                ...artifact,
+                createdAt: timestampToISO(artifact.createdAt),
+                approvedAt: artifact.approvedAt ? timestampToISO(artifact.approvedAt) : undefined,
+            })),
+            buildRuns: details.buildRuns.map((run) => ({
+                ...run,
+                createdAt: timestampToISO(run.createdAt),
+                updatedAt: timestampToISO(run.updatedAt),
+            })),
             // Keep detailed payload for newer clients/debugging
             project: {
                 id: details.project.id,
@@ -128,6 +161,7 @@ export async function GET(
                 name: details.project.name,
                 projectName: details.project.name,
                 lastMessage: details.project.lastMessage,
+                stage: details.project.stage || "planning",
                 createdAt: timestampToISO(details.project.createdAt),
                 updatedAt: timestampToISO(details.project.updatedAt),
             },
