@@ -9,7 +9,7 @@
  * Frontend types live HERE.
  */
 
-import type { PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
+import type { ClarificationQuestion, ClarificationResponse, PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
 
 // =============================================================================
 // Intent Types
@@ -21,7 +21,7 @@ import type { PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
  * - discussion: General conversation
  * - proposal: Suggested changes to blueprint
  */
-export type Intent = "initial" | "discussion" | "proposal"
+export type Intent = "initial" | "clarification" | "discussion" | "proposal"
 
 // =============================================================================
 // Message Types
@@ -110,6 +110,9 @@ export interface GenerateResult {
     message: string
     prdConfig?: PRDConfig
     productName?: string
+    questions?: ClarificationResponse["questions"]
+    remainingRequired?: ClarificationResponse["remainingRequired"]
+    stage?: ClarificationResponse["stage"]
 }
 
 export interface EnhanceResult {
@@ -129,6 +132,20 @@ export interface DisplayInfo {
     text: string
     intent: Intent
     proposedChanges?: ProposedChanges
+    clarificationQuestions?: ClarificationQuestion[]
+}
+
+export interface ClarificationAnswerState {
+    questionId: string
+    selectedOptionIds: string[]
+    customText: string
+    isComplete: boolean
+}
+
+export interface ClarificationAnsweredSummary {
+    questionId: string
+    prompt: string
+    answerText: string
 }
 
 /**
@@ -154,6 +171,14 @@ export interface ChatInputProps {
     selectionContext: SelectionContext | null
     onClearContext: () => void
     placeholder?: string
+    clarificationSummaries?: ClarificationAnsweredSummary[]
+    activeClarificationQuestion?: ClarificationQuestion | null
+    clarificationAnswers?: Record<string, ClarificationAnswerState>
+    onClarificationToggle?: (question: ClarificationQuestion, optionId: string) => void
+    onClarificationCustomTextChange?: (questionId: string, value: string) => void
+    onClarificationContinue?: () => void
+    canContinueClarificationStep?: boolean
+    isClarificationReady?: boolean
 }
 
 /**
@@ -193,6 +218,14 @@ export interface ChatPanelProps {
     onClearContext: () => void
     onQuickAction: (message: string) => void
     onRetry?: () => void
+    clarificationSummaries?: ClarificationAnsweredSummary[]
+    activeClarificationQuestion?: ClarificationQuestion | null
+    clarificationAnswers?: Record<string, ClarificationAnswerState>
+    onClarificationToggle?: (question: ClarificationQuestion, optionId: string) => void
+    onClarificationCustomTextChange?: (questionId: string, value: string) => void
+    onClarificationContinue?: () => void
+    canContinueClarificationStep?: boolean
+    isClarificationReady?: boolean
 }
 
 // Re-export UBPContent for convenience

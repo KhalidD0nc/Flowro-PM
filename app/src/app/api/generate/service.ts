@@ -1,19 +1,66 @@
 import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts"
 import { AIMessage, HumanMessage, type BaseMessage } from "@langchain/core/messages"
-import { createStructuredModelForIntent } from "@/lib/langchain/client"
+import { z } from "zod"
+import { createStructuredModel, createStructuredModelForIntent, getModelConfigForStage } from "@/lib/langchain/client"
 import {
+    clarificationQuestionSchema,
+    clarificationResponseSchema,
     discussionResponseSchema,
     generatePrdResponseSchema,
     type PRDConfig,
 } from "@/lib/prd/schema"
 
+const FALLBACK_PRD_MODEL = "anthropic/claude-haiku-4.5"
+const CLARIFICATION_QUESTION_BUDGET = 3
+const PRE_PRD_BLOCKING_TAGS = new Set<MissingInfoTag>([
+    "target_user",
+    "problem",
+    "core_workflow",
+    "mvp_scope",
+    "constraints",
+])
+
+const missingInfoTagSchema = z.enum([
+    "target_user",
+    "problem",
+    "core_workflow",
+    "mvp_scope",
+    "constraints",
+    "success_metrics",
+    "admin_ops",
+    "integrations",
+    "tech_preferences",
+])
+
+const enhancedSeedSchema = z.object({
+    productIdea: z.string().min(1),
+    targetUser: z.string().min(1),
+    problem: z.string().min(1),
+    likelyScope: z.array(z.string().min(1)).min(1),
+    constraints: z.array(z.string().min(1)).default([]),
+    assumptions: z.array(z.string().min(1)).default([]),
+    knownContextSummary: z.string().min(1),
+    missingInfoTags: z.array(missingInfoTagSchema).max(5),
+    readyForPrd: z.boolean(),
+})
+
+const clarificationDraftSchema = z.object({
+    message: z.string().min(1),
+    questions: z.array(clarificationQuestionSchema).min(1).max(3),
+    remainingRequired: z.number().int().min(0).max(3),
+})
+
+type MissingInfoTag = z.infer<typeof missingInfoTagSchema>
+type EnhancedSeed = z.infer<typeof enhancedSeedSchema>
+
 interface ChatMessage {
-    role: string
+    role: "user" | "assistant" | string
     content: string
     timestamp?: string
+    intent?: "initial" | "clarification" | "discussion" | "proposal"
 }
 
-export type Intent = "initial" | "discussion"
+export type Intent = "initial" | "clarification" | "discussion"
 
 export interface GenerateInput {
     message: string
@@ -27,6 +74,10 @@ export interface GenerateResult {
     prdConfig?: PRDConfig
     rawContent: string
     productName?: string
+    questions?: z.infer<typeof clarificationQuestionSchema>[]
+    remainingRequired?: number
+    stage?: "clarify"
+    modelUsed?: string
 }
 
 export function normalizeUBPFields(): void {
@@ -40,7 +91,7 @@ function toHistoryMessages(context?: ChatMessage[]): BaseMessage[] {
 
     const messages: BaseMessage[] = []
 
-    context.slice(-6).forEach((message) => {
+    context.slice(-8).forEach((message) => {
         if (message.role === "assistant") {
             messages.push(new AIMessage(message.content))
         }
@@ -53,10 +104,125 @@ function toHistoryMessages(context?: ChatMessage[]): BaseMessage[] {
     return messages
 }
 
+export function hasPriorClarificationTurn(context?: ChatMessage[]): boolean {
+    return (context || []).some((message) => message.role === "assistant" && message.intent === "clarification")
+}
+
+export function shouldAskPrePrdClarification(context?: ChatMessage[]): boolean {
+    return !hasPriorClarificationTurn(context)
+}
+
+export function getClarificationQuestionBudget(): number {
+    return CLARIFICATION_QUESTION_BUDGET
+}
+
+export function getBlockingMissingInfoTags(tags: MissingInfoTag[]): MissingInfoTag[] {
+    return tags.filter((tag) => PRE_PRD_BLOCKING_TAGS.has(tag))
+}
+
+function withWebOnlyAssumption(enhanced: EnhancedSeed): EnhancedSeed {
+    const missingInfoTags = getBlockingMissingInfoTags(enhanced.missingInfoTags)
+    const constraints = Array.from(new Set([
+        ...enhanced.constraints,
+        "Initial PRD scope is a web application only.",
+    ]))
+    const assumptions = Array.from(new Set([
+        ...enhanced.assumptions,
+        "Generate the first PRD for a single web experience.",
+        "Do not ask about mobile platforms or native apps before the first PRD.",
+    ]))
+
+    return {
+        ...enhanced,
+        constraints,
+        assumptions,
+        missingInfoTags,
+    }
+}
+
+export function enforceWebOnlyPrdConfig(prdConfig: PRDConfig): PRDConfig {
+    return {
+        ...prdConfig,
+        metadata: {
+            ...prdConfig.metadata,
+            platforms: ["web"],
+        },
+    }
+}
+
+export function createClarificationResponse(payload: z.infer<typeof clarificationDraftSchema>) {
+    return clarificationResponseSchema.parse({
+        intent: "clarification",
+        message: payload.message.trim(),
+        questions: payload.questions,
+        remainingRequired: payload.remainingRequired,
+        stage: "clarify",
+    })
+}
+
+const enhanceSeedPrompt = ChatPromptTemplate.fromMessages([
+    [
+        "system",
+        `You are Flowro AI preparing internal context before PRD generation.
+
+Return structured data only.
+
+Summarize the user's product direction into a normalized brief:
+- productIdea
+- targetUser
+- problem
+- likelyScope
+- constraints
+- assumptions
+- knownContextSummary
+- missingInfoTags
+- readyForPrd
+
+Rules:
+- Use the full conversation history plus the latest message.
+- Assume the first PRD is for a web-only experience.
+- Capture what is explicitly known; infer lightly only when the inference is obvious.
+- readyForPrd should be true only when the core product shape is clear enough to generate a solid first PRD.
+- missingInfoTags should contain only the unresolved high-impact gaps.
+- Never mention that this is an internal step.`,
+    ],
+    new MessagesPlaceholder("history"),
+    ["human", "{input}"],
+])
+
+const clarificationPrompt = ChatPromptTemplate.fromMessages([
+    [
+        "system",
+        `You are Flowro AI collecting the minimum information needed before generating a PRD.
+
+Return structured data only.
+
+Rules:
+- Ask exactly {questionBudget} concise questions.
+- Ask only one clarification batch before PRD generation.
+- Questions must target product-shaping gaps from the enhanced brief.
+- Each question must be multiple-choice with 2-5 options.
+- Include one final option with label "Other" and kind "other" when a custom answer would be useful.
+- Use selectionMode "single" when only one answer should be chosen.
+- Use selectionMode "multiple" when multiple answers are valid.
+- All non-custom options must use kind "preset".
+- Ask at most 3 questions total.
+- Focus on only these areas: primary user, problem, core workflow, MVP scope, and critical constraints.
+- Never ask about platform selection, mobile apps, iOS, Android, responsive/mobile support, or native clients.
+- Never ask the user to choose vendors, SDKs, hosting providers, or other implementation details before the first PRD.
+- Keep the message short and direct.
+- Do not generate the PRD yet.
+- Do not show or mention any internal rewritten prompt.`,
+    ],
+    ["system", "### ENHANCED BRIEF\n{enhancedBrief}"],
+    new MessagesPlaceholder("history"),
+    ["human", "{input}"],
+])
+
 const initialPrompt = ChatPromptTemplate.fromMessages([
     [
         "system",
-        `You are Flowro AI. Convert the user's idea into a deterministic PRD configuration.
+        `You are Flowro AI. Convert the clarified product brief into a deterministic PRD configuration.
 
 Return structured data only.
 
@@ -67,13 +233,14 @@ Use this exact shape:
 - features: core requirements with priority, scope, and acceptance criteria
 
 Rules:
-- Infer reasonable defaults instead of asking follow-up questions.
-- metadata.platforms must include at least one of: web, ios, android.
+- Use the enhanced brief as the source of truth and use the chat history only to resolve detail.
+- metadata.platforms must equal exactly ["web"].
 - features must be concrete and implementation-relevant.
 - flows must be realistic product flows, not abstract statements.
 - entities should be only the data models needed for the product.
 - Never use "Flowro" as the product name.`,
     ],
+    ["system", "### ENHANCED BRIEF\n{enhancedBrief}"],
     new MessagesPlaceholder("history"),
     ["human", "{input}"],
 ])
@@ -93,25 +260,109 @@ Respond conversationally in 2-5 sentences.
     ["human", "{input}"],
 ])
 
+async function invokeStructuredInitialWithFallback(
+    enhancedBriefJson: string,
+    input: string,
+    history: BaseMessage[]
+): Promise<{
+    parsed: z.infer<typeof generatePrdResponseSchema>
+    modelUsed: string
+}> {
+    const primaryConfig = getModelConfigForStage("initial")
+    const fallbackConfig = {
+        ...primaryConfig,
+        model: FALLBACK_PRD_MODEL,
+    }
+
+    try {
+        const primaryModel = createStructuredModel(generatePrdResponseSchema, primaryConfig)
+        const primaryChain = initialPrompt.pipe(primaryModel)
+        const primaryResponse = await primaryChain.invoke({
+            input,
+            history,
+            enhancedBrief: enhancedBriefJson,
+        })
+
+        return {
+            parsed: generatePrdResponseSchema.parse(primaryResponse),
+            modelUsed: primaryConfig.model || "openai/gpt-5.4-mini",
+        }
+    } catch {
+        const fallbackModel = createStructuredModel(generatePrdResponseSchema, fallbackConfig)
+        const fallbackChain = initialPrompt.pipe(fallbackModel)
+        const fallbackResponse = await fallbackChain.invoke({
+            input,
+            history,
+            enhancedBrief: enhancedBriefJson,
+        })
+
+        return {
+            parsed: generatePrdResponseSchema.parse(fallbackResponse),
+            modelUsed: fallbackConfig.model || FALLBACK_PRD_MODEL,
+        }
+    }
+}
+
 export async function generateFromMessage(input: GenerateInput): Promise<GenerateResult> {
     const history = toHistoryMessages(input.context)
 
     if (!input.currentPrd) {
-        const model = createStructuredModelForIntent(generatePrdResponseSchema, "initial")
-        const chain = initialPrompt.pipe(model)
-        const response = await chain.invoke({
+        const enhancementModel = createStructuredModel(enhancedSeedSchema, {
+            ...getModelConfigForStage("promptEnhancer"),
+        })
+        const enhancementChain = enhanceSeedPrompt.pipe(enhancementModel)
+        const enhancedResponse = await enhancementChain.invoke({
             input: input.message,
             history,
         })
+        const enhanced = withWebOnlyAssumption(enhancedSeedSchema.parse(enhancedResponse))
+        const enhancedBriefJson = JSON.stringify(enhanced, null, 2)
 
-        const parsed = generatePrdResponseSchema.parse(response)
+        if (shouldAskPrePrdClarification(input.context)) {
+            const questionBudget = getClarificationQuestionBudget()
+            const clarificationModel = createStructuredModel(clarificationDraftSchema, {
+                ...getModelConfigForStage("clarification"),
+                maxTokens: 700,
+            })
+            const clarificationChain = clarificationPrompt.pipe(clarificationModel)
+            const clarificationResponse = await clarificationChain.invoke({
+                input: input.message,
+                history,
+                enhancedBrief: enhancedBriefJson,
+                questionBudget,
+            })
+
+            const parsedDraft = clarificationDraftSchema.parse(clarificationResponse)
+            const parsed = createClarificationResponse({
+                ...parsedDraft,
+                questions: parsedDraft.questions.slice(0, questionBudget),
+                remainingRequired: Math.min(parsedDraft.remainingRequired, questionBudget),
+            })
+
+            return {
+                intent: parsed.intent,
+                message: parsed.message,
+                questions: parsed.questions,
+                remainingRequired: parsed.remainingRequired,
+                stage: parsed.stage,
+                rawContent: JSON.stringify(parsed),
+                modelUsed: getModelConfigForStage("clarification").model || "google/gemini-3-flash-preview",
+            }
+        }
+
+        const { parsed, modelUsed } = await invokeStructuredInitialWithFallback(
+            enhancedBriefJson,
+            input.message,
+            history
+        )
 
         return {
             intent: parsed.intent,
             message: parsed.message,
-            prdConfig: parsed.prdConfig,
+            prdConfig: enforceWebOnlyPrdConfig(parsed.prdConfig),
             rawContent: JSON.stringify(parsed),
             productName: parsed.prdConfig.metadata.productName,
+            modelUsed,
         }
     }
 
@@ -129,5 +380,6 @@ export async function generateFromMessage(input: GenerateInput): Promise<Generat
         intent: parsed.intent,
         message: parsed.message,
         rawContent: JSON.stringify(parsed),
+        modelUsed: getModelConfigForStage("discussion").model || "google/gemini-3-flash-preview",
     }
 }

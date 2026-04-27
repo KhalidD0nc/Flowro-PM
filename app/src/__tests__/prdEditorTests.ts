@@ -113,6 +113,8 @@ function runEditorTests(): TestResult[] {
     results.push({
         name: "Normalizer strips blank optional strings",
         passed: normalized.entities[0].description === undefined &&
+            normalized.metadata.platforms.length === 1 &&
+            normalized.metadata.platforms[0] === "web" &&
             normalized.entities[0].fields[0].relationshipTo === undefined &&
             normalized.flows[0].steps[0].actor === undefined &&
             normalized.flows[0].steps[0].outcome === undefined &&

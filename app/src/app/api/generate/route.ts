@@ -152,20 +152,20 @@ export async function POST(request: NextRequest) {
         const responseTokens = estimateMessageTokens([
             { role: "assistant", content: result.rawContent },
         ])
-        const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat"
+        const model = result.modelUsed || process.env.OPENROUTER_MODEL_PRD || process.env.OPENROUTER_MODEL || "openai/gpt-5.4-mini"
         await recordUsage(userId, estimatedTokens, responseTokens, model)
 
         if (projectId) {
             await addMessage(projectId, {
                 role: "user",
                 content: message,
-                intent: "discussion",
+                intent: existingPrd ? "discussion" : "clarification",
                 timestamp: Timestamp.now(),
             })
 
             await addMessage(projectId, {
                 role: "assistant",
-                content: result.message,
+                content: result.intent === "clarification" ? result.rawContent : result.message,
                 intent: result.intent,
                 timestamp: Timestamp.now(),
             })
@@ -196,6 +196,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             intent: result.intent,
             message: result.message,
+            ...(result.questions ? { questions: result.questions } : {}),
+            ...(result.remainingRequired !== undefined ? { remainingRequired: result.remainingRequired } : {}),
+            ...(result.stage ? { stage: result.stage } : {}),
             ...(result.prdConfig ? { prdConfig: result.prdConfig } : {}),
             ...(result.productName ? { productName: result.productName } : {}),
         })
