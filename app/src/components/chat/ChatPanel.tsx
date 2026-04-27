@@ -49,16 +49,6 @@ export default function ChatPanel({
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
-      <div className="border-b border-[#e8e0d6] bg-white/58 px-5 py-4 backdrop-blur-xl">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-400">Conversation</p>
-        <h2 className="mt-2 text-lg font-semibold text-slate-900">{currentPrd ? "PRD companion" : "Product discovery"}</h2>
-        <p className="mt-1 text-sm leading-6 text-slate-500">
-          {currentPrd
-            ? "Ask Flowro to add features, tighten flows, or clarify product direction without leaving the workspace."
-            : "Flowro will run one short clarification round before generating the first PRD."}
-        </p>
-      </div>
-
       <div className="relative flex min-h-0 flex-1 flex-col">
         {project.chatHistory.length === 0 ? (
           <WelcomeScreen onQuickAction={onQuickAction} />

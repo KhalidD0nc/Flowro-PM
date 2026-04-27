@@ -48,7 +48,7 @@ export default function ChatInput({
   const showOtherInput = Boolean(activeClarificationQuestion && selectedOtherId);
 
   return (
-    <div className="sticky bottom-0 border-t border-[#e8e0d6] bg-[#fbf7f1]/92 px-4 py-4 backdrop-blur-xl">
+    <div className="sticky bottom-0 border-t border-[#e8e0d6] bg-[#fbf7f1]/92 px-4 pt-4 pb-8 backdrop-blur-xl">
       <div className="mx-auto max-w-3xl">
         {selectionContext ? (
           <div className="mb-3 flex items-center justify-between gap-3 rounded-[1.25rem] border border-[#d8e7fb] bg-[#edf5ff] px-3 py-2 text-sm text-[#2f8fff]">
