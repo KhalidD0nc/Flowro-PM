@@ -679,43 +679,6 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
 
   return (
     <div className="relative flex h-full flex-1 flex-col overflow-hidden">
-      <header className="border-b border-[#e7dfd5] bg-[#fbf7f1]/75 backdrop-blur-xl">
-        <div className="px-4 py-5 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Phase 2 Workspace</p>
-              <h1 className="mt-3 truncate font-[family-name:var(--font-display)] text-3xl tracking-tight text-slate-900">
-                {project.projectName}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-                Keep the conversation on the left and shape the full PRD in one unified workspace on the right.
-              </p>
-            </div>
-
-            <div className="flex flex-col items-start gap-3 lg:items-end">
-              <div className="flex items-center gap-2 rounded-full border border-[#e4ddd4] bg-white/86 px-3 py-2 text-xs text-slate-500 shadow-[0_14px_26px_-24px_rgba(22,31,49,0.28)]">
-                <span className="material-symbols-outlined text-[16px] text-[#2f8fff]">schedule</span>
-                {savedLabel}
-              </div>
-
-              <div className="hidden items-center gap-2 rounded-full border border-[#e4ddd4] bg-white/82 px-4 py-2 text-sm text-slate-500 lg:inline-flex">
-                <span className="material-symbols-outlined text-[16px] text-[#2f8fff]">web</span>
-                Unified PRD workspace
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center gap-2 rounded-full border border-[#e4ddd4] bg-white/86 p-1 lg:hidden">
-            <button onClick={() => startTransition(() => setMobilePane("chat"))} className={mobileToggleClass(mobilePane === "chat")}>
-              Chat
-            </button>
-            <button onClick={() => startTransition(() => setMobilePane("prd"))} className={mobileToggleClass(mobilePane === "prd")}>
-              PRD
-            </button>
-          </div>
-        </div>
-      </header>
-
       <div ref={desktopWorkspaceRef} className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
           className={`h-full w-full shrink-0 border-r border-[#e7dfd5] bg-[#fcf8f3]/78 lg:flex lg:w-[var(--chat-pane-width)] ${
@@ -790,7 +753,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
 
         <div
           ref={prdWorkspaceRef}
-          className={`min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}
+          className={`min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}
         >
           <div className="mx-auto max-w-5xl space-y-6 pb-32">
             {!normalizedDraft ? (

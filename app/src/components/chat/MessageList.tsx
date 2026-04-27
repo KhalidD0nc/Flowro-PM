@@ -161,7 +161,7 @@ export default function MessageList({
   const currentPrdHash = currentPrd ? hashPrdConfig(currentPrd) : null;
 
   return (
-    <main className="flex-1 overflow-y-auto bg-transparent px-4 py-5 md:px-6 lg:px-7">
+    <main className="flex-1 overflow-y-auto bg-transparent px-4 py-5 md:px-6 lg:px-7 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="mx-auto flex max-w-3xl flex-col gap-6 pb-8">
         {messages.map((msg, index) => {
           const isUser = msg.role === "user";
@@ -333,7 +333,7 @@ export function WelcomeScreen({ onQuickAction }: { onQuickAction: (message: stri
   ];
 
   return (
-    <main className="flex flex-1 items-center justify-center overflow-y-auto px-5 py-10">
+    <main className="flex flex-1 items-center justify-center overflow-y-auto px-5 py-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="mx-auto flex max-w-xl flex-col items-center gap-5 text-center">
         <div className="flex size-18 items-center justify-center rounded-[1.75rem] border border-[#dce8f8] bg-white shadow-[0_24px_36px_-26px_rgba(47,143,255,0.35)]">
           <img src="/logo.png" alt="Flowro" className="h-10 w-10 object-contain" />
