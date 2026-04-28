@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "@/app/api/blueprints/auth"
 import {
     createBuildRun,
-    getApprovedDesignArtifact,
+    getApprovedDesignArtifacts,
     getProject,
     getProjectPlanByProjectId,
     setProjectStage,
@@ -32,17 +32,17 @@ export async function POST(
             return NextResponse.json({ error: "Approve the project plan before starting build." }, { status: 409 })
         }
 
-        const design = await getApprovedDesignArtifact(projectId)
-        if (!design) {
-            return NextResponse.json({ error: "Approve a UI design before starting build." }, { status: 409 })
+        const designs = await getApprovedDesignArtifacts(projectId)
+        if (designs.length === 0) {
+            return NextResponse.json({ error: "Approve all UI screens before starting build." }, { status: 409 })
         }
 
         await setProjectStage(projectId, "coding")
-        const run = await createBuildRun(createStubBuildRun(projectId, planDoc.plan, {
-            ...design,
-            createdAt: timestampToISO(design.createdAt),
-            approvedAt: design.approvedAt ? timestampToISO(design.approvedAt) : undefined,
-        }))
+        const run = await createBuildRun(createStubBuildRun(projectId, planDoc.plan, designs.map((d) => ({
+            ...d,
+            createdAt: timestampToISO(d.createdAt),
+            approvedAt: d.approvedAt ? timestampToISO(d.approvedAt) : undefined,
+        }))))
 
         return NextResponse.json({
             ...run,

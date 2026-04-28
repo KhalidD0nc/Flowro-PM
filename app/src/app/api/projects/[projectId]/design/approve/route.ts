@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "@/app/api/blueprints/auth"
-import { approveDesignArtifact, getProject, getProjectPlanByProjectId } from "@/lib/firebase/collections"
+import { approveAllDesignArtifacts, getProject, getProjectPlanByProjectId } from "@/lib/firebase/collections"
 import { timestampToISO } from "@/lib/firebase/schema"
 
 async function verifyOwnership(projectId: string, userId: string): Promise<void> {
@@ -25,17 +25,13 @@ export async function POST(
             return NextResponse.json({ error: "Approve the project plan before approving UI." }, { status: 409 })
         }
 
-        const body = await request.json()
-        const artifactId = typeof body.artifactId === "string" ? body.artifactId : ""
-        if (!artifactId) {
-            return NextResponse.json({ error: "artifactId is required" }, { status: 400 })
-        }
-
-        const artifact = await approveDesignArtifact(projectId, artifactId, authResult.userId)
+        const artifacts = await approveAllDesignArtifacts(projectId, authResult.userId)
         return NextResponse.json({
-            ...artifact,
-            createdAt: timestampToISO(artifact.createdAt),
-            approvedAt: artifact.approvedAt ? timestampToISO(artifact.approvedAt) : undefined,
+            artifacts: artifacts.map((artifact) => ({
+                ...artifact,
+                createdAt: timestampToISO(artifact.createdAt),
+                approvedAt: artifact.approvedAt ? timestampToISO(artifact.approvedAt) : undefined,
+            })),
         })
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to approve design"

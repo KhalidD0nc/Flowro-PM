@@ -118,6 +118,7 @@ export const buildRunSchema = z.object({
 export type ProjectStage = z.infer<typeof projectStageSchema>
 export type TemplateId = z.infer<typeof templateIdSchema>
 export type TemplateManifest = z.infer<typeof templateManifestSchema>
+export type RoutePlan = z.infer<typeof routePlanSchema>
 export type ProjectPlan = z.infer<typeof projectPlanSchema>
 export type DesignArtifact = z.infer<typeof designArtifactSchema>
 export type BuildRun = z.infer<typeof buildRunSchema>
