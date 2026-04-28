@@ -19,13 +19,16 @@ export async function verifyAuthToken(
     request: NextRequest
 ): Promise<AuthResult | AuthError> {
     const authHeader = request.headers.get("Authorization")
+    const queryToken = request.nextUrl.searchParams.get("token")
+    const token = authHeader?.startsWith("Bearer ")
+        ? authHeader.replace("Bearer ", "")
+        : queryToken?.trim()
 
-    if (!authHeader?.startsWith("Bearer ")) {
+    if (!token) {
         return { error: "Unauthorized", status: 401 }
     }
 
     try {
-        const token = authHeader.replace("Bearer ", "")
         const decodedToken = await getAdminAuth().verifyIdToken(token)
 
         return {

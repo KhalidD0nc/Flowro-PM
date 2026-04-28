@@ -6,9 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:prd": "tsx src/__tests__/prdConfigTests.ts && tsx src/__tests__/prdEditorTests.ts && tsx src/__tests__/prdAutopilotTests.ts && tsx src/__tests__/projectPlanTests.ts && tsx src/__tests__/kimiPromptTests.ts && tsx src/__tests__/buildExecutorTests.ts",
+    "worker:build": "tsx scripts/build-worker.ts"
   },
   "dependencies": {
+    "@google/stitch-sdk": "^0.1.1",
     "@langchain/core": "^1.1.17",
     "@langchain/openai": "^1.2.3",
     "@opentelemetry/api": "^1.9.0",
@@ -31,6 +34,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

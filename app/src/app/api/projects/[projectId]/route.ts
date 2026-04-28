@@ -9,6 +9,8 @@ import {
 } from "@/lib/firebase/collections"
 import { Timestamp } from "firebase-admin/firestore"
 import { timestampToISO, type MessageIntent, type MessageRole, type ProposedChanges } from "@/lib/firebase/schema"
+import { parseProposedPrdChanges } from "@/lib/prd/schema"
+import { prdToProjectPlan } from "@/lib/project-plan/schema"
 
 
 /**
@@ -32,18 +34,6 @@ type ChatMessagePayload = {
     timestamp?: string
 }
 
-function isProposedChanges(value: unknown): value is ProposedChanges {
-    if (!value || typeof value !== "object") return false
-    const pc = value as Record<string, unknown>
-    return (
-        (pc.action === "add" || pc.action === "update" || pc.action === "remove") &&
-        typeof pc.summary === "string" &&
-        Array.isArray(pc.sections) &&
-        typeof pc.changes === "object" &&
-        pc.changes !== null
-    )
-}
-
 function cleanJsonString(raw: string): string {
     let clean = raw.trim()
     if (clean.startsWith("```")) {
@@ -53,23 +43,15 @@ function cleanJsonString(raw: string): string {
 }
 
 function extractProposedChanges(content: string, fallback?: unknown): ProposedChanges | undefined {
-    if (isProposedChanges(fallback)) {
-        return fallback
+    const parsedFallback = parseProposedPrdChanges(fallback)
+    if (parsedFallback) {
+        return parsedFallback
     }
 
     try {
         const parsed = JSON.parse(cleanJsonString(content))
         if (parsed && typeof parsed === "object" && "proposedChanges" in parsed) {
-            const pc = (parsed as Record<string, unknown>).proposedChanges
-            if (pc && typeof pc === "object") {
-                const obj = pc as Record<string, unknown>
-                return {
-                    action: (obj.action as "add" | "update" | "remove") || "update",
-                    summary: (obj.summary as string) || "Blueprint update",
-                    sections: (obj.sections as string[]) || [],
-                    changes: (obj.changes as Record<string, unknown>) || {},
-                }
-            }
+            return parseProposedPrdChanges((parsed as Record<string, unknown>).proposedChanges)
         }
     } catch {
         // Ignore parse errors
@@ -79,12 +61,12 @@ function extractProposedChanges(content: string, fallback?: unknown): ProposedCh
 }
 
 /**
- * GET /api/projects/[projectId] - Get project with messages and blueprint
+ * GET /api/projects/[projectId] - Get project with messages and PRD
  * 
  * Returns full project details including:
  * - Project metadata
  * - All messages from subcollection
- * - Current blueprint state
+ * - Current PRD state
  * 
  * @returns ProjectWithDetails
  */
@@ -121,17 +103,34 @@ export async function GET(
             timestamp: timestampToISO(msg.timestamp),
         }))
 
-        const latestBlueprint = details.blueprint
+        const latestPrd = details.prd
             ? {
-                id: details.blueprint.id,
-                projectId: details.blueprint.projectId,
-                version: details.blueprint.content?.metadata?.version || "1.0",
-                status: details.blueprint.content?.metadata?.status || "draft",
-                content: details.blueprint.content,
-                createdAt: timestampToISO(details.blueprint.updatedAt),
-                lockedAt: undefined,
+                id: details.prd.id,
+                projectId: details.prd.projectId,
+                config: details.prd.config,
+                updatedAt: timestampToISO(details.prd.updatedAt),
             }
             : undefined
+        const latestPlan = details.projectPlan
+            ? {
+                id: details.projectPlan.id,
+                projectId: details.projectPlan.projectId,
+                plan: details.projectPlan.plan,
+                status: details.projectPlan.status,
+                approvedAt: details.projectPlan.approvedAt ? timestampToISO(details.projectPlan.approvedAt) : undefined,
+                approvedBy: details.projectPlan.approvedBy,
+                updatedAt: timestampToISO(details.projectPlan.updatedAt),
+            }
+            : details.prd
+                ? {
+                    id: details.prd.id,
+                    projectId: details.prd.projectId,
+                    plan: prdToProjectPlan(details.prd.config),
+                    status: "draft" as const,
+                    updatedAt: timestampToISO(details.prd.updatedAt),
+                    legacyPrd: true,
+                }
+                : undefined
 
         // Return legacy-compatible shape (top-level project fields)
         return NextResponse.json({
@@ -139,10 +138,22 @@ export async function GET(
             name: details.project.name,
             projectName: details.project.name,
             description: (details.project as { description?: string }).description,
+            stage: details.project.stage || (latestPlan?.status === "approved" ? "plan_approved" : "planning"),
             chatHistory,
             createdAt: timestampToISO(details.project.createdAt),
             updatedAt: timestampToISO(details.project.updatedAt),
-            latestBlueprint,
+            latestPrd,
+            latestPlan,
+            designArtifacts: details.designArtifacts.map((artifact) => ({
+                ...artifact,
+                createdAt: timestampToISO(artifact.createdAt),
+                approvedAt: artifact.approvedAt ? timestampToISO(artifact.approvedAt) : undefined,
+            })),
+            buildRuns: details.buildRuns.map((run) => ({
+                ...run,
+                createdAt: timestampToISO(run.createdAt),
+                updatedAt: timestampToISO(run.updatedAt),
+            })),
             // Keep detailed payload for newer clients/debugging
             project: {
                 id: details.project.id,
@@ -150,6 +161,7 @@ export async function GET(
                 name: details.project.name,
                 projectName: details.project.name,
                 lastMessage: details.project.lastMessage,
+                stage: details.project.stage || "planning",
                 createdAt: timestampToISO(details.project.createdAt),
                 updatedAt: timestampToISO(details.project.updatedAt),
             },
@@ -161,12 +173,12 @@ export async function GET(
                 proposedChanges: msg.proposedChanges,
                 timestamp: timestampToISO(msg.timestamp),
             })),
-            blueprint: details.blueprint
+            prd: details.prd
                 ? {
-                    id: details.blueprint.id,
-                    projectId: details.blueprint.projectId,
-                    content: details.blueprint.content,
-                    updatedAt: timestampToISO(details.blueprint.updatedAt),
+                    id: details.prd.id,
+                    projectId: details.prd.projectId,
+                    config: details.prd.config,
+                    updatedAt: timestampToISO(details.prd.updatedAt),
                 }
                 : null,
         })
@@ -248,7 +260,7 @@ export async function PATCH(
         if (validMessages.length > 0) {
             for (const msg of validMessages) {
                 const intent: MessageIntent =
-                    msg.intent === "initial" || msg.intent === "discussion" || msg.intent === "proposal"
+                    msg.intent === "initial" || msg.intent === "clarification" || msg.intent === "discussion" || msg.intent === "proposal"
                         ? msg.intent
                         : "discussion"
 

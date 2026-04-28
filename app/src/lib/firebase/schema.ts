@@ -1,3 +1,6 @@
+import type { PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
+import type { BuildRun, DesignArtifact, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
+
 /**
  * Firebase Schema Definitions
  * 
@@ -34,22 +37,14 @@ export interface FirestoreTimestamp {
 /**
  * Message intent types for LLM responses
  */
-export type MessageIntent = "initial" | "discussion" | "proposal"
+export type MessageIntent = "initial" | "clarification" | "discussion" | "proposal"
 
 /**
  * Message role in conversation
  */
 export type MessageRole = "user" | "assistant"
 
-/**
- * Proposed changes structure for AI suggestions
- */
-export interface ProposedChanges {
-    action: "add" | "update" | "remove"
-    summary: string
-    sections: string[]
-    changes: Record<string, unknown>
-}
+export type ProposedChanges = ProposedPrdChanges
 
 /**
  * Blueprint status lifecycle
@@ -196,6 +191,7 @@ export interface ProjectDocument {
     userId: string // Owner's Firebase UID
     name: string
     lastMessage?: string // Preview for Command Center list
+    stage?: ProjectStage
     collaborators?: ProjectCollaborator[] // Team members with access
     collaboratorUserIds?: string[] // Flat array of collaborator UIDs for efficient Firestore queries
     createdAt: FirestoreTimestamp
@@ -210,6 +206,7 @@ export interface ProjectCreateData {
     userId: string
     name: string
     lastMessage?: string
+    stage?: ProjectStage
     collaborators?: ProjectCollaborator[]
     collaboratorUserIds?: string[] // Flat array of collaborator UIDs for efficient Firestore queries
     createdAt: FirestoreTimestamp
@@ -228,7 +225,7 @@ export interface MessageDocument {
     id: string
     role: MessageRole
     content: string
-    proposedChanges?: Partial<UBPContent> | ProposedChanges // Optional proposed UBP changes
+    proposedChanges?: ProposedChanges
     intent: MessageIntent
     timestamp: FirestoreTimestamp
 }
@@ -239,7 +236,7 @@ export interface MessageDocument {
 export interface MessageCreateData {
     role: MessageRole
     content: string
-    proposedChanges?: Partial<UBPContent> | ProposedChanges
+    proposedChanges?: ProposedChanges
     intent: MessageIntent
     timestamp: FirestoreTimestamp
 }
@@ -257,6 +254,48 @@ export interface BlueprintDocument {
     id: string
     projectId: string // Foreign key to projects collection
     content: UBPContent
+    updatedAt: FirestoreTimestamp
+}
+
+export interface PRDDocument {
+    id: string
+    projectId: string
+    config: PRDConfig
+    updatedAt: FirestoreTimestamp
+}
+
+export interface PRDCreateData {
+    projectId: string
+    config: PRDConfig
+    updatedAt: FirestoreTimestamp
+}
+
+export interface ProjectPlanDocument {
+    id: string
+    projectId: string
+    plan: ProjectPlan
+    status: "draft" | "approved"
+    approvedAt?: FirestoreTimestamp
+    approvedBy?: string
+    updatedAt: FirestoreTimestamp
+}
+
+export interface ProjectPlanCreateData {
+    projectId: string
+    plan: ProjectPlan
+    status: "draft" | "approved"
+    approvedAt?: FirestoreTimestamp
+    approvedBy?: string
+    updatedAt: FirestoreTimestamp
+}
+
+export type DesignArtifactDocument = Omit<DesignArtifact, "createdAt" | "approvedAt"> & {
+    createdAt: FirestoreTimestamp
+    approvedAt?: FirestoreTimestamp
+}
+
+export type BuildRunDocument = Omit<BuildRun, "createdAt" | "updatedAt"> & {
+    createdAt: FirestoreTimestamp
     updatedAt: FirestoreTimestamp
 }
 
@@ -320,6 +359,10 @@ export interface ProjectWithDetails {
     project: ProjectDocument
     messages: MessageDocument[]
     blueprint: BlueprintDocument | null
+    prd: PRDDocument | null
+    projectPlan: ProjectPlanDocument | null
+    designArtifacts: DesignArtifactDocument[]
+    buildRuns: BuildRunDocument[]
 }
 
 /**
@@ -404,6 +447,10 @@ export function createEmptyUBPContent(): UBPContent {
 export const COLLECTIONS = {
     PROJECTS: "projects",
     BLUEPRINTS: "blueprints",
+    PRDS: "prds",
+    PROJECT_PLANS: "projectPlans",
+    DESIGN_ARTIFACTS: "designArtifacts",
+    BUILD_RUNS: "buildRuns",
     MESSAGES: "messages", // Subcollection under projects
     HISTORY: "history", // Subcollection under blueprints
     USERS: "Users",

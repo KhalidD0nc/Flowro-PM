@@ -14,15 +14,19 @@ export type {
   MessageView,
   Blueprint,
   BlueprintView,
+  PRD,
+  PRDView,
   Project,
   ProjectView,
   GenerateResult,
+  EnhanceResult,
   DisplayInfo,
   SelectionContext,
   ChatInputProps,
   MessageListProps,
   ChatPanelProps,
   UBPContent,
+  PRDConfig,
 } from "@/lib/types/views"
 
 // Re-export utility functions from transforms

@@ -17,14 +17,18 @@ export type {
   MessageView,
   Blueprint,
   BlueprintView,
+  PRD,
+  PRDView,
   Project,
   ProjectView,
   GenerateResult,
+  EnhanceResult,
   DisplayInfo,
   SelectionContext,
   ChatInputProps,
   MessageListProps,
   ChatPanelProps,
+  PRDConfig,
 } from "./types"
 
 // Re-export utility function

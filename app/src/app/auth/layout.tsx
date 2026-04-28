@@ -1,4 +1,5 @@
 import { Metadata } from "next"
+import { AuthProvider } from "@/components/Providers"
 
 export const metadata: Metadata = {
     title: "Sign In",
@@ -18,5 +19,5 @@ export default function AuthLayout({
 }: {
     children: React.ReactNode
 }) {
-    return children
+    return <AuthProvider>{children}</AuthProvider>
 }

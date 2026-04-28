@@ -1,497 +1,383 @@
-import { generateCompletion, UBP_SYSTEM_PROMPT, Message } from "@/lib/openrouter"
-import { validateTechStack, getSafeDefaults, FRONTEND_OPTIONS, BACKEND_OPTIONS, DATABASE_OPTIONS } from "@/lib/validateTechStack"
-import { logInfo, logWarn } from "@/lib/logger"
+import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts"
+import { AIMessage, HumanMessage, type BaseMessage } from "@langchain/core/messages"
+import { z } from "zod"
+import { createStructuredModel, createStructuredModelForIntent, getModelConfigForStage } from "@/lib/langchain/client"
+import {
+    clarificationQuestionSchema,
+    clarificationResponseSchema,
+    discussionResponseSchema,
+} from "@/lib/prd/schema"
+import { projectPlanGenerateResponseSchema, type ProjectPlan } from "@/lib/project-plan/schema"
 
-// Types
+const FALLBACK_PRD_MODEL = "anthropic/claude-haiku-4.5"
+const CLARIFICATION_QUESTION_BUDGET = 3
+const PRE_PRD_BLOCKING_TAGS = new Set<MissingInfoTag>([
+    "target_user",
+    "problem",
+    "core_workflow",
+    "mvp_scope",
+    "constraints",
+])
+
+const missingInfoTagSchema = z.enum([
+    "target_user",
+    "problem",
+    "core_workflow",
+    "mvp_scope",
+    "constraints",
+    "success_metrics",
+    "admin_ops",
+    "integrations",
+    "tech_preferences",
+])
+
+const enhancedSeedSchema = z.object({
+    productIdea: z.string().min(1),
+    targetUser: z.string().min(1),
+    problem: z.string().min(1),
+    likelyScope: z.array(z.string().min(1)).min(1),
+    constraints: z.array(z.string().min(1)).default([]),
+    assumptions: z.array(z.string().min(1)).default([]),
+    knownContextSummary: z.string().min(1),
+    missingInfoTags: z.array(missingInfoTagSchema).max(5),
+    readyForPrd: z.boolean(),
+})
+
+const clarificationDraftSchema = z.object({
+    message: z.string().min(1),
+    questions: z.array(clarificationQuestionSchema).min(1).max(3),
+    remainingRequired: z.number().int().min(0).max(3),
+})
+
+type MissingInfoTag = z.infer<typeof missingInfoTagSchema>
+type EnhancedSeed = z.infer<typeof enhancedSeedSchema>
+
 interface ChatMessage {
-    role: string
+    role: "user" | "assistant" | string
     content: string
     timestamp?: string
+    intent?: "initial" | "clarification" | "discussion" | "proposal"
 }
 
-export type Intent = 'initial' | 'discussion' | 'proposal'
-
-export interface ProposedChanges {
-    action: 'add' | 'update' | 'remove'
-    summary: string
-    sections: string[]
-    changes: Record<string, unknown>
-}
+export type Intent = "initial" | "clarification" | "discussion"
 
 export interface GenerateInput {
     message: string
-    context?: ChatMessage[]  // Chat history array
-    currentBlueprint?: unknown  // Current blueprint content if exists
+    context?: ChatMessage[]
+    currentPlan?: ProjectPlan | null
 }
 
 export interface GenerateResult {
     intent: Intent
     message: string
-    content: unknown  // Full UBP content for initial, null for discussion/proposal
-    proposedChanges?: ProposedChanges
+    projectPlan?: ProjectPlan
     rawContent: string
-    productName?: string // New field for extracted project name
+    productName?: string
+    questions?: z.infer<typeof clarificationQuestionSchema>[]
+    remainingRequired?: number
+    stage?: "clarify"
+    modelUsed?: string
 }
 
-/**
- * Normalize UBP field names and structures from AI output to match schema.
- * Handles backward compatibility for old AI output formats.
- *
- * Transformations:
- * - constraintsRisks (object) → constraints (array with type field)
- * - changeLog → changelog (with field mapping)
- * - actors (old format) → actors (array with type field)
- */
-export function normalizeUBPFields(ubpContent: Record<string, unknown>): void {
-    // Transform constraintsRisks → constraints
-    if (ubpContent.constraintsRisks && !ubpContent.constraints) {
-        const cr = ubpContent.constraintsRisks as Record<string, unknown[]>
-        const constraints: Array<{ type: string; title: string; description: string }> = []
-
-        // Flatten the nested structure into a typed array
-        if (Array.isArray(cr.constraints)) {
-            cr.constraints.forEach((item) => {
-                if (typeof item === 'string') {
-                    constraints.push({ type: 'constraint', title: item, description: '' })
-                } else if (typeof item === 'object' && item !== null) {
-                    const obj = item as Record<string, unknown>
-                    constraints.push({
-                        type: 'constraint',
-                        title: (obj.title as string) || (obj.name as string) || String(item),
-                        description: (obj.description as string) || ''
-                    })
-                }
-            })
-        }
-        if (Array.isArray(cr.risks)) {
-            cr.risks.forEach((item) => {
-                if (typeof item === 'string') {
-                    constraints.push({ type: 'risk', title: item, description: '' })
-                } else if (typeof item === 'object' && item !== null) {
-                    const obj = item as Record<string, unknown>
-                    constraints.push({
-                        type: 'risk',
-                        title: (obj.title as string) || (obj.name as string) || String(item),
-                        description: (obj.description as string) || ''
-                    })
-                }
-            })
-        }
-        if (Array.isArray(cr.assumptions)) {
-            cr.assumptions.forEach((item) => {
-                if (typeof item === 'string') {
-                    constraints.push({ type: 'warning', title: item, description: '' })
-                } else if (typeof item === 'object' && item !== null) {
-                    const obj = item as Record<string, unknown>
-                    constraints.push({
-                        type: 'warning',
-                        title: (obj.title as string) || (obj.name as string) || String(item),
-                        description: (obj.description as string) || ''
-                    })
-                }
-            })
-        }
-
-        ubpContent.constraints = constraints
-        delete ubpContent.constraintsRisks
-    }
-
-    // Transform changeLog → changelog (case sensitivity)
-    if (ubpContent.changeLog && !ubpContent.changelog) {
-        const oldLog = ubpContent.changeLog as Array<Record<string, unknown>>
-        if (Array.isArray(oldLog)) {
-            ubpContent.changelog = oldLog.map((entry) => ({
-                version: (entry.version as string) || '0.1',
-                title: (entry.title as string) || (entry.summary as string) || 'Update',
-                description: (entry.description as string) || (entry.reason as string) || '',
-                timestamp: (entry.timestamp as string) || new Date().toISOString()
-            }))
-        }
-        delete ubpContent.changeLog
-    }
-
-    // Transform old actors format (object) → new format (array)
-    if (ubpContent.actors && typeof ubpContent.actors === 'object' && !Array.isArray(ubpContent.actors)) {
-        const oldActors = ubpContent.actors as Record<string, unknown>
-        const actors: Array<{ name: string; description: string; type: string }> = []
-
-        // Handle primary actor
-        if (oldActors.primary) {
-            if (typeof oldActors.primary === 'string') {
-                actors.push({ name: oldActors.primary, description: 'Primary user', type: 'primary' })
-            }
-        }
-        // Handle secondary actors
-        if (Array.isArray(oldActors.secondary)) {
-            oldActors.secondary.forEach((actor) => {
-                if (typeof actor === 'string') {
-                    actors.push({ name: actor, description: '', type: 'secondary' })
-                } else if (typeof actor === 'object' && actor !== null) {
-                    const obj = actor as Record<string, unknown>
-                    actors.push({
-                        name: (obj.name as string) || String(actor),
-                        description: (obj.description as string) || '',
-                        type: 'secondary'
-                    })
-                }
-            })
-        }
-        // Handle system actors
-        if (Array.isArray(oldActors.systems)) {
-            oldActors.systems.forEach((system) => {
-                if (typeof system === 'string') {
-                    actors.push({ name: system, description: '', type: 'system' })
-                } else if (typeof system === 'object' && system !== null) {
-                    const obj = system as Record<string, unknown>
-                    actors.push({
-                        name: (obj.name as string) || String(system),
-                        description: (obj.description as string) || '',
-                        type: 'system'
-                    })
-                }
-            })
-        }
-
-        ubpContent.actors = actors
-    }
-
-    // Transform behaviors to ensure correct field names
-    if (Array.isArray(ubpContent.behaviors)) {
-        ubpContent.behaviors = (ubpContent.behaviors as Array<Record<string, unknown>>).map((behavior) => ({
-            id: (behavior.id as string) || `B-${Math.random().toString(36).substr(2, 4)}`,
-            title: (behavior.title as string) || (behavior.trigger as string) || 'Behavior',
-            given: (behavior.given as string) || '',
-            when: (behavior.when as string) || (behavior.trigger as string) || '',
-            then: (behavior.then as string) || (behavior.systemResponse as string) || '',
-            diagram: (behavior.diagram as string) || (behavior.diagramCode as string) || '',
-            priority: (behavior.priority as string) || 'medium'
-        }))
-    }
-
-    // Transform phases to ensure correct field names
-    if (Array.isArray(ubpContent.phases)) {
-        ubpContent.phases = (ubpContent.phases as Array<Record<string, unknown>>).map((phase) => ({
-            name: (phase.name as string) || (phase.phase as string) || 'Phase',
-            description: (phase.description as string) || (phase.goal as string) || '',
-            goals: (phase.goals as string[]) || (phase.outputs as string[]) || [],
-            status: (phase.status as string) || 'upcoming',
-            timeline: (phase.timeline as string) || ''
-        }))
-    }
-
-    // Transform integrations to ensure correct field names
-    if (Array.isArray(ubpContent.integrations)) {
-        ubpContent.integrations = (ubpContent.integrations as Array<Record<string, unknown>>).map((integration) => ({
-            system: (integration.system as string) || (integration.service as string) || '',
-            method: (integration.method as string) || (integration.dataFlow as string) || '',
-            purpose: (integration.purpose as string) || ''
-        }))
-    }
-
-    // Transform techStack (object) → techDecisions (array) if not already in array format
-    if (ubpContent.techStack && typeof ubpContent.techStack === 'object' && !Array.isArray(ubpContent.techStack) && !ubpContent.techDecisions) {
-        const ts = ubpContent.techStack as Record<string, string>
-        const techDecisions: Array<{ category: string; choice: string; rationale: string }> = []
-
-        if (ts.frontend) {
-            techDecisions.push({ category: 'Frontend', choice: ts.frontend, rationale: 'Selected based on project requirements' })
-        }
-        if (ts.backend) {
-            techDecisions.push({ category: 'Backend', choice: ts.backend, rationale: 'Selected based on project requirements' })
-        }
-        if (ts.database) {
-            techDecisions.push({ category: 'Database', choice: ts.database, rationale: 'Selected based on project requirements' })
-        }
-
-        if (techDecisions.length > 0) {
-            ubpContent.techDecisions = techDecisions
-        }
-        // Keep techStack for backward compatibility with validation code
-    }
+export function normalizeUBPFields(): void {
+    // Retained only for compatibility with legacy imports during the cutover.
 }
 
-/**
- * Builds the messages array for the LLM request
- * Includes full conversation history for context
- */
-export function buildMessages(input: GenerateInput): Message[] {
-    const { message, context, currentBlueprint } = input
-
-    const messages: Message[] = [
-        { role: "system", content: UBP_SYSTEM_PROMPT },
-    ]
-
-    // If we have a current blueprint, add it as context
-    if (currentBlueprint) {
-        messages.push({
-            role: "system",
-            content: `### CURRENT BLUEPRINT\n${JSON.stringify(currentBlueprint)}`
-        })
+function toHistoryMessages(context?: ChatMessage[]): BaseMessage[] {
+    if (!context) {
+        return []
     }
 
-    // Add conversation history (last 5 messages - optimized for cost)
-    if (context && Array.isArray(context)) {
-        const recentHistory = context.slice(-5)
-        for (const msg of recentHistory) {
-            if (msg.role === "user" || msg.role === "assistant") {
-                messages.push({
-                    role: msg.role as "user" | "assistant",
-                    content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
-                })
-            }
+    const messages: BaseMessage[] = []
+
+    context.slice(-8).forEach((message) => {
+        if (message.role === "assistant") {
+            messages.push(new AIMessage(message.content))
         }
-    }
 
-    // Add the current user message
-    messages.push({
-        role: "user",
-        content: message,
+        if (message.role === "user") {
+            messages.push(new HumanMessage(message.content))
+        }
     })
 
     return messages
 }
 
-/**
- * Extracts JSON from markdown code blocks if present
- * Handles responses like "Here's the blueprint: ```json {...} ```"
- */
-function extractJSONFromMarkdown(content: string): { json: unknown; textParts: string[] } | null {
-    // Match ```json ... ``` or ``` ... ``` code blocks
-    const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/g
-    const matches = [...content.matchAll(jsonBlockRegex)]
-
-    for (const match of matches) {
-        try {
-            const json = JSON.parse(match[1].trim())
-            // Check if this looks like a UBP (has key fields)
-            if (json.productVision || json.scope || json.behaviors || json.message) {
-                // Get text before and after the JSON block
-                const beforeBlock = content.substring(0, match.index).trim()
-                const afterBlock = content.substring((match.index || 0) + match[0].length).trim()
-                return {
-                    json,
-                    textParts: [beforeBlock, afterBlock].filter(Boolean)
-                }
-            }
-        } catch {
-            // Not valid JSON, continue searching
-        }
-    }
-    return null
+export function hasPriorClarificationTurn(context?: ChatMessage[]): boolean {
+    return (context || []).some((message) => message.role === "assistant" && message.intent === "clarification")
 }
 
-/**
- * Calls the LLM and returns the parsed response with intent detection
- */
-export async function callLLM(messages: Message[]): Promise<GenerateResult> {
-    const response = await generateCompletion({ messages, stream: false })
-    const data = await response.json()
+export function shouldAskPrePrdClarification(context?: ChatMessage[]): boolean {
+    return !hasPriorClarificationTurn(context)
+}
 
-    // DEBUG: Log key response info
-    console.log("=== LLM Response Debug ===")
-    console.log("Model used:", process.env.OPENROUTER_MODEL || "xiaomi/mimo-v2-flash:free")
+export function getClarificationQuestionBudget(): number {
+    return CLARIFICATION_QUESTION_BUDGET
+}
 
-    const choice = data.choices?.[0]?.message
-    if (!choice) {
-        console.error("No choice in response:", data)
-        throw new Error("No response from LLM")
-    }
+export function getBlockingMissingInfoTags(tags: MissingInfoTag[]): MissingInfoTag[] {
+    return tags.filter((tag) => PRE_PRD_BLOCKING_TAGS.has(tag))
+}
 
-    // Some models (like xiaomi/mimo-v2-flash) put content in the reasoning field
-    // Check for content in this order: content -> reasoning -> reasoning_details[0].text
-    const rawContent = (() => {
-        if (choice.content) return choice.content
-        if (choice.reasoning) {
-            console.log("📥 Content was empty, using reasoning field instead")
-            return choice.reasoning
-        }
-        if (choice.reasoning_details?.[0]?.text) {
-            console.log("📥 Content was empty, using reasoning_details[0].text instead")
-            return choice.reasoning_details[0].text
-        }
-        return ""
-    })()
-
-    console.log("Raw content length:", rawContent.length)
-    console.log("Raw content preview:", rawContent.substring(0, 300))
-
-    let parsed: Record<string, unknown> = {}
-
-    // First, try to parse as pure JSON
-    try {
-        parsed = JSON.parse(rawContent)
-        console.log("✅ Parsed as pure JSON")
-    } catch {
-        console.log("❌ Not pure JSON, checking for embedded JSON...")
-        // Not pure JSON - check if JSON is embedded in markdown
-        const extracted = extractJSONFromMarkdown(rawContent)
-
-        if (extracted) {
-            console.log("✅ Found embedded JSON in markdown")
-            parsed = extracted.json as Record<string, unknown>
-
-            // Combine surrounding text into the message if needed
-            const surroundingText = extracted.textParts.join('\n\n').trim()
-            if (surroundingText && !parsed.message) {
-                parsed.message = surroundingText
-            }
-        } else {
-            // Fallback: Try to find { ... } block blindly
-            const firstOpen = rawContent.indexOf('{')
-            const lastClose = rawContent.lastIndexOf('}')
-
-            let foundJson = false
-            if (firstOpen !== -1 && lastClose > firstOpen) {
-                const candidate = rawContent.substring(firstOpen, lastClose + 1)
-                try {
-                    parsed = JSON.parse(candidate)
-                    console.log("✅ Found JSON block via brute force extraction")
-                    foundJson = true
-
-                    // Keep text outside if message is missing
-                    if (!parsed.message) {
-                        const before = rawContent.substring(0, firstOpen).trim()
-                        const after = rawContent.substring(lastClose + 1).trim()
-                        const surrounding = [before, after].filter(Boolean).join('\n\n')
-                        if (surrounding) {
-                            parsed.message = surrounding
-                        }
-                    }
-                } catch {
-                    console.log("❌ Brute force extraction failed")
-                }
-            }
-
-            if (!foundJson) {
-                console.log("⚠️ Falling back to discussion mode (plain text)")
-                // Plain text response - treat as discussion
-                parsed = {
-                    intent: 'discussion',
-                    message: rawContent
-                }
-            }
-        }
-    }
-
-    // Extract intent with fallback logic
-    let intent: Intent = 'initial'
-    if (parsed.intent === 'discussion' || parsed.intent === 'proposal' || parsed.intent === 'initial') {
-        intent = parsed.intent as Intent
-    } else {
-        // Legacy response without intent field - detect based on content
-        if (parsed.productVision || parsed.scope || parsed.behaviors) {
-            intent = 'initial'  // Has UBP content = initial
-        } else if (parsed.proposedChanges) {
-            intent = 'proposal'  // Has proposed changes = proposal
-        } else {
-            intent = 'discussion'  // Just a message = discussion
-        }
-    }
-
-    // Extract message
-    const message = typeof parsed.message === 'string'
-        ? parsed.message
-        : '🎯 Check out your Blueprint for the details!'
-
-    // Extract proposedChanges if present
-    let proposedChanges: ProposedChanges | undefined
-    if (parsed.proposedChanges && typeof parsed.proposedChanges === 'object') {
-        const pc = parsed.proposedChanges as Record<string, unknown>
-        proposedChanges = {
-            action: (pc.action as 'add' | 'update' | 'remove') || 'update',
-            summary: (pc.summary as string) || 'Blueprint update',
-            sections: (pc.sections as string[]) || [],
-            changes: (pc.changes as Record<string, unknown>) || {}
-        }
-    }
-
-    // For initial intent, content is the full UBP (everything except message/intent/proposedChanges)
-    let content: unknown = null
-    if (intent === 'initial') {
-        // Remove meta fields, keep UBP content
-        const { intent: _i, message: _m, proposedChanges: _pc, ...ubpContent } = parsed
-
-        // Normalize field names to match schema (handle old AI output formats)
-        normalizeUBPFields(ubpContent)
-
-        // Validate and correct tech stack if present
-        if (ubpContent.techStack && typeof ubpContent.techStack === 'object') {
-            const techStackValidation = validateTechStack(ubpContent.techStack)
-
-            if (!techStackValidation.valid) {
-                // Log the violation and apply safe defaults
-                logWarn("tech_stack_invalid", {
-                    original: ubpContent.techStack,
-                    error: techStackValidation.error,
-                    fallback: getSafeDefaults()
-                })
-
-                // Replace with safe defaults
-                const defaults = getSafeDefaults()
-                ubpContent.techStack = defaults
-
-                // Also update techDecisions to match
-                ubpContent.techDecisions = [
-                    { category: 'Frontend', choice: defaults.frontend, rationale: 'Safe default' },
-                    { category: 'Backend', choice: defaults.backend, rationale: 'Safe default' },
-                    { category: 'Database', choice: defaults.database, rationale: 'Safe default' }
-                ]
-
-                console.warn("⚠️ Tech stack validation failed - using safe defaults")
-            } else {
-                logInfo("tech_stack_valid", { techStack: techStackValidation.data })
-                // Update techDecisions from validated tech stack
-                const ts = ubpContent.techStack as { frontend: string; backend: string; database: string }
-                ubpContent.techDecisions = [
-                    { category: 'Frontend', choice: ts.frontend, rationale: 'Selected based on project requirements' },
-                    { category: 'Backend', choice: ts.backend, rationale: 'Selected based on project requirements' },
-                    { category: 'Database', choice: ts.database, rationale: 'Selected based on project requirements' }
-                ]
-            }
-        } else {
-            // No tech stack provided - add safe defaults
-            const defaults = getSafeDefaults()
-            logInfo("tech_stack_missing", { fallback: defaults })
-            ubpContent.techStack = defaults
-            ubpContent.techDecisions = [
-                { category: 'Frontend', choice: defaults.frontend, rationale: 'Safe default' },
-                { category: 'Backend', choice: defaults.backend, rationale: 'Safe default' },
-                { category: 'Database', choice: defaults.database, rationale: 'Safe default' }
-            ]
-        }
-
-        content = ubpContent
-    }
-
-    // Extract productName from UBP content if available
-    let extractedProductName: string | undefined
-    if (parsed.metadata && typeof parsed.metadata === 'object') {
-        extractedProductName = (parsed.metadata as Record<string, string>).productName
-    }
-
-    console.log("=== Parsed Response ===")
-    console.log("Intent:", intent)
-    console.log("Message preview:", message.substring(0, 100))
-    console.log("Has proposedChanges:", !!proposedChanges)
-    console.log("Has UBP content:", !!content)
-    console.log("Extracted Name:", extractedProductName)
-    console.log("=== End LLM Debug ===")
+function withWebOnlyAssumption(enhanced: EnhancedSeed): EnhancedSeed {
+    const missingInfoTags = getBlockingMissingInfoTags(enhanced.missingInfoTags)
+    const constraints = Array.from(new Set([
+        ...enhanced.constraints,
+        "Initial project plan scope is a web application only.",
+    ]))
+    const assumptions = Array.from(new Set([
+        ...enhanced.assumptions,
+        "Generate the first project plan for a single web experience.",
+        "Do not ask about mobile platforms or native apps before the first project plan.",
+    ]))
 
     return {
-        intent,
-        message,
-        content,
-        proposedChanges,
-        rawContent,
-        productName: extractedProductName,
+        ...enhanced,
+        constraints,
+        assumptions,
+        missingInfoTags,
     }
 }
 
+export function createClarificationResponse(payload: z.infer<typeof clarificationDraftSchema>) {
+    return clarificationResponseSchema.parse({
+        intent: "clarification",
+        message: payload.message.trim(),
+        questions: payload.questions,
+        remainingRequired: payload.remainingRequired,
+        stage: "clarify",
+    })
+}
 
-/**
- * Generates a completion from the LLM
- */
+const enhanceSeedPrompt = ChatPromptTemplate.fromMessages([
+    [
+        "system",
+        `You are Flowro AI preparing internal context before project plan generation.
+
+Return structured data only.
+
+Summarize the user's product direction into a normalized brief:
+- productIdea
+- targetUser
+- problem
+- likelyScope
+- constraints
+- assumptions
+- knownContextSummary
+- missingInfoTags
+- readyForPrd
+
+Rules:
+- Use the full conversation history plus the latest message.
+- Assume the first project plan is for a web-only experience.
+- Capture what is explicitly known; infer lightly only when the inference is obvious.
+- readyForPrd should be true only when the core product shape is clear enough to generate a solid first project plan.
+- missingInfoTags should contain only the unresolved high-impact gaps.
+- Never mention that this is an internal step.`,
+    ],
+    new MessagesPlaceholder("history"),
+    ["human", "{input}"],
+])
+
+const clarificationPrompt = ChatPromptTemplate.fromMessages([
+    [
+        "system",
+        `You are Flowro AI collecting the minimum information needed before generating a project plan.
+
+Return structured data only.
+
+Rules:
+- Ask exactly {questionBudget} concise questions.
+- Ask only one clarification batch before project plan generation.
+- Questions must target product-shaping gaps from the enhanced brief.
+- Each question must be multiple-choice with 2-5 options.
+- Include one final option with label "Other" and kind "other" when a custom answer would be useful.
+- Use selectionMode "single" when only one answer should be chosen.
+- Use selectionMode "multiple" when multiple answers are valid.
+- All non-custom options must use kind "preset".
+- Ask at most 3 questions total.
+- Focus on only these areas: primary user, problem, core workflow, MVP scope, and critical constraints.
+- Never ask about platform selection, mobile apps, iOS, Android, responsive/mobile support, or native clients.
+- Never ask the user to choose vendors, SDKs, hosting providers, or other implementation details before the first project plan.
+- Keep the message short and direct.
+- Do not generate the project plan yet.
+- Do not show or mention any internal rewritten prompt.`,
+    ],
+    ["system", "### ENHANCED BRIEF\n{enhancedBrief}"],
+    new MessagesPlaceholder("history"),
+    ["human", "{input}"],
+])
+
+const initialPrompt = ChatPromptTemplate.fromMessages([
+    [
+        "system",
+        `You are Flowro AI. Convert the clarified product brief into a deterministic ProjectPlan for an app builder.
+
+Return structured data only.
+
+Use this exact shape:
+- metadata: productName, version, status
+- templateId: must be "nextjs-app"
+- appSummary, targetUser, problem
+- successCriteria
+- routes: path, name, purpose, primaryActions
+- dataModels: name, purpose, fields
+- auth: required, notes
+- integrations: name, purpose, requiredForV1
+- uiRequirements
+- buildTasks: id, title, description, status
+- acceptanceChecks
+- risks
+
+Rules:
+- Use the enhanced brief as the source of truth and use the chat history only to resolve detail.
+- templateId must equal exactly "nextjs-app".
+- Routes must describe real screens/pages the generated app should implement.
+- Build tasks must be concrete and implementation-relevant.
+- UI requirements must be specific enough for a product design agent to generate screens.
+- Data models should only contain necessary product data.
+- Never use "Flowro" as the product name.`,
+    ],
+    ["system", "### ENHANCED BRIEF\n{enhancedBrief}"],
+    new MessagesPlaceholder("history"),
+    ["human", "{input}"],
+])
+
+const discussionPrompt = ChatPromptTemplate.fromMessages([
+    [
+        "system",
+        `You are Flowro AI helping a PM think through a product.
+
+Respond conversationally in 2-5 sentences.
+- Do not propose patches.
+- Do not return ProjectPlan JSON.
+- If current ProjectPlan context is provided, use it to ground the answer.`,
+    ],
+    ["system", "### CURRENT PROJECT PLAN\n{currentPrd}"],
+    new MessagesPlaceholder("history"),
+    ["human", "{input}"],
+])
+
+async function invokeStructuredInitialWithFallback(
+    enhancedBriefJson: string,
+    input: string,
+    history: BaseMessage[]
+): Promise<{
+    parsed: z.infer<typeof projectPlanGenerateResponseSchema>
+    modelUsed: string
+}> {
+    const primaryConfig = getModelConfigForStage("initial")
+    const fallbackConfig = {
+        ...primaryConfig,
+        model: FALLBACK_PRD_MODEL,
+    }
+
+    try {
+        const primaryModel = createStructuredModel(projectPlanGenerateResponseSchema, primaryConfig)
+        const primaryChain = initialPrompt.pipe(primaryModel)
+        const primaryResponse = await primaryChain.invoke({
+            input,
+            history,
+            enhancedBrief: enhancedBriefJson,
+        })
+
+        return {
+            parsed: projectPlanGenerateResponseSchema.parse(primaryResponse),
+            modelUsed: primaryConfig.model || "openai/gpt-5.4-mini",
+        }
+    } catch {
+        const fallbackModel = createStructuredModel(projectPlanGenerateResponseSchema, fallbackConfig)
+        const fallbackChain = initialPrompt.pipe(fallbackModel)
+        const fallbackResponse = await fallbackChain.invoke({
+            input,
+            history,
+            enhancedBrief: enhancedBriefJson,
+        })
+
+        return {
+            parsed: projectPlanGenerateResponseSchema.parse(fallbackResponse),
+            modelUsed: fallbackConfig.model || FALLBACK_PRD_MODEL,
+        }
+    }
+}
+
 export async function generateFromMessage(input: GenerateInput): Promise<GenerateResult> {
-    const messages = buildMessages(input)
-    return callLLM(messages)
+    const history = toHistoryMessages(input.context)
+
+    if (!input.currentPlan) {
+        const enhancementModel = createStructuredModel(enhancedSeedSchema, {
+            ...getModelConfigForStage("promptEnhancer"),
+        })
+        const enhancementChain = enhanceSeedPrompt.pipe(enhancementModel)
+        const enhancedResponse = await enhancementChain.invoke({
+            input: input.message,
+            history,
+        })
+        const enhanced = withWebOnlyAssumption(enhancedSeedSchema.parse(enhancedResponse))
+        const enhancedBriefJson = JSON.stringify(enhanced, null, 2)
+
+        if (shouldAskPrePrdClarification(input.context)) {
+            const questionBudget = getClarificationQuestionBudget()
+            const clarificationModel = createStructuredModel(clarificationDraftSchema, {
+                ...getModelConfigForStage("clarification"),
+                maxTokens: 700,
+            })
+            const clarificationChain = clarificationPrompt.pipe(clarificationModel)
+            const clarificationResponse = await clarificationChain.invoke({
+                input: input.message,
+                history,
+                enhancedBrief: enhancedBriefJson,
+                questionBudget,
+            })
+
+            const parsedDraft = clarificationDraftSchema.parse(clarificationResponse)
+            const parsed = createClarificationResponse({
+                ...parsedDraft,
+                questions: parsedDraft.questions.slice(0, questionBudget),
+                remainingRequired: Math.min(parsedDraft.remainingRequired, questionBudget),
+            })
+
+            return {
+                intent: parsed.intent,
+                message: parsed.message,
+                questions: parsed.questions,
+                remainingRequired: parsed.remainingRequired,
+                stage: parsed.stage,
+                rawContent: JSON.stringify(parsed),
+                modelUsed: getModelConfigForStage("clarification").model || "google/gemini-3-flash-preview",
+            }
+        }
+
+        const { parsed, modelUsed } = await invokeStructuredInitialWithFallback(
+            enhancedBriefJson,
+            input.message,
+            history
+        )
+
+        return {
+            intent: parsed.intent,
+            message: parsed.message,
+            projectPlan: parsed.projectPlan,
+            rawContent: JSON.stringify(parsed),
+            productName: parsed.projectPlan.metadata.productName,
+            modelUsed,
+        }
+    }
+
+    const model = createStructuredModelForIntent(discussionResponseSchema, "discussion")
+    const chain = discussionPrompt.pipe(model)
+    const response = await chain.invoke({
+        input: input.message,
+        history,
+        currentPrd: JSON.stringify(input.currentPlan, null, 2),
+    })
+
+    const parsed = discussionResponseSchema.parse(response)
+
+    return {
+        intent: parsed.intent,
+        message: parsed.message,
+        rawContent: JSON.stringify(parsed),
+        modelUsed: getModelConfigForStage("discussion").model || "google/gemini-3-flash-preview",
+    }
 }

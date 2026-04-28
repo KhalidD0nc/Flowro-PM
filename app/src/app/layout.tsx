@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import "./globals.css";
-import { AuthProvider } from "@/components/Providers";
 import Analytics from "@/components/Analytics";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -34,11 +33,11 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: {
-    default: "Flowro AI: Unified Blueprint Engine",
-    template: "%s | Flowro AI",
+    default: "Flowro: Open-Source Plan-to-App Builder",
+    template: "%s | Flowro",
   },
   description:
-    "Transform messy ideas into structured, agent-ready project blueprints. AI-powered product management for builders using Cursor, Claude, and Windsurf.",
+    "Open-source, self-hosted plan-to-app builder that turns messy ideas into approved plans, generated UI, and local build runs.",
   keywords: [
     "AI product management",
     "blueprint engine",
@@ -51,35 +50,34 @@ export const metadata: Metadata = {
     "windsurf",
     "vibe coding",
   ],
-  authors: [{ name: "Flowro AI" }],
-  creator: "Flowro AI",
-  publisher: "Flowro AI",
+  authors: [{ name: "Flowro" }],
+  creator: "Flowro",
+  publisher: "Flowro",
 
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://flowro.ai",
-    siteName: "Flowro AI",
-    title: "Flowro AI: Unified Blueprint Engine",
+    url: "https://flowro.app",
+    siteName: "Flowro",
+    title: "Flowro: Open-Source Plan-to-App Builder",
     description:
-      "Transform messy ideas into structured, agent-ready project blueprints",
+      "Self-hosted builder pipeline from messy idea to approved plan, generated UI, and local build runs.",
     images: [
       {
-        url: "/og-image.png",
+        url: "/logo.png",
         width: 1200,
         height: 630,
-        alt: "Flowro AI - Transform ideas into blueprints",
+        alt: "Flowro open-source plan-to-app builder",
       },
     ],
   },
 
   twitter: {
     card: "summary_large_image",
-    title: "Flowro AI: Unified Blueprint Engine",
+    title: "Flowro: Open-Source Plan-to-App Builder",
     description:
-      "Transform messy ideas into structured, agent-ready project blueprints",
-    images: ["/og-image.png"],
-    creator: "@flowroai",
+      "Self-hosted builder pipeline from messy idea to approved plan, generated UI, and local build runs.",
+    images: ["/logo.png"],
   },
 
   robots: {
@@ -95,7 +93,7 @@ export const metadata: Metadata = {
   },
 
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "https://flowro.ai"
+    process.env.NEXT_PUBLIC_APP_URL || "https://flowro.app"
   ),
 };
 
@@ -112,11 +110,11 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable} font-sans antialiased bg-background-dark text-white`}>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable} bg-background-light font-sans antialiased text-slate-900`}>
         <Analytics />
         <ErrorBoundary>
           <ToastProvider>
-            <AuthProvider>{children}</AuthProvider>
+            {children}
           </ToastProvider>
         </ErrorBoundary>
         <VercelAnalytics />

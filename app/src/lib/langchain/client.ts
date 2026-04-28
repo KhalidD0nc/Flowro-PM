@@ -27,25 +27,57 @@ export interface ModelConfig {
     model?: string
 }
 
-export type Intent = 'initial' | 'discussion' | 'proposal'
+export type Intent = 'initial' | 'clarification' | 'discussion' | 'proposal'
+export type ModelStage = 'promptEnhancer' | Intent
+
+function getModelForStage(stage: ModelStage): string {
+    switch (stage) {
+        case 'promptEnhancer':
+            return process.env.OPENROUTER_MODEL_PROMPT_ENHANCER || process.env.OPENROUTER_MODEL_CLARIFICATION || "google/gemini-3-flash-preview"
+        case 'clarification':
+        case 'discussion':
+            return process.env.OPENROUTER_MODEL_CLARIFICATION || "google/gemini-3-flash-preview"
+        case 'initial':
+            return process.env.OPENROUTER_MODEL_PRD || "openai/gpt-5.4-mini"
+        case 'proposal':
+            return process.env.OPENROUTER_MODEL_PRD || "openai/gpt-5.4-mini"
+    }
+}
 
 // Model configuration per intent for cost optimization
 export const MODEL_CONFIG: Record<Intent, ModelConfig> = {
     initial: {
-        temperature: 0.7,
+        temperature: 0.4,
         maxTokens: 4000,
-        model: process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat",
+        model: getModelForStage('initial'),
+    },
+    clarification: {
+        temperature: 0.3,
+        maxTokens: 1200,
+        model: getModelForStage('clarification'),
     },
     discussion: {
-        temperature: 0.7,
-        maxTokens: 500, // Lighter for conversations
-        model: process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat",
+        temperature: 0.4,
+        maxTokens: 700,
+        model: getModelForStage('discussion'),
     },
     proposal: {
         temperature: 0.5, // More deterministic for proposals
-        maxTokens: 1500, // Medium complexity
-        model: process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat",
+        maxTokens: 1800,
+        model: getModelForStage('proposal'),
     },
+}
+
+export const STAGE_MODEL_CONFIG: Record<ModelStage, ModelConfig> = {
+    promptEnhancer: {
+        temperature: 0.2,
+        maxTokens: 900,
+        model: getModelForStage('promptEnhancer'),
+    },
+    initial: MODEL_CONFIG.initial,
+    clarification: MODEL_CONFIG.clarification,
+    discussion: MODEL_CONFIG.discussion,
+    proposal: MODEL_CONFIG.proposal,
 }
 
 // =============================================================================
@@ -64,7 +96,7 @@ export function createModel(options?: ModelConfig): ChatOpenAI {
     const config = {
         temperature: options?.temperature ?? 0.7,
         maxTokens: options?.maxTokens ?? 4000,
-        modelName: options?.model ?? process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-chat",
+        modelName: options?.model ?? process.env.OPENROUTER_MODEL_PRD ?? process.env.OPENROUTER_MODEL ?? "openai/gpt-5.4-mini",
     }
 
     logDebug('langchain_model_created', {
@@ -100,6 +132,22 @@ export function createModelForIntent(intent: Intent): ChatOpenAI {
     
     logInfo('langchain_intent_model', {
         intent,
+        model: config.model,
+        maxTokens: config.maxTokens,
+    })
+
+    return createModel(config)
+}
+
+export function getModelConfigForStage(stage: ModelStage): ModelConfig {
+    return STAGE_MODEL_CONFIG[stage]
+}
+
+export function createModelForStage(stage: ModelStage): ChatOpenAI {
+    const config = STAGE_MODEL_CONFIG[stage]
+
+    logInfo('langchain_stage_model', {
+        stage,
         model: config.model,
         maxTokens: config.maxTokens,
     })
@@ -158,6 +206,21 @@ export function createStructuredModelForIntent<T extends z.ZodType>(
     return createStructuredModel(schema, config)
 }
 
+export function createStructuredModelForStage<T extends z.ZodType>(
+    schema: T,
+    stage: ModelStage
+) {
+    const config = STAGE_MODEL_CONFIG[stage]
+
+    logInfo('structured_stage_model', {
+        stage,
+        model: config.model,
+        maxTokens: config.maxTokens,
+    })
+
+    return createStructuredModel(schema, config)
+}
+
 // =============================================================================
 // Token Budgeting
 // =============================================================================
@@ -183,11 +246,16 @@ export function getMaxTokensForIntent(intent: Intent): number {
 export function estimateCost(intent: Intent, inputTokens: number): number {
     const outputTokens = getMaxTokensForIntent(intent)
     
-    // DeepSeek pricing (approximate via OpenRouter)
-    // Input: ~$0.0007 per 1K tokens
-    // Output: ~$0.0028 per 1K tokens
-    const inputCost = (inputTokens / 1000) * 0.0007
-    const outputCost = (outputTokens / 1000) * 0.0028
+    let inputRate = 0.5
+    let outputRate = 3
+
+    if (intent === 'initial' || intent === 'proposal') {
+        inputRate = 0.75
+        outputRate = 4.5
+    }
+
+    const inputCost = (inputTokens / 1000) * inputRate / 1000
+    const outputCost = (outputTokens / 1000) * outputRate / 1000
     
     return inputCost + outputCost
 }
@@ -213,7 +281,7 @@ export async function testConnection(): Promise<{
         
         return {
             success: true,
-            model: process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat",
+            model: process.env.OPENROUTER_MODEL_PRD || process.env.OPENROUTER_MODEL || "openai/gpt-5.4-mini",
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -221,7 +289,7 @@ export async function testConnection(): Promise<{
         
         return {
             success: false,
-            model: process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat",
+            model: process.env.OPENROUTER_MODEL_PRD || process.env.OPENROUTER_MODEL || "openai/gpt-5.4-mini",
             error: errorMessage,
         }
     }

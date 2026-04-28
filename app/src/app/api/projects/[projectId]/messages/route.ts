@@ -11,9 +11,9 @@ import {
     timestampToISO,
     type MessageIntent,
     type MessageRole,
-    type UBPContent,
     type ProposedChanges,
 } from "@/lib/firebase/schema"
+import { parseProposedPrdChanges } from "@/lib/prd/schema"
 
 // Pagination safety constants
 const PAGINATION = {
@@ -139,8 +139,8 @@ export async function GET(
  * @body {
  *   role: "user" | "assistant",
  *   content: string,
- *   intent: "initial" | "discussion" | "proposal",
- *   proposedChanges?: Partial<UBPContent>
+ *   intent: "initial" | "clarification" | "discussion" | "proposal",
+ *   proposedChanges?: ProposedChanges
  * }
  * @returns MessageDocument with ISO timestamp
  */
@@ -163,7 +163,7 @@ export async function POST(
             role?: MessageRole
             content?: string
             intent?: MessageIntent
-            proposedChanges?: Partial<UBPContent> | ProposedChanges
+            proposedChanges?: ProposedChanges
         }
 
         if (!role || !["user", "assistant"].includes(role)) {
@@ -180,9 +180,17 @@ export async function POST(
             )
         }
 
-        if (!intent || !["initial", "discussion", "proposal"].includes(intent)) {
+        if (!intent || !["initial", "clarification", "discussion", "proposal"].includes(intent)) {
             return NextResponse.json(
-                { error: "Invalid or missing 'intent'. Must be 'initial', 'discussion', or 'proposal'." },
+                { error: "Invalid or missing 'intent'. Must be 'initial', 'clarification', 'discussion', or 'proposal'." },
+                { status: 400 }
+            )
+        }
+
+        const parsedProposedChanges = parseProposedPrdChanges(proposedChanges)
+        if (proposedChanges !== undefined && !parsedProposedChanges) {
+            return NextResponse.json(
+                { error: "Invalid proposedChanges payload." },
                 { status: 400 }
             )
         }
@@ -195,7 +203,7 @@ export async function POST(
             role,
             content,
             intent,
-            proposedChanges,
+            proposedChanges: parsedProposedChanges,
             timestamp: Timestamp.now(),
         })
 

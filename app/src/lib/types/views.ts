@@ -9,7 +9,8 @@
  * Frontend types live HERE.
  */
 
-import type { UBPContent } from "@/components/UBPViewer"
+import type { ClarificationQuestion, ClarificationResponse, PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
+import type { BuildRun, DesignArtifact, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
 
 // =============================================================================
 // Intent Types
@@ -21,21 +22,13 @@ import type { UBPContent } from "@/components/UBPViewer"
  * - discussion: General conversation
  * - proposal: Suggested changes to blueprint
  */
-export type Intent = "initial" | "discussion" | "proposal"
+export type Intent = "initial" | "clarification" | "discussion" | "proposal"
 
 // =============================================================================
 // Message Types
 // =============================================================================
 
-/**
- * Proposed changes structure for proposal intents
- */
-export interface ProposedChanges {
-    action: "add" | "update" | "remove"
-    summary: string
-    sections: string[]
-    changes: Record<string, unknown>
-}
+export type ProposedChanges = ProposedPrdChanges
 
 /**
  * Frontend view of a chat message (after API transformation).
@@ -76,6 +69,26 @@ export interface BlueprintView {
 // Backward-compatible alias
 export type Blueprint = BlueprintView
 
+export interface PRDView {
+    id: string
+    projectId: string
+    config: PRDConfig
+    updatedAt: string
+}
+
+export type PRD = PRDView
+
+export interface ProjectPlanView {
+    id: string
+    projectId: string
+    plan: ProjectPlan
+    status: "draft" | "approved"
+    approvedAt?: string
+    approvedBy?: string
+    updatedAt: string
+    legacyPrd?: boolean
+}
+
 // =============================================================================
 // Project Types
 // =============================================================================
@@ -88,10 +101,14 @@ export interface ProjectView {
     id: string
     projectName: string
     description?: string
+    stage?: ProjectStage
     chatHistory: MessageView[]
     createdAt: string
     updatedAt: string
-    latestBlueprint?: BlueprintView
+    latestPrd?: PRDView
+    latestPlan?: ProjectPlanView
+    designArtifacts?: DesignArtifact[]
+    buildRuns?: BuildRun[]
 }
 
 // Backward-compatible alias
@@ -107,10 +124,18 @@ export type Project = ProjectView
 export interface GenerateResult {
     intent: Intent
     message: string
-    content: unknown
-    proposedChanges?: ProposedChanges
-    rawContent: string
+    prdConfig?: PRDConfig
+    projectPlan?: ProjectPlan
     productName?: string
+    questions?: ClarificationResponse["questions"]
+    remainingRequired?: ClarificationResponse["remainingRequired"]
+    stage?: ClarificationResponse["stage"]
+}
+
+export interface EnhanceResult {
+    intent: Extract<Intent, "discussion" | "proposal">
+    message: string
+    proposedChanges?: ProposedChanges
 }
 
 // =============================================================================
@@ -124,6 +149,20 @@ export interface DisplayInfo {
     text: string
     intent: Intent
     proposedChanges?: ProposedChanges
+    clarificationQuestions?: ClarificationQuestion[]
+}
+
+export interface ClarificationAnswerState {
+    questionId: string
+    selectedOptionIds: string[]
+    customText: string
+    isComplete: boolean
+}
+
+export interface ClarificationAnsweredSummary {
+    questionId: string
+    prompt: string
+    answerText: string
 }
 
 /**
@@ -149,6 +188,14 @@ export interface ChatInputProps {
     selectionContext: SelectionContext | null
     onClearContext: () => void
     placeholder?: string
+    clarificationSummaries?: ClarificationAnsweredSummary[]
+    activeClarificationQuestion?: ClarificationQuestion | null
+    clarificationAnswers?: Record<string, ClarificationAnswerState>
+    onClarificationToggle?: (question: ClarificationQuestion, optionId: string) => void
+    onClarificationCustomTextChange?: (questionId: string, value: string) => void
+    onClarificationContinue?: () => void
+    canContinueClarificationStep?: boolean
+    isClarificationReady?: boolean
 }
 
 /**
@@ -156,10 +203,11 @@ export interface ChatInputProps {
  */
 export interface MessageListProps {
     messages: MessageView[]
+    currentPrd?: PRDConfig | null
     isStreaming: boolean
     streamedContent: string
     isGenerating: boolean
-    thinkingPhase: number
+    thinkingPhase?: number
     generationMode: 'initial' | 'update' | 'chat'
     onOpenBlueprint: () => void
     onApplyProposedChanges: (changes: ProposedChanges, index: number) => void
@@ -171,11 +219,11 @@ export interface MessageListProps {
  */
 export interface ChatPanelProps {
     project: ProjectView
-    currentUBP: UBPContent | null
+    currentPrd?: PRDConfig | null
     isGenerating: boolean
     isStreaming: boolean
     streamedContent: string
-    thinkingPhase: number
+    thinkingPhase?: number
     generationMode: 'initial' | 'update' | 'chat'
     message: string
     error: string | null
@@ -187,7 +235,16 @@ export interface ChatPanelProps {
     onClearContext: () => void
     onQuickAction: (message: string) => void
     onRetry?: () => void
+    clarificationSummaries?: ClarificationAnsweredSummary[]
+    activeClarificationQuestion?: ClarificationQuestion | null
+    clarificationAnswers?: Record<string, ClarificationAnswerState>
+    onClarificationToggle?: (question: ClarificationQuestion, optionId: string) => void
+    onClarificationCustomTextChange?: (questionId: string, value: string) => void
+    onClarificationContinue?: () => void
+    canContinueClarificationStep?: boolean
+    isClarificationReady?: boolean
 }
 
 // Re-export UBPContent for convenience
 export type { UBPContent } from "@/components/UBPViewer"
+export type { PRDConfig } from "@/lib/prd/schema"
