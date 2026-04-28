@@ -1,4 +1,5 @@
 import { Metadata } from "next"
+import { AuthProvider } from "@/components/Providers"
 
 export const metadata: Metadata = {
     title: "Dashboard",
@@ -14,5 +15,5 @@ export default function DashboardLayout({
 }: {
     children: React.ReactNode
 }) {
-    return children
+    return <AuthProvider>{children}</AuthProvider>
 }
