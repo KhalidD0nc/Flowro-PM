@@ -47,7 +47,7 @@ export default function CommandCenter({ onProjectCreated }: CommandCenterProps) 
           {/* Subheadline */}
           <p className="max-w-2xl text-lg leading-8 text-slate-600">
             Describe your product idea, paste a spec document, or start with a
-            template to kick off a short clarification flow before Flowro generates the PRD.
+            template to kick off a short clarification flow before Flowro generates the project plan.
           </p>
         </div>
 

@@ -26,6 +26,10 @@ import {
     type BlueprintCreateData,
     type PRDDocument,
     type PRDCreateData,
+    type ProjectPlanDocument,
+    type ProjectPlanCreateData,
+    type DesignArtifactDocument,
+    type BuildRunDocument,
     type BlueprintHistoryDocument,
     type BlueprintHistoryCreateData,
     type UBPContent,
@@ -35,6 +39,7 @@ import {
     incrementVersion,
 } from "./schema"
 import { validatePRDConfig, type PRDConfig } from "@/lib/prd/schema"
+import { validateProjectPlan, type BuildRun, type DesignArtifact, type ProjectPlan, type ProjectStage } from "@/lib/project-plan/schema"
 
 // =============================================================================
 // Utility Functions
@@ -149,6 +154,7 @@ export async function createProject(data: Omit<ProjectCreateData, "createdAt" | 
     const now = Timestamp.now()
     const projectData: ProjectCreateData = {
         ...data,
+        stage: data.stage ?? "planning",
         collaboratorUserIds: [], // Initialize empty for Firestore security rules
         createdAt: now,
         updatedAt: now,
@@ -208,7 +214,7 @@ export async function getUserProjects(userId: string): Promise<ProjectListItem[]
  */
 export async function updateProject(
     projectId: string,
-    updates: Partial<Pick<ProjectDocument, "name" | "lastMessage">>
+    updates: Partial<Pick<ProjectDocument, "name" | "lastMessage" | "stage">>
 ): Promise<void> {
     const db = getDb()
     await db.collection(COLLECTIONS.PROJECTS).doc(projectId).update({
@@ -227,8 +233,11 @@ export async function deleteProject(projectId: string): Promise<void> {
     // Delete all messages in subcollection
     const messagesPath = `${COLLECTIONS.PROJECTS}/${projectId}/${COLLECTIONS.MESSAGES}`
     await deleteCollectionDocs(messagesPath)
+    await deleteCollectionDocs(`${COLLECTIONS.PROJECTS}/${projectId}/${COLLECTIONS.DESIGN_ARTIFACTS}`)
+    await deleteCollectionDocs(`${COLLECTIONS.PROJECTS}/${projectId}/${COLLECTIONS.BUILD_RUNS}`)
 
     await deletePrd(projectId)
+    await db.collection(COLLECTIONS.PROJECT_PLANS).doc(projectId).delete()
 
     // Find blueprint and delete history + blueprint docs
     const blueprintSnap = await db
@@ -515,6 +524,250 @@ export async function deletePrd(projectId: string): Promise<void> {
     await db.collection(COLLECTIONS.PRDS).doc(projectId).delete()
 }
 
+// =============================================================================
+// Project Plans, Design Artifacts, and Build Runs
+// =============================================================================
+
+export async function getProjectPlanByProjectId(projectId: string): Promise<ProjectPlanDocument | null> {
+    const db = getDb()
+    const docSnap = await db.collection(COLLECTIONS.PROJECT_PLANS).doc(projectId).get()
+
+    if (!docSnap.exists) {
+        return null
+    }
+
+    return {
+        id: docSnap.id,
+        ...docSnap.data(),
+    } as ProjectPlanDocument
+}
+
+export async function upsertProjectPlan(projectId: string, plan: ProjectPlan): Promise<ProjectPlanDocument> {
+    const db = getDb()
+    const now = Timestamp.now()
+    const validatedPlan = validateProjectPlan(plan)
+
+    await db.collection(COLLECTIONS.PROJECT_PLANS).doc(projectId).set({
+        projectId,
+        plan: validatedPlan,
+        status: validatedPlan.metadata.status === "approved" ? "approved" : "draft",
+        updatedAt: now,
+    } satisfies ProjectPlanCreateData)
+
+    await updateProject(projectId, { stage: "planning" })
+
+    return {
+        id: projectId,
+        projectId,
+        plan: validatedPlan,
+        status: validatedPlan.metadata.status === "approved" ? "approved" : "draft",
+        updatedAt: now,
+    }
+}
+
+export async function approveProjectPlan(projectId: string, userId: string): Promise<ProjectPlanDocument> {
+    const db = getDb()
+    const existing = await getProjectPlanByProjectId(projectId)
+    if (!existing) {
+        throw new Error("Project plan not found")
+    }
+
+    const now = Timestamp.now()
+    const approvedPlan = validateProjectPlan({
+        ...existing.plan,
+        metadata: {
+            ...existing.plan.metadata,
+            status: "approved",
+        },
+    })
+
+    await db.collection(COLLECTIONS.PROJECT_PLANS).doc(projectId).update({
+        plan: approvedPlan,
+        status: "approved",
+        approvedAt: now,
+        approvedBy: userId,
+        updatedAt: now,
+    })
+    await updateProject(projectId, { stage: "plan_approved" })
+
+    return {
+        ...existing,
+        plan: approvedPlan,
+        status: "approved",
+        approvedAt: now,
+        approvedBy: userId,
+        updatedAt: now,
+    }
+}
+
+export async function setProjectStage(projectId: string, stage: ProjectStage): Promise<void> {
+    await updateProject(projectId, { stage })
+}
+
+export async function createDesignArtifact(
+    data: Omit<DesignArtifact, "id" | "createdAt" | "approvedAt">
+): Promise<DesignArtifactDocument> {
+    const db = getDb()
+    const now = Timestamp.now()
+    const collectionRef = db.collection(COLLECTIONS.PROJECTS).doc(data.projectId).collection(COLLECTIONS.DESIGN_ARTIFACTS)
+    const docRef = collectionRef.doc()
+    const artifact = {
+        id: docRef.id,
+        ...data,
+        createdAt: now,
+    } as DesignArtifactDocument
+
+    await docRef.set(removeUndefinedValues(artifact as unknown as Record<string, unknown>))
+    await setProjectStage(data.projectId, "design_ready")
+
+    return artifact
+}
+
+export async function getDesignArtifacts(projectId: string): Promise<DesignArtifactDocument[]> {
+    const db = getDb()
+    const snapshot = await db
+        .collection(COLLECTIONS.PROJECTS)
+        .doc(projectId)
+        .collection(COLLECTIONS.DESIGN_ARTIFACTS)
+        .orderBy("createdAt", "desc")
+        .get()
+
+    return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+    } as DesignArtifactDocument))
+}
+
+export async function getDesignArtifact(projectId: string, artifactId: string): Promise<DesignArtifactDocument | null> {
+    const db = getDb()
+    const docSnap = await db
+        .collection(COLLECTIONS.PROJECTS)
+        .doc(projectId)
+        .collection(COLLECTIONS.DESIGN_ARTIFACTS)
+        .doc(artifactId)
+        .get()
+
+    if (!docSnap.exists) {
+        return null
+    }
+
+    return {
+        id: docSnap.id,
+        ...docSnap.data(),
+    } as DesignArtifactDocument
+}
+
+export async function approveAllDesignArtifacts(
+    projectId: string,
+    userId: string
+): Promise<DesignArtifactDocument[]> {
+    const db = getDb()
+    const artifacts = await getDesignArtifacts(projectId)
+    if (artifacts.length === 0) {
+        throw new Error("No design artifacts to approve")
+    }
+
+    const now = Timestamp.now()
+    const collectionRef = db.collection(COLLECTIONS.PROJECTS).doc(projectId).collection(COLLECTIONS.DESIGN_ARTIFACTS)
+    const batch = db.batch()
+
+    artifacts.forEach((artifact) => {
+        batch.update(collectionRef.doc(artifact.id), {
+            status: "approved",
+            approvedAt: now,
+            approvedBy: userId,
+        })
+    })
+
+    await batch.commit()
+    await setProjectStage(projectId, "design_approved")
+
+    return artifacts.map((artifact) => ({
+        ...artifact,
+        status: "approved",
+        approvedAt: now,
+        approvedBy: userId,
+    }))
+}
+
+export async function getApprovedDesignArtifact(projectId: string): Promise<DesignArtifactDocument | null> {
+    const artifacts = await getDesignArtifacts(projectId)
+    return artifacts.find((artifact) => artifact.status === "approved") ?? null
+}
+
+export async function getApprovedDesignArtifacts(projectId: string): Promise<DesignArtifactDocument[]> {
+    const artifacts = await getDesignArtifacts(projectId)
+    return artifacts.filter((artifact) => artifact.status === "approved")
+}
+
+export async function createBuildRun(
+    data: Omit<BuildRun, "id" | "createdAt" | "updatedAt">
+): Promise<BuildRunDocument> {
+    const db = getDb()
+    const now = Timestamp.now()
+    const collectionRef = db.collection(COLLECTIONS.PROJECTS).doc(data.projectId).collection(COLLECTIONS.BUILD_RUNS)
+    const docRef = collectionRef.doc()
+    const run: BuildRunDocument = {
+        id: docRef.id,
+        ...data,
+        createdAt: now,
+        updatedAt: now,
+    }
+
+    await docRef.set(removeUndefinedValues(run as unknown as Record<string, unknown>))
+    await setProjectStage(data.projectId, data.status === "success" ? "preview_ready" : data.status === "failed" ? "failed" : "coding")
+
+    return run
+}
+
+export async function getBuildRuns(projectId: string): Promise<BuildRunDocument[]> {
+    const db = getDb()
+    const snapshot = await db
+        .collection(COLLECTIONS.PROJECTS)
+        .doc(projectId)
+        .collection(COLLECTIONS.BUILD_RUNS)
+        .orderBy("createdAt", "desc")
+        .get()
+
+    return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+    } as BuildRunDocument))
+}
+
+export async function getBuildRun(projectId: string, runId: string): Promise<BuildRunDocument | null> {
+    const db = getDb()
+    const doc = await db
+        .collection(COLLECTIONS.PROJECTS)
+        .doc(projectId)
+        .collection(COLLECTIONS.BUILD_RUNS)
+        .doc(runId)
+        .get()
+
+    if (!doc.exists) return null
+    return { id: doc.id, ...doc.data() } as BuildRunDocument
+}
+
+export async function updateBuildRun(
+    projectId: string,
+    runId: string,
+    updates: Partial<Omit<BuildRun, "id" | "projectId" | "createdAt">>
+): Promise<void> {
+    const db = getDb()
+    const docRef = db
+        .collection(COLLECTIONS.PROJECTS)
+        .doc(projectId)
+        .collection(COLLECTIONS.BUILD_RUNS)
+        .doc(runId)
+
+    const cleaned = removeUndefinedValues({
+        ...updates,
+        updatedAt: Timestamp.now(),
+    } as unknown as Record<string, unknown>)
+
+    await docRef.update(cleaned)
+}
+
 /**
  * Update a blueprint with automatic version history.
  * Uses safe merge semantics to preserve existing sections not in incoming content.
@@ -663,16 +916,22 @@ export async function getProjectWithDetails(projectId: string): Promise<{
     messages: MessageDocument[]
     blueprint: BlueprintDocument | null
     prd: PRDDocument | null
+    projectPlan: ProjectPlanDocument | null
+    designArtifacts: DesignArtifactDocument[]
+    buildRuns: BuildRunDocument[]
 } | null> {
     const project = await getProject(projectId)
     if (!project) {
         return null
     }
 
-    const [messages, blueprint, prd] = await Promise.all([
+    const [messages, blueprint, prd, projectPlan, designArtifacts, buildRuns] = await Promise.all([
         getMessages(projectId),
         getBlueprintByProjectId(projectId),
         getPrdByProjectId(projectId),
+        getProjectPlanByProjectId(projectId),
+        getDesignArtifacts(projectId),
+        getBuildRuns(projectId),
     ])
 
     return {
@@ -680,6 +939,9 @@ export async function getProjectWithDetails(projectId: string): Promise<{
         messages,
         blueprint,
         prd,
+        projectPlan,
+        designArtifacts,
+        buildRuns,
     }
 }
 

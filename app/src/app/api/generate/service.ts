@@ -6,9 +6,8 @@ import {
     clarificationQuestionSchema,
     clarificationResponseSchema,
     discussionResponseSchema,
-    generatePrdResponseSchema,
-    type PRDConfig,
 } from "@/lib/prd/schema"
+import { projectPlanGenerateResponseSchema, type ProjectPlan } from "@/lib/project-plan/schema"
 
 const FALLBACK_PRD_MODEL = "anthropic/claude-haiku-4.5"
 const CLARIFICATION_QUESTION_BUDGET = 3
@@ -65,13 +64,13 @@ export type Intent = "initial" | "clarification" | "discussion"
 export interface GenerateInput {
     message: string
     context?: ChatMessage[]
-    currentPrd?: PRDConfig | null
+    currentPlan?: ProjectPlan | null
 }
 
 export interface GenerateResult {
     intent: Intent
     message: string
-    prdConfig?: PRDConfig
+    projectPlan?: ProjectPlan
     rawContent: string
     productName?: string
     questions?: z.infer<typeof clarificationQuestionSchema>[]
@@ -124,12 +123,12 @@ function withWebOnlyAssumption(enhanced: EnhancedSeed): EnhancedSeed {
     const missingInfoTags = getBlockingMissingInfoTags(enhanced.missingInfoTags)
     const constraints = Array.from(new Set([
         ...enhanced.constraints,
-        "Initial PRD scope is a web application only.",
+        "Initial project plan scope is a web application only.",
     ]))
     const assumptions = Array.from(new Set([
         ...enhanced.assumptions,
-        "Generate the first PRD for a single web experience.",
-        "Do not ask about mobile platforms or native apps before the first PRD.",
+        "Generate the first project plan for a single web experience.",
+        "Do not ask about mobile platforms or native apps before the first project plan.",
     ]))
 
     return {
@@ -137,16 +136,6 @@ function withWebOnlyAssumption(enhanced: EnhancedSeed): EnhancedSeed {
         constraints,
         assumptions,
         missingInfoTags,
-    }
-}
-
-export function enforceWebOnlyPrdConfig(prdConfig: PRDConfig): PRDConfig {
-    return {
-        ...prdConfig,
-        metadata: {
-            ...prdConfig.metadata,
-            platforms: ["web"],
-        },
     }
 }
 
@@ -163,7 +152,7 @@ export function createClarificationResponse(payload: z.infer<typeof clarificatio
 const enhanceSeedPrompt = ChatPromptTemplate.fromMessages([
     [
         "system",
-        `You are Flowro AI preparing internal context before PRD generation.
+        `You are Flowro AI preparing internal context before project plan generation.
 
 Return structured data only.
 
@@ -180,9 +169,9 @@ Summarize the user's product direction into a normalized brief:
 
 Rules:
 - Use the full conversation history plus the latest message.
-- Assume the first PRD is for a web-only experience.
+- Assume the first project plan is for a web-only experience.
 - Capture what is explicitly known; infer lightly only when the inference is obvious.
-- readyForPrd should be true only when the core product shape is clear enough to generate a solid first PRD.
+- readyForPrd should be true only when the core product shape is clear enough to generate a solid first project plan.
 - missingInfoTags should contain only the unresolved high-impact gaps.
 - Never mention that this is an internal step.`,
     ],
@@ -193,13 +182,13 @@ Rules:
 const clarificationPrompt = ChatPromptTemplate.fromMessages([
     [
         "system",
-        `You are Flowro AI collecting the minimum information needed before generating a PRD.
+        `You are Flowro AI collecting the minimum information needed before generating a project plan.
 
 Return structured data only.
 
 Rules:
 - Ask exactly {questionBudget} concise questions.
-- Ask only one clarification batch before PRD generation.
+- Ask only one clarification batch before project plan generation.
 - Questions must target product-shaping gaps from the enhanced brief.
 - Each question must be multiple-choice with 2-5 options.
 - Include one final option with label "Other" and kind "other" when a custom answer would be useful.
@@ -209,9 +198,9 @@ Rules:
 - Ask at most 3 questions total.
 - Focus on only these areas: primary user, problem, core workflow, MVP scope, and critical constraints.
 - Never ask about platform selection, mobile apps, iOS, Android, responsive/mobile support, or native clients.
-- Never ask the user to choose vendors, SDKs, hosting providers, or other implementation details before the first PRD.
+- Never ask the user to choose vendors, SDKs, hosting providers, or other implementation details before the first project plan.
 - Keep the message short and direct.
-- Do not generate the PRD yet.
+- Do not generate the project plan yet.
 - Do not show or mention any internal rewritten prompt.`,
     ],
     ["system", "### ENHANCED BRIEF\n{enhancedBrief}"],
@@ -222,22 +211,31 @@ Rules:
 const initialPrompt = ChatPromptTemplate.fromMessages([
     [
         "system",
-        `You are Flowro AI. Convert the clarified product brief into a deterministic PRD configuration.
+        `You are Flowro AI. Convert the clarified product brief into a deterministic ProjectPlan for an app builder.
 
 Return structured data only.
 
 Use this exact shape:
-- metadata: productName, platforms, targetAudience, designVibe
-- entities: concrete data models and fields
-- flows: user-facing navigation flows with explicit step IDs and nextStepId links when the flow continues
-- features: core requirements with priority, scope, and acceptance criteria
+- metadata: productName, version, status
+- templateId: must be "nextjs-app"
+- appSummary, targetUser, problem
+- successCriteria
+- routes: path, name, purpose, primaryActions
+- dataModels: name, purpose, fields
+- auth: required, notes
+- integrations: name, purpose, requiredForV1
+- uiRequirements
+- buildTasks: id, title, description, status
+- acceptanceChecks
+- risks
 
 Rules:
 - Use the enhanced brief as the source of truth and use the chat history only to resolve detail.
-- metadata.platforms must equal exactly ["web"].
-- features must be concrete and implementation-relevant.
-- flows must be realistic product flows, not abstract statements.
-- entities should be only the data models needed for the product.
+- templateId must equal exactly "nextjs-app".
+- Routes must describe real screens/pages the generated app should implement.
+- Build tasks must be concrete and implementation-relevant.
+- UI requirements must be specific enough for a product design agent to generate screens.
+- Data models should only contain necessary product data.
 - Never use "Flowro" as the product name.`,
     ],
     ["system", "### ENHANCED BRIEF\n{enhancedBrief}"],
@@ -252,10 +250,10 @@ const discussionPrompt = ChatPromptTemplate.fromMessages([
 
 Respond conversationally in 2-5 sentences.
 - Do not propose patches.
-- Do not return PRD JSON.
-- If current PRD context is provided, use it to ground the answer.`,
+- Do not return ProjectPlan JSON.
+- If current ProjectPlan context is provided, use it to ground the answer.`,
     ],
-    ["system", "### CURRENT PRD\n{currentPrd}"],
+    ["system", "### CURRENT PROJECT PLAN\n{currentPrd}"],
     new MessagesPlaceholder("history"),
     ["human", "{input}"],
 ])
@@ -265,7 +263,7 @@ async function invokeStructuredInitialWithFallback(
     input: string,
     history: BaseMessage[]
 ): Promise<{
-    parsed: z.infer<typeof generatePrdResponseSchema>
+    parsed: z.infer<typeof projectPlanGenerateResponseSchema>
     modelUsed: string
 }> {
     const primaryConfig = getModelConfigForStage("initial")
@@ -275,7 +273,7 @@ async function invokeStructuredInitialWithFallback(
     }
 
     try {
-        const primaryModel = createStructuredModel(generatePrdResponseSchema, primaryConfig)
+        const primaryModel = createStructuredModel(projectPlanGenerateResponseSchema, primaryConfig)
         const primaryChain = initialPrompt.pipe(primaryModel)
         const primaryResponse = await primaryChain.invoke({
             input,
@@ -284,11 +282,11 @@ async function invokeStructuredInitialWithFallback(
         })
 
         return {
-            parsed: generatePrdResponseSchema.parse(primaryResponse),
+            parsed: projectPlanGenerateResponseSchema.parse(primaryResponse),
             modelUsed: primaryConfig.model || "openai/gpt-5.4-mini",
         }
     } catch {
-        const fallbackModel = createStructuredModel(generatePrdResponseSchema, fallbackConfig)
+        const fallbackModel = createStructuredModel(projectPlanGenerateResponseSchema, fallbackConfig)
         const fallbackChain = initialPrompt.pipe(fallbackModel)
         const fallbackResponse = await fallbackChain.invoke({
             input,
@@ -297,7 +295,7 @@ async function invokeStructuredInitialWithFallback(
         })
 
         return {
-            parsed: generatePrdResponseSchema.parse(fallbackResponse),
+            parsed: projectPlanGenerateResponseSchema.parse(fallbackResponse),
             modelUsed: fallbackConfig.model || FALLBACK_PRD_MODEL,
         }
     }
@@ -306,7 +304,7 @@ async function invokeStructuredInitialWithFallback(
 export async function generateFromMessage(input: GenerateInput): Promise<GenerateResult> {
     const history = toHistoryMessages(input.context)
 
-    if (!input.currentPrd) {
+    if (!input.currentPlan) {
         const enhancementModel = createStructuredModel(enhancedSeedSchema, {
             ...getModelConfigForStage("promptEnhancer"),
         })
@@ -359,9 +357,9 @@ export async function generateFromMessage(input: GenerateInput): Promise<Generat
         return {
             intent: parsed.intent,
             message: parsed.message,
-            prdConfig: enforceWebOnlyPrdConfig(parsed.prdConfig),
+            projectPlan: parsed.projectPlan,
             rawContent: JSON.stringify(parsed),
-            productName: parsed.prdConfig.metadata.productName,
+            productName: parsed.projectPlan.metadata.productName,
             modelUsed,
         }
     }
@@ -371,7 +369,7 @@ export async function generateFromMessage(input: GenerateInput): Promise<Generat
     const response = await chain.invoke({
         input: input.message,
         history,
-        currentPrd: JSON.stringify(input.currentPrd, null, 2),
+        currentPrd: JSON.stringify(input.currentPlan, null, 2),
     })
 
     const parsed = discussionResponseSchema.parse(response)

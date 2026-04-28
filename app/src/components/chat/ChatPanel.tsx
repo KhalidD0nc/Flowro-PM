@@ -41,10 +41,10 @@ export default function ChatPanel({
   const placeholder =
     currentPrd
       ? project.chatHistory.length > 0
-        ? "Ask Flowro to refine the PRD..."
+        ? "Ask Flowro to refine the project plan..."
         : "Describe your product idea..."
       : project.chatHistory.length > 0
-        ? "Answer the current clarification question..."
+        ? "Answer the current question or ask about the plan..."
         : "Describe your product idea...";
 
   return (

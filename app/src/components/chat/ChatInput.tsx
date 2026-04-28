@@ -71,7 +71,7 @@ export default function ChatInput({
               <div className="rounded-[1.4rem] border border-[#e8e0d6] bg-[#fcfaf7] px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Waiting for answers</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Collecting one setup round before generating the PRD.
+                  Collecting one setup round before generating the project plan.
                 </p>
               </div>
 
@@ -182,7 +182,7 @@ export default function ChatInput({
                 <div className="rounded-[1.35rem] border border-[#dde8f7] bg-[#f8fbff] p-4">
                   <p className="text-sm font-medium text-slate-800">All questions are answered.</p>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Submit the selected answers so Flowro can generate the PRD.
+                    Submit the selected answers so Flowro can generate the project plan.
                   </p>
                 </div>
               )}

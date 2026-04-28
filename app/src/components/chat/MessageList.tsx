@@ -16,10 +16,10 @@ function getDisplayMessage(
       return obj.message;
     }
     if (fallbackIntent === "initial") {
-      return "I've created your PRD config. Open it and review the structure.";
+      return "I've created your project plan. Open it and review the build contract.";
     }
     if (fallbackIntent === "clarification") {
-      return "I need a few details before I generate the PRD.";
+      return "I need a few details before I generate the project plan.";
     }
     if (fallbackIntent === "proposal") {
       return "I have some suggested changes for your blueprint.";
@@ -250,7 +250,7 @@ export default function MessageList({
                     className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#d8e7fb] bg-[#edf5ff] px-3 py-2 text-sm font-medium text-[#2f8fff] transition hover:bg-[#e2efff]"
                   >
                     <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-                    Open PRD
+                    Open Project Plan
                   </button>
                 ) : null}
 
@@ -326,9 +326,9 @@ export default function MessageList({
 
 export function WelcomeScreen({ onQuickAction }: { onQuickAction: (message: string) => void }) {
   const actions = [
-    { icon: "description", text: "Draft a PRD", query: "I want to create a PRD for a new product idea" },
-    { icon: "lightbulb", text: "Brainstorm", query: "Help me brainstorm features for my product" },
-    { icon: "timeline", text: "Roadmap", query: "I need help creating a product roadmap" },
+    { icon: "description", text: "Draft a Plan", query: "I want to create a project plan for a new web app" },
+    { icon: "lightbulb", text: "Brainstorm", query: "Help me brainstorm features for my app" },
+    { icon: "timeline", text: "Build Flow", query: "Help me plan the app screens, design, and build tasks" },
     { icon: "analytics", text: "Research", query: "Analyze competitors in my market" },
   ];
 
@@ -345,7 +345,7 @@ export function WelcomeScreen({ onQuickAction }: { onQuickAction: (message: stri
             Shape the product with Flowro
           </h2>
           <p className="mt-3 text-sm leading-7 text-slate-500">
-            Use the chat to draft requirements, refine flows, or turn a rough idea into a clean PRD structure.
+            Use the chat to turn a rough idea into an approved project plan, UI direction, and build-ready task list.
           </p>
         </div>
 
