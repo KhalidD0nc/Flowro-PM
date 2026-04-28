@@ -101,11 +101,33 @@ export const designArtifactSchema = z.object({
     approvedBy: z.string().optional(),
 })
 
+export const commandRunSchema = z.object({
+    command: z.string().min(1),
+    status: z.enum(["success", "failed"]),
+    summary: z.string().min(1),
+    stdout: z.string().optional(),
+    stderr: z.string().optional(),
+})
+
+export const buildPhaseSchema = z.enum([
+    "queued",
+    "planning",
+    "generating",
+    "installing",
+    "building",
+    "repairing",
+    "fallback",
+    "preview",
+    "completed",
+    "failed",
+    "canceled",
+])
+
 export const buildRunSchema = z.object({
     id: z.string().min(1),
     projectId: z.string().min(1),
     templateId: templateIdSchema,
-    status: z.enum(["queued", "running", "success", "failed"]),
+    status: z.enum(["queued", "running", "success", "failed", "canceled"]),
     steps: z.array(z.string().min(1)).default([]),
     logs: z.array(z.string().min(1)).default([]),
     filesChanged: z.array(z.string().min(1)).default([]),
@@ -113,6 +135,22 @@ export const buildRunSchema = z.object({
     error: z.string().optional(),
     createdAt: z.string().optional(),
     updatedAt: z.string().optional(),
+    promptPreview: z.string().optional(),
+    promptSnapshot: z.string().optional(),
+    targetWorkspacePath: z.string().optional(),
+    model: z.string().optional().default("kimi-k2.6"),
+    agentStatus: z.enum(["prompt_ready", "building", "completed", "blocked"]).optional(),
+    commandsRun: z.array(commandRunSchema).default([]),
+    previewAvailable: z.boolean().optional(),
+    phase: buildPhaseSchema.optional(),
+    currentAction: z.string().optional(),
+    startedAt: z.string().optional(),
+    finishedAt: z.string().optional(),
+    elapsedMs: z.number().nonnegative().optional(),
+    totalFiles: z.number().int().nonnegative().optional(),
+    completedFiles: z.number().int().nonnegative().optional(),
+    currentFile: z.string().optional(),
+    fallbackUsed: z.boolean().optional(),
 })
 
 export type ProjectStage = z.infer<typeof projectStageSchema>
@@ -122,6 +160,7 @@ export type RoutePlan = z.infer<typeof routePlanSchema>
 export type ProjectPlan = z.infer<typeof projectPlanSchema>
 export type DesignArtifact = z.infer<typeof designArtifactSchema>
 export type BuildRun = z.infer<typeof buildRunSchema>
+export type BuildPhase = z.infer<typeof buildPhaseSchema>
 
 export const TEMPLATE_MANIFESTS: Record<TemplateId, TemplateManifest> = {
     "nextjs-app": {
@@ -148,8 +187,12 @@ export function validateProjectPlan(input: unknown): ProjectPlan {
     return projectPlanSchema.parse(input)
 }
 
-export function getTemplateManifest(templateId: TemplateId): TemplateManifest {
-    return TEMPLATE_MANIFESTS[templateId]
+export function getTemplateManifest(templateId: string): TemplateManifest {
+    const manifest = TEMPLATE_MANIFESTS[templateId as TemplateId]
+    if (!manifest) {
+        throw new Error(`Unknown template ID: ${templateId}`)
+    }
+    return manifest
 }
 
 export function prdToProjectPlan(prd: PRDConfig): ProjectPlan {
