@@ -70,3 +70,6 @@ node_modules/
 
 # Playwright CLI artifacts
 .playwright-cli/
+
+# Generated apps (build output)
+generated-apps/

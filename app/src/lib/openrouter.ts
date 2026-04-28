@@ -22,6 +22,10 @@ export interface GenerateOptions {
   stream?: boolean
   reasoning?: boolean  // Default: false (saves ~50% tokens)
   maxTokens?: number   // Default: 4000
+  model?: string
+  timeoutMs?: number
+  maxRetries?: number
+  signal?: AbortSignal
 }
 
 // Error types for better handling
@@ -78,9 +82,16 @@ function getRetryDelay(attempt: number): number {
 /**
  * Fetch with timeout support
  */
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number, externalSignal?: AbortSignal): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  const abortFromExternalSignal = () => controller.abort()
+
+  if (externalSignal?.aborted) {
+    controller.abort()
+  } else {
+    externalSignal?.addEventListener("abort", abortFromExternalSignal, { once: true })
+  }
 
   try {
     const response = await fetch(url, {
@@ -90,16 +101,29 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
     return response
   } finally {
     clearTimeout(timeoutId)
+    externalSignal?.removeEventListener("abort", abortFromExternalSignal)
   }
 }
 
 export async function generateCompletion(options: GenerateOptions) {
-  const { messages, stream = false, reasoning = true, maxTokens = 4000 } = options
-  const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat"
+  const {
+    messages,
+    stream = false,
+    reasoning = true,
+    maxTokens = 4000,
+    timeoutMs = CONFIG.timeoutMs,
+    maxRetries = CONFIG.maxRetries,
+    signal,
+  } = options
+  const model = options.model || process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat"
 
   let lastError: Error | null = null
 
-  for (let attempt = 0; attempt <= CONFIG.maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (signal?.aborted) {
+      throw new OpenRouterError("Request canceled.", 0, "timeout", false)
+    }
+
     try {
       const response = await fetchWithTimeout(
         OPENROUTER_URL,
@@ -119,7 +143,8 @@ export async function generateCompletion(options: GenerateOptions) {
             ...(reasoning && { reasoning: { enabled: true, effort: "low" } }),
           }),
         },
-        CONFIG.timeoutMs
+        timeoutMs,
+        signal
       )
 
       if (response.ok) {
@@ -130,9 +155,9 @@ export async function generateCompletion(options: GenerateOptions) {
       const errorBody = await response.text()
       const { type, retryable, message } = categorizeError(response.status, errorBody)
 
-      console.error(`OpenRouter error (attempt ${attempt + 1}/${CONFIG.maxRetries + 1}) - Model: ${model}, Status: ${response.status}, Type: ${type}`)
+      console.error(`OpenRouter error (attempt ${attempt + 1}/${maxRetries + 1}) - Model: ${model}, Status: ${response.status}, Type: ${type}`)
 
-      if (!retryable || attempt === CONFIG.maxRetries) {
+      if (!retryable || attempt === maxRetries) {
         throw new OpenRouterError(message, response.status, type, retryable)
       }
 
@@ -148,8 +173,9 @@ export async function generateCompletion(options: GenerateOptions) {
       const isNetworkError = error instanceof TypeError && error.message.includes("fetch")
 
       if (isTimeout) {
-        console.error(`OpenRouter timeout (attempt ${attempt + 1}/${CONFIG.maxRetries + 1})`)
-        lastError = new OpenRouterError("Request timed out. Please try again.", 0, "timeout", true)
+        const message = signal?.aborted ? "Request canceled." : "Request timed out. Please try again."
+        console.error(`OpenRouter timeout (attempt ${attempt + 1}/${maxRetries + 1})`)
+        lastError = new OpenRouterError(message, 0, "timeout", !signal?.aborted)
       } else if (isNetworkError) {
         console.error(`OpenRouter network error (attempt ${attempt + 1}/${CONFIG.maxRetries + 1}):`, error)
         lastError = new OpenRouterError("Network error. Please check your connection.", 0, "network", true)
@@ -158,7 +184,7 @@ export async function generateCompletion(options: GenerateOptions) {
         throw error
       }
 
-      if (attempt === CONFIG.maxRetries) {
+      if (attempt === maxRetries) {
         throw lastError
       }
     }

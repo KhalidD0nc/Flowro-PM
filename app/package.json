@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:prd": "tsx src/__tests__/prdConfigTests.ts && tsx src/__tests__/prdEditorTests.ts && tsx src/__tests__/prdAutopilotTests.ts && tsx src/__tests__/projectPlanTests.ts",
+    "test:prd": "tsx src/__tests__/prdConfigTests.ts && tsx src/__tests__/prdEditorTests.ts && tsx src/__tests__/prdAutopilotTests.ts && tsx src/__tests__/projectPlanTests.ts && tsx src/__tests__/kimiPromptTests.ts && tsx src/__tests__/buildExecutorTests.ts",
     "worker:build": "tsx scripts/build-worker.ts"
   },
   "dependencies": {

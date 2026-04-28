@@ -735,6 +735,39 @@ export async function getBuildRuns(projectId: string): Promise<BuildRunDocument[
     } as BuildRunDocument))
 }
 
+export async function getBuildRun(projectId: string, runId: string): Promise<BuildRunDocument | null> {
+    const db = getDb()
+    const doc = await db
+        .collection(COLLECTIONS.PROJECTS)
+        .doc(projectId)
+        .collection(COLLECTIONS.BUILD_RUNS)
+        .doc(runId)
+        .get()
+
+    if (!doc.exists) return null
+    return { id: doc.id, ...doc.data() } as BuildRunDocument
+}
+
+export async function updateBuildRun(
+    projectId: string,
+    runId: string,
+    updates: Partial<Omit<BuildRun, "id" | "projectId" | "createdAt">>
+): Promise<void> {
+    const db = getDb()
+    const docRef = db
+        .collection(COLLECTIONS.PROJECTS)
+        .doc(projectId)
+        .collection(COLLECTIONS.BUILD_RUNS)
+        .doc(runId)
+
+    const cleaned = removeUndefinedValues({
+        ...updates,
+        updatedAt: Timestamp.now(),
+    } as unknown as Record<string, unknown>)
+
+    await docRef.update(cleaned)
+}
+
 /**
  * Update a blueprint with automatic version history.
  * Uses safe merge semantics to preserve existing sections not in incoming content.

@@ -1,6 +1,19 @@
 import { getTemplateManifest, type BuildRun, type DesignArtifact, type ProjectPlan } from "@/lib/project-plan/schema"
 
-export function createStubBuildRun(projectId: string, plan: ProjectPlan, designs: DesignArtifact[]): Omit<BuildRun, "id" | "createdAt" | "updatedAt"> {
+export type PromptMetadata = {
+    promptPreview: string
+    promptSnapshot: string
+    targetWorkspacePath: string
+    model: string
+    agentStatus: BuildRun["agentStatus"]
+}
+
+export function createStubBuildRun(
+    projectId: string,
+    plan: ProjectPlan,
+    designs: DesignArtifact[],
+    promptMetadata?: PromptMetadata
+): Omit<BuildRun, "id" | "createdAt" | "updatedAt"> {
     const template = getTemplateManifest(plan.templateId)
     const primaryDesign = designs[0]
     const previewUrl = `/api/projects/${projectId}/design/screens/${primaryDesign.screenId}/html`
@@ -28,5 +41,12 @@ export function createStubBuildRun(projectId: string, plan: ProjectPlan, designs
             "templates/nextjs-app/src/lib/generated/project-plan.ts (planned)",
         ],
         previewUrl,
+        commandsRun: [],
+        previewAvailable: false,
+        promptPreview: promptMetadata?.promptPreview,
+        promptSnapshot: promptMetadata?.promptSnapshot,
+        targetWorkspacePath: promptMetadata?.targetWorkspacePath,
+        model: promptMetadata?.model ?? "kimi-k2.6",
+        agentStatus: promptMetadata?.agentStatus,
     }
 }
