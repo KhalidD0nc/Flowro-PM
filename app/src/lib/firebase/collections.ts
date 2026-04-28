@@ -657,44 +657,47 @@ export async function getDesignArtifact(projectId: string, artifactId: string): 
     } as DesignArtifactDocument
 }
 
-export async function approveDesignArtifact(
+export async function approveAllDesignArtifacts(
     projectId: string,
-    artifactId: string,
     userId: string
-): Promise<DesignArtifactDocument> {
+): Promise<DesignArtifactDocument[]> {
     const db = getDb()
-    const artifact = await getDesignArtifact(projectId, artifactId)
-    if (!artifact) {
-        throw new Error("Design artifact not found")
+    const artifacts = await getDesignArtifacts(projectId)
+    if (artifacts.length === 0) {
+        throw new Error("No design artifacts to approve")
     }
 
     const now = Timestamp.now()
     const collectionRef = db.collection(COLLECTIONS.PROJECTS).doc(projectId).collection(COLLECTIONS.DESIGN_ARTIFACTS)
     const batch = db.batch()
 
-    const existing = await collectionRef.get()
-    existing.docs.forEach((doc) => {
-        batch.update(doc.ref, { status: "generated" })
+    artifacts.forEach((artifact) => {
+        batch.update(collectionRef.doc(artifact.id), {
+            status: "approved",
+            approvedAt: now,
+            approvedBy: userId,
+        })
     })
-    batch.update(collectionRef.doc(artifactId), {
-        status: "approved",
-        approvedAt: now,
-        approvedBy: userId,
-    })
+
     await batch.commit()
     await setProjectStage(projectId, "design_approved")
 
-    return {
+    return artifacts.map((artifact) => ({
         ...artifact,
         status: "approved",
         approvedAt: now,
         approvedBy: userId,
-    }
+    }))
 }
 
 export async function getApprovedDesignArtifact(projectId: string): Promise<DesignArtifactDocument | null> {
     const artifacts = await getDesignArtifacts(projectId)
     return artifacts.find((artifact) => artifact.status === "approved") ?? null
+}
+
+export async function getApprovedDesignArtifacts(projectId: string): Promise<DesignArtifactDocument[]> {
+    const artifacts = await getDesignArtifacts(projectId)
+    return artifacts.filter((artifact) => artifact.status === "approved")
 }
 
 export async function createBuildRun(

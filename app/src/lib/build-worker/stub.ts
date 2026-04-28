@@ -1,8 +1,9 @@
 import { getTemplateManifest, type BuildRun, type DesignArtifact, type ProjectPlan } from "@/lib/project-plan/schema"
 
-export function createStubBuildRun(projectId: string, plan: ProjectPlan, design: DesignArtifact): Omit<BuildRun, "id" | "createdAt" | "updatedAt"> {
+export function createStubBuildRun(projectId: string, plan: ProjectPlan, designs: DesignArtifact[]): Omit<BuildRun, "id" | "createdAt" | "updatedAt"> {
     const template = getTemplateManifest(plan.templateId)
-    const previewUrl = `/api/projects/${projectId}/design/screens/${design.screenId}/html`
+    const primaryDesign = designs[0]
+    const previewUrl = `/api/projects/${projectId}/design/screens/${primaryDesign.screenId}/html`
 
     return {
         projectId,
@@ -10,7 +11,7 @@ export function createStubBuildRun(projectId: string, plan: ProjectPlan, design:
         status: "success",
         steps: [
             "Validated approved project plan",
-            "Loaded approved Stitch design artifact",
+            `Loaded ${designs.length} approved Stitch design artifacts`,
             `Selected ${template.name} template`,
             "Prepared first build task manifest",
             "Published design-backed preview URL",
@@ -18,7 +19,7 @@ export function createStubBuildRun(projectId: string, plan: ProjectPlan, design:
         logs: [
             `[build-worker] template=${template.id}`,
             `[build-worker] product="${plan.metadata.productName}"`,
-            `[build-worker] design=${design.screenId}`,
+            `[build-worker] screens=${designs.map((d) => d.screenId).join(", ")}`,
             "[build-worker] stub build completed; autonomous file generation is deferred to the next milestone.",
         ],
         filesChanged: [
