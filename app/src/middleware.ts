@@ -1,6 +1,48 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit, getRateLimitHeaders, getRouteType } from "./lib/rateLimit"
 
+const PUBLIC_LANDING_HOSTS = new Set(["flowro.app", "www.flowro.app"])
+const PUBLIC_LANDING_PAGES = new Set(["/", "/privacy", "/terms"])
+
+const PUBLIC_ASSET_EXTENSIONS = new Set([
+  ".avif",
+  ".css",
+  ".gif",
+  ".ico",
+  ".jpg",
+  ".jpeg",
+  ".js",
+  ".json",
+  ".map",
+  ".png",
+  ".svg",
+  ".txt",
+  ".webmanifest",
+  ".webp",
+  ".woff",
+  ".woff2",
+])
+
+function normalizeHost(host: string | null): string {
+  return (host || "").split(":")[0].toLowerCase()
+}
+
+export function isPublicLandingHost(host: string | null): boolean {
+  return PUBLIC_LANDING_HOSTS.has(normalizeHost(host))
+}
+
+export function isPublicLandingPath(pathname: string): boolean {
+  if (PUBLIC_LANDING_PAGES.has(pathname)) return true
+  if (pathname.startsWith("/_next/")) return true
+
+  const fileName = pathname.split("/").pop() || ""
+  const extension = fileName.includes(".")
+    ? fileName.slice(fileName.lastIndexOf(".")).toLowerCase()
+    : ""
+
+  return PUBLIC_ASSET_EXTENSIONS.has(extension)
+}
+
 /**
  * Extracts user identifier from the request
  * Uses Authorization header if present, otherwise falls back to IP
@@ -26,6 +68,18 @@ function getIdentifier(request: NextRequest): string {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const method = request.method
+  const host = request.headers.get("host")
+
+  if (isPublicLandingHost(host) && !isPublicLandingPath(pathname)) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "This endpoint is not available on the public landing site." },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.redirect(new URL("/", request.url))
+  }
 
   // Only apply rate limiting to API routes
   if (!pathname.startsWith("/api/")) {
@@ -75,5 +129,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/api/:path*",
+  matcher: "/:path*",
 }
