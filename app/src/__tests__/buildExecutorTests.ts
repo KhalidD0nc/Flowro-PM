@@ -7,7 +7,7 @@ import {
 import { buildFallbackFiles } from "../lib/build-worker/fallback"
 import { buildCompletionDefaults } from "../lib/build-worker/openrouter-build"
 import { getTemplateManifest } from "../lib/project-plan/schema"
-import type { Stage3BuildJob } from "../lib/build-worker/kimiPrompt"
+import type { Stage3BuildJob } from "../lib/build-worker/agentPrompt"
 
 const templateManifest = getTemplateManifest("nextjs-app")
 

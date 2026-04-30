@@ -8,7 +8,7 @@ import {
     setProjectStage,
 } from "@/lib/firebase/collections"
 import { timestampToISO } from "@/lib/firebase/schema"
-import { buildKimiStage3Prompt } from "@/lib/build-worker/kimiPrompt"
+import { buildKimiStage3Prompt } from "@/lib/build-worker/agentPrompt"
 import { executeBuildRun } from "@/lib/build-worker/executor"
 import { getTemplateManifest } from "@/lib/project-plan/schema"
 import { mkdirSync } from "fs"

@@ -64,7 +64,7 @@ export default function ChatInput({
 
         <form
           onSubmit={handleSubmit}
-          className="rounded-[1.75rem] border border-[#dbe3ef] bg-white px-4 py-3 shadow-[0_24px_40px_-34px_rgba(25,37,62,0.3)] transition focus-within:border-[#bfd8ff] focus-within:ring-4 focus-within:ring-[#2f8fff]/10"
+          className="rounded-[1.5rem] border border-[#dbe3ef] bg-white px-3 py-2 shadow-[0_24px_40px_-34px_rgba(25,37,62,0.3)] transition focus-within:border-[#bfd8ff] focus-within:ring-4 focus-within:ring-[#2f8fff]/10"
         >
           {hasClarificationFlow ? (
             <div className="space-y-4">
@@ -206,21 +206,39 @@ export default function ChatInput({
             </div>
           ) : (
             <>
-              <div className="flex items-end gap-3">
+              <div className="flex items-end gap-2">
+                <button
+                  type="button"
+                  disabled={isGenerating}
+                  title="Attach (coming soon)"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-[#f5efe5] hover:text-slate-600 disabled:opacity-40"
+                >
+                  <span className="material-symbols-outlined text-[20px]">add</span>
+                </button>
+
                 <textarea
                   value={message}
                   onChange={(event) => onMessageChange(event.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={defaultPlaceholder}
                   rows={1}
-                  className="max-h-28 min-h-[48px] w-full resize-none border-0 bg-transparent py-2 text-sm leading-6 text-slate-900 placeholder:text-slate-400 focus:ring-0"
+                  className="max-h-28 min-h-[40px] w-full resize-none border-0 bg-transparent py-2 text-sm leading-6 text-slate-900 placeholder:text-slate-400 focus:ring-0"
                   disabled={isGenerating}
                 />
 
                 <button
+                  type="button"
+                  disabled={isGenerating}
+                  title="Voice (coming soon)"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-[#f5efe5] hover:text-slate-600 disabled:opacity-40"
+                >
+                  <span className="material-symbols-outlined text-[20px]">mic</span>
+                </button>
+
+                <button
                   type="submit"
                   disabled={!message.trim() || isGenerating}
-                  className="send-button-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+                  className="send-button-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
                   title="Send"
                 >
                   {isGenerating ? (
@@ -231,9 +249,9 @@ export default function ChatInput({
                 </button>
               </div>
 
-              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                <span>Flowro AI</span>
-                <span>Press Enter to send</span>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-400">
+                <span className="font-medium text-slate-500">Flowro AI</span>
+                <span>⏎ to send · ⇧⏎ for newline</span>
               </div>
             </>
           )}

@@ -5,6 +5,8 @@ import { isUBPContent } from "./types";
 import { useStreamingText } from "@/hooks/useStreamingText";
 import { getProposalDraftState, hashPrdConfig } from "@/lib/prd/editor";
 import { parseClarificationResponseContent, parseProposedPrdChanges } from "@/lib/prd/schema";
+import StepCardList from "./StepCardList";
+import ActionChipRow from "./ActionChipRow";
 
 function getDisplayMessage(
   content: string | object,
@@ -157,6 +159,7 @@ export default function MessageList({
   onOpenBlueprint,
   onApplyProposedChanges,
   messagesEndRef,
+  onQuickAction,
 }: MessageListProps) {
   const currentPrdHash = currentPrd ? hashPrdConfig(currentPrd) : null;
 
@@ -281,6 +284,10 @@ export default function MessageList({
                     </button>
                   );
                 })() : null}
+
+                {onQuickAction && (displayInfo.intent === "initial" || displayInfo.intent === "proposal" || displayInfo.intent === "discussion") ? (
+                  <ActionChipRow intent={displayInfo.intent} onPick={onQuickAction} />
+                ) : null}
               </div>
             </div>
           );
@@ -291,30 +298,7 @@ export default function MessageList({
         {isGenerating ? (
           <div className="flex max-w-2xl flex-col gap-3 animate-slide-in-left">
             <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Flowro AI</span>
-            <div className="ai-message-bubble rounded-[1.5rem] p-4">
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined animate-spin text-[#2f8fff]">progress_activity</span>
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">Updating your workspace</p>
-                    <p className="text-sm text-slate-500">
-                      {thinkingPhase !== undefined ? `Step ${thinkingPhase + 1} in progress` : "Preparing changes"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  {[0, 1, 2, 3, 4].map((step) => (
-                    <span
-                      key={step}
-                      className={`h-2 flex-1 rounded-full ${
-                        thinkingPhase !== undefined && thinkingPhase >= step ? "bg-[#2f8fff]" : "bg-[#e5e7eb]"
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+            <StepCardList thinkingPhase={thinkingPhase} />
           </div>
         ) : null}
 

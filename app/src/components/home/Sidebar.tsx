@@ -257,7 +257,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
         {!isCollapsed ? (
           <section className="rounded-[1.5rem] border border-[#e5ddd3] bg-white/72 p-2 shadow-[0_20px_38px_-34px_rgba(34,51,84,0.28)]">
             <div className="flex items-center justify-between px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Projects</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Recents</p>
               <span className="rounded-full bg-[#f4efe8] px-2 py-1 text-[11px] text-slate-500">
                 {recentProjects.length}
               </span>
@@ -281,22 +281,22 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                             router.push(`/app/${project.id}`);
                           }
                         }}
-                        className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm transition ${
+                        className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm transition ${
                           isActive
-                            ? "border border-[#bfd8ff] bg-[#edf5ff] text-slate-900 shadow-[0_14px_22px_-20px_rgba(47,143,255,0.65)]"
-                            : "border border-transparent text-slate-600 hover:border-[#e1d9cf] hover:bg-[#faf6f0] hover:text-slate-900"
+                            ? "border border-[#bfd8ff] bg-[#edf5ff] text-slate-900"
+                            : "border border-transparent text-slate-600 hover:bg-[#faf6f0] hover:text-slate-900"
                         }`}
                       >
                         <div
-                          className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${
+                          className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${
                             isActive ? "bg-white text-[#2f8fff]" : "bg-[#f4efe8] text-slate-400"
                           }`}
                         >
-                          <span className="material-symbols-outlined text-[18px]">description</span>
+                          <span className="material-symbols-outlined text-[15px]">description</span>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate font-medium">{project.name}</p>
-                          <p className="mt-0.5 text-xs text-slate-500">
+                          <p className="truncate font-medium leading-tight">{project.name}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-400">
                             {new Date(project.updatedAt).toLocaleDateString()}
                           </p>
                         </div>

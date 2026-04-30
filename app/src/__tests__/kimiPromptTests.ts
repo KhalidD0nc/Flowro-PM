@@ -5,7 +5,7 @@ import {
     hasUnresolvedPlaceholders,
     type BuildManifest,
     type Stage3BuildJob,
-} from "../lib/build-worker/kimiPrompt"
+} from "../lib/build-worker/agentPrompt"
 import { getTemplateManifest } from "../lib/project-plan/schema"
 
 const validPlan = {

@@ -6,7 +6,7 @@ import {
     type BuildManifest,
     type BuildManifestFile,
     type Stage3BuildJob,
-} from "./kimiPrompt"
+} from "./agentPrompt"
 import { generateBuildCompletionWithModel } from "./openrouter-build"
 import { buildFallbackFiles } from "./fallback"
 import { registerActiveBuild, unregisterActiveBuild } from "./cancel"

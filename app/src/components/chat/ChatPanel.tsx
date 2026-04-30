@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import MessageList, { WelcomeScreen } from "./MessageList";
 import ChatInput from "./ChatInput";
+import ChatHeader from "./ChatHeader";
 import type { ChatPanelProps, ProposedChanges } from "./types";
 
 export default function ChatPanel({
@@ -49,6 +50,7 @@ export default function ChatPanel({
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
+      <ChatHeader project={project} onOpenBlueprint={onOpenBlueprint} />
       <div className="relative flex min-h-0 flex-1 flex-col">
         {project.chatHistory.length === 0 ? (
           <WelcomeScreen onQuickAction={onQuickAction} />
@@ -64,6 +66,7 @@ export default function ChatPanel({
             onOpenBlueprint={onOpenBlueprint}
             onApplyProposedChanges={handleApplyProposedChanges}
             messagesEndRef={messagesEndRef}
+            onQuickAction={onQuickAction}
           />
         )}
 

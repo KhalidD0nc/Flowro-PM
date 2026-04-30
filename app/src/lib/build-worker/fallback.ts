@@ -1,4 +1,4 @@
-import type { Stage3BuildJob } from "./kimiPrompt"
+import type { Stage3BuildJob } from "./agentPrompt"
 
 function js(value: string): string {
     return JSON.stringify(value)
