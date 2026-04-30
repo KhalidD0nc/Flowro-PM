@@ -212,6 +212,7 @@ export interface MessageListProps {
     onOpenBlueprint: () => void
     onApplyProposedChanges: (changes: ProposedChanges, index: number) => void
     messagesEndRef: React.RefObject<HTMLDivElement | null>
+    onQuickAction?: (message: string) => void
 }
 
 /**

@@ -19,6 +19,8 @@ import {
 } from "@/lib/clarificationFlow"
 import { ChatPanel } from "@/components/chat"
 import type { ChatMessage, SelectionContext } from "@/components/chat/types"
+import StageCard, { type StageStatus } from "@/components/workspace/StageCard"
+import WorkspaceTabs, { type WorkspaceTabKey } from "@/components/workspace/WorkspaceTabs"
 
 interface ChatViewProps {
   projectId: string
@@ -54,6 +56,23 @@ function deriveSeedMessage(project: ProjectView, initialMessage: string): string
   return latestUserMessage?.content.trim() || project.description?.trim() || project.projectName.trim()
 }
 
+function EmptyTab({ icon, title, body }: { icon: string; title: string; body: string }) {
+  return (
+    <div className="flex h-full items-center justify-center px-6 py-12">
+      <div className="max-w-sm text-center">
+        <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-white shadow-[0_18px_36px_-26px_rgba(29,41,65,0.25)]">
+          <span className="material-symbols-outlined text-[26px] text-[#2f8fff]">{icon}</span>
+        </div>
+        <h3 className="mt-4 text-lg font-semibold text-slate-900">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-slate-500">{body}</p>
+        <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-[#fef3c7] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
+          Coming soon
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function StatusPill({ active, label }: { active: boolean; label: string }) {
   return (
     <span
@@ -63,24 +82,6 @@ function StatusPill({ active, label }: { active: boolean; label: string }) {
     >
       {label}
     </span>
-  )
-}
-
-function PanelShell({
-  eyebrow,
-  title,
-  children,
-}: {
-  eyebrow: string
-  title: string
-  children: React.ReactNode
-}) {
-  return (
-    <section className="rounded-[1.75rem] border border-[#e4ddd4] bg-white/90 p-6 shadow-[0_28px_60px_-44px_rgba(29,41,65,0.26)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">{eyebrow}</p>
-      <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{title}</h2>
-      <div className="mt-5">{children}</div>
-    </section>
   )
 }
 
@@ -439,6 +440,9 @@ function BuilderWorkspace({
   const approvedPlan = planView?.status === "approved"
   const approvedDesign = designArtifacts.find((artifact) => artifact.status === "approved") ?? null
   const latestBuild = buildRuns[0] ?? null
+  const planStatus: StageStatus = approvedPlan ? "complete" : plan ? "active" : "active"
+  const designStatus: StageStatus = !approvedPlan ? "locked" : approvedDesign ? "complete" : "active"
+  const buildStatus: StageStatus = !approvedDesign ? "locked" : latestBuild?.status === "success" ? "complete" : latestBuild ? "active" : "active"
   const buildDesignImageSrc = useCallback((artifact: DesignArtifact) => {
     if (!artifact.imageUrl || !imageAuthToken) return null
 
@@ -473,7 +477,14 @@ function BuilderWorkspace({
         </div>
       ) : null}
 
-      <PanelShell eyebrow="Stage 1" title="Project Plan">
+      <StageCard
+        step={1}
+        title="Project Plan"
+        description="Approve your project plan to unlock screen generation."
+        status={planStatus}
+        autoExpanded={!approvedPlan}
+        statusLabel={approvedPlan ? "Approved" : plan ? "Draft ready" : "Awaiting context"}
+      >
         {!plan ? (
           <div className="rounded-[1.5rem] border border-dashed border-[#d9d1c6] bg-[#faf8f4] p-6 text-sm leading-7 text-slate-600">
             Flowro is still collecting the initial context. Answer the setup questions in chat to generate the first project plan.
@@ -534,9 +545,16 @@ function BuilderWorkspace({
             </div>
           </div>
         )}
-      </PanelShell>
+      </StageCard>
 
-      <PanelShell eyebrow="Stage 2" title="Product Design Agent">
+      <StageCard
+        step={2}
+        title="Product Design Agent"
+        description="Generate and approve all UI screens before building."
+        status={designStatus}
+        autoExpanded={approvedPlan && !approvedDesign}
+        statusLabel={designStatus === "locked" ? "Locked" : approvedDesign ? "Approved" : generationProgress ? "Generating" : "In progress"}
+      >
         {!approvedPlan ? (
           <div className="rounded-[1.5rem] border border-dashed border-[#d9d1c6] bg-[#faf8f4] p-6 text-sm text-slate-600">
             Approve the project plan to automatically generate all UI screens.
@@ -641,9 +659,16 @@ function BuilderWorkspace({
             )}
           </div>
         )}
-      </PanelShell>
+      </StageCard>
 
-      <PanelShell eyebrow="Stage 3" title="Local Build Worker">
+      <StageCard
+        step={3}
+        title="Local Build Worker"
+        description="Run a local build and preview the generated app."
+        status={buildStatus}
+        autoExpanded={Boolean(approvedDesign && (!latestBuild || isBuildRunning(latestBuild)))}
+        statusLabel={buildStatus === "locked" ? "Locked" : latestBuild?.status === "success" ? "Built" : latestBuild ? latestBuild.status : "Ready"}
+      >
         {!approvedDesign ? (
           <div className="rounded-[1.5rem] border border-dashed border-[#d9d1c6] bg-[#faf8f4] p-6 text-sm text-slate-600">
             Approve all screens before starting the build worker.
@@ -696,7 +721,7 @@ function BuilderWorkspace({
             )}
           </div>
         )}
-      </PanelShell>
+      </StageCard>
     </div>
   )
 }
@@ -1269,23 +1294,87 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
           <div className="my-3 w-px rounded-full bg-[#d6deea] transition group-hover:bg-[#2f8fff]/70" />
         </div>
 
-        <div className={`min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
-          <BuilderWorkspace
-            project={project}
-            planView={draftPlan}
-            designArtifacts={designArtifacts}
-            imageAuthToken={imageAuthToken}
-            buildRuns={buildRuns}
-            busyAction={busyAction}
-            error={workspaceError}
-            generationProgress={generationProgress}
-            generationErrors={generationErrors}
-            onApprovePlan={handleApprovePlan}
-            onRegeneratePlan={handleRegeneratePlan}
-            onApproveAllDesigns={handleApproveAllDesigns}
-            onStartBuild={handleStartBuild}
-            onViewScreen={handleViewScreen}
-            onCancelBuild={handleCancelBuild}
+        <div className={`min-h-0 flex-1 ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
+          <WorkspaceTabs
+            previewAvailable={Boolean(latestBuild?.previewAvailable && latestBuild?.previewUrl)}
+            uiViewsCount={designArtifacts.length}
+            renderTab={(tab: WorkspaceTabKey) => {
+              if (tab === "preview" && latestBuild?.previewUrl) {
+                return (
+                  <iframe
+                    src={latestBuild.previewUrl}
+                    title="Generated app preview"
+                    className="h-full w-full border-0 bg-white"
+                    sandbox="allow-scripts allow-same-origin allow-forms"
+                  />
+                )
+              }
+              if (tab === "ui") {
+                return (
+                  <div className="px-4 py-6 sm:px-6 lg:px-8">
+                    {designArtifacts.length === 0 ? (
+                      <EmptyTab icon="grid_view" title="No screens yet" body="Approve the plan and generate screens from the Plan tab." />
+                    ) : (
+                      <div className="mx-auto grid max-w-6xl gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        {designArtifacts.map((artifact) => (
+                          <button
+                            key={artifact.id}
+                            type="button"
+                            onClick={() => handleViewScreen(artifact)}
+                            className="group overflow-hidden rounded-[1.25rem] border border-[#e4ddd4] bg-white text-left transition hover:border-[#bfd8ff] hover:shadow-[0_18px_36px_-22px_rgba(47,143,255,0.35)]"
+                          >
+                            <div className="aspect-[16/10] overflow-hidden bg-[#f1f5f9]">
+                              {artifact.imageUrl && imageAuthToken ? (
+                                <img
+                                  src={`/api/projects/${projectId}/design/screens/${artifact.screenId}/image?token=${imageAuthToken}`}
+                                  alt={artifact.name}
+                                  className="h-full w-full object-cover transition group-hover:scale-[1.02]"
+                                />
+                              ) : artifact.htmlSnapshot ? (
+                                <iframe title={artifact.name} srcDoc={artifact.htmlSnapshot} className="h-full w-full border-0" />
+                              ) : (
+                                <div className="flex h-full items-center justify-center text-xs text-slate-400">No preview</div>
+                              )}
+                            </div>
+                            <div className="p-3">
+                              <p className="truncate text-sm font-semibold text-slate-900">{artifact.name}</p>
+                              <p className="mt-0.5 text-[11px] text-slate-500">{artifact.status === "approved" ? "Approved" : "Generated"}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+              if (tab === "code") {
+                return <EmptyTab icon="code" title="Code view" body="Inline code browsing arrives in a future release." />
+              }
+              if (tab === "files") {
+                return <EmptyTab icon="folder_open" title="Files" body="File tree and downloads are coming soon." />
+              }
+              return (
+                <div className="px-4 py-6 sm:px-6 lg:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <BuilderWorkspace
+                    project={project}
+                    planView={draftPlan}
+                    designArtifacts={designArtifacts}
+                    imageAuthToken={imageAuthToken}
+                    buildRuns={buildRuns}
+                    busyAction={busyAction}
+                    error={workspaceError}
+                    generationProgress={generationProgress}
+                    generationErrors={generationErrors}
+                    onApprovePlan={handleApprovePlan}
+                    onRegeneratePlan={handleRegeneratePlan}
+                    onApproveAllDesigns={handleApproveAllDesigns}
+                    onStartBuild={handleStartBuild}
+                    onViewScreen={handleViewScreen}
+                    onCancelBuild={handleCancelBuild}
+                  />
+                </div>
+              )
+            }}
           />
         </div>
       </div>
