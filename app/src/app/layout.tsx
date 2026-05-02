@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     template: "%s | Flowro",
   },
   description:
-    "Open-source, self-hosted plan-to-app builder that turns messy ideas into approved plans, generated UI, and local build runs.",
+    "Open-source, self-hosted plan-to-app builder that turns messy ideas into approved plans, local build runs, and previewable apps.",
   keywords: [
     "AI product management",
     "blueprint engine",
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
     siteName: "Flowro",
     title: "Flowro: Open-Source Plan-to-App Builder",
     description:
-      "Self-hosted builder pipeline from messy idea to approved plan, generated UI, and local build runs.",
+      "Self-hosted builder pipeline from messy idea to approved plan, local build worker, and preview.",
     images: [
       {
         url: "/logo.png",
@@ -76,7 +76,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Flowro: Open-Source Plan-to-App Builder",
     description:
-      "Self-hosted builder pipeline from messy idea to approved plan, generated UI, and local build runs.",
+      "Self-hosted builder pipeline from messy idea to approved plan, local build worker, and preview.",
     images: ["/logo.png"],
   },
 

@@ -39,7 +39,7 @@ export default function WorkspaceTabs({ previewAvailable, uiViewsCount, renderTa
   const tabs: TabDef[] = [
     { key: "preview", label: "Preview", icon: "visibility", disabled: !previewAvailable, disabledHint: "Run a build to see the live preview" },
     { key: "plan", label: "Plan", icon: "checklist" },
-    { key: "ui", label: "UI Views", icon: "grid_view", disabled: uiViewsCount === 0, disabledHint: "Generate screens to see UI views" },
+    { key: "ui", label: "Contract", icon: "rule_settings", disabled: uiViewsCount === 0, disabledHint: "Approve a plan to see the build contract" },
     { key: "code", label: "Code", icon: "code" },
     { key: "files", label: "Files", icon: "folder" },
   ];
