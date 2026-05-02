@@ -217,7 +217,7 @@ Return structured data only.
 
 Use this exact shape:
 - metadata: productName, version, status
-- templateId: must be "nextjs-app"
+- templateId: must be "vite-react-app"
 - appSummary, targetUser, problem
 - successCriteria
 - routes: path, name, purpose, primaryActions
@@ -231,10 +231,10 @@ Use this exact shape:
 
 Rules:
 - Use the enhanced brief as the source of truth and use the chat history only to resolve detail.
-- templateId must equal exactly "nextjs-app".
+- templateId must equal exactly "vite-react-app".
 - Routes must describe real screens/pages the generated app should implement.
 - Build tasks must be concrete and implementation-relevant.
-- UI requirements must be specific enough for a product design agent to generate screens.
+- UI requirements must be specific enough for the build contract to guide generated product screens.
 - Data models should only contain necessary product data.
 - Never use "Flowro" as the product name.`,
     ],

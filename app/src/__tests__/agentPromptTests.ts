@@ -1,12 +1,12 @@
 import {
     buildBuildManifestPrompt,
     buildBundledFileGenerationPrompt,
-    buildKimiStage3Prompt,
+    buildStage3Prompt,
     hasUnresolvedPlaceholders,
     type BuildManifest,
     type Stage3BuildJob,
 } from "../lib/build-worker/agentPrompt"
-import { getTemplateManifest } from "../lib/project-plan/schema"
+import { createBuildContract, getTemplateManifest } from "../lib/project-plan/schema"
 
 const validPlan = {
     metadata: {
@@ -14,7 +14,7 @@ const validPlan = {
         version: "0.1",
         status: "approved" as const,
     },
-    templateId: "nextjs-app" as const,
+    templateId: "vite-react-app" as const,
     appSummary: "A focused workspace for planning team tasks.",
     targetUser: "Product teams",
     problem: "Teams need a faster way to turn planning notes into actionable work.",
@@ -52,24 +52,13 @@ const validPlan = {
     risks: [],
 }
 
-const validDesignArtifact = {
-    id: "design-1",
-    projectId: "project-1",
-    provider: "stitch" as const,
-    stitchProjectId: "stitch-1",
-    screenId: "screen-1",
-    name: "Dashboard Design",
-    imageUrl: "https://example.com/image.png",
-    htmlSnapshot: "<html><body>Design</body></html>",
-    status: "approved" as const,
-}
-
-const templateManifest = getTemplateManifest("nextjs-app")
+const templateManifest = getTemplateManifest("vite-react-app")
+const buildContract = createBuildContract("project-1", validPlan, templateManifest)
 
 const baseJob: Stage3BuildJob = {
     projectId: "project-1",
     projectPlan: validPlan,
-    designArtifact: validDesignArtifact,
+    buildContract,
     templateManifest,
     targetWorkspacePath: "/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/generated-apps/project-1",
     editablePaths: templateManifest.editablePaths,
@@ -79,32 +68,37 @@ const baseJob: Stage3BuildJob = {
 const manifest: BuildManifest = {
     summary: "Core files",
     files: [
-        { path: "src/app/page.tsx", reason: "Dashboard route" },
+        { path: "src/App.tsx", reason: "Dashboard route" },
         { path: "src/lib/mock-data.ts", reason: "Local preview data" },
     ],
 }
 
-export function runKimiPromptTests(): Array<{ name: string; passed: boolean }> {
+export function runAgentPromptTests(): Array<{ name: string; passed: boolean }> {
     return [
         {
-            name: "buildKimiStage3Prompt replaces every placeholder",
-            passed: !hasUnresolvedPlaceholders(buildKimiStage3Prompt(baseJob)),
+            name: "buildStage3Prompt replaces every placeholder",
+            passed: !hasUnresolvedPlaceholders(buildStage3Prompt(baseJob)),
         },
         {
-            name: "buildKimiStage3Prompt includes the approved ProjectPlan JSON",
-            passed: buildKimiStage3Prompt(baseJob).includes('"productName": "Task Orbit"'),
+            name: "buildStage3Prompt includes the approved ProjectPlan JSON",
+            passed: buildStage3Prompt(baseJob).includes('"productName": "Task Orbit"'),
         },
         {
-            name: "buildKimiStage3Prompt includes the approved DesignArtifact JSON",
-            passed: buildKimiStage3Prompt(baseJob).includes('"screenId": "screen-1"'),
+            name: "buildStage3Prompt includes the BuildContract JSON",
+            passed: buildStage3Prompt(baseJob).includes('"componentRules"') &&
+                buildStage3Prompt(baseJob).includes('"productName": "Task Orbit"'),
         },
         {
-            name: "buildKimiStage3Prompt includes the target workspace path",
-            passed: buildKimiStage3Prompt(baseJob).includes(baseJob.targetWorkspacePath),
+            name: "buildStage3Prompt has no legacy design artifact fields",
+            passed: !new RegExp(["screenId", "htmlSnapshot", "Design" + "Artifact"].join("|"), "i").test(buildStage3Prompt(baseJob)),
         },
         {
-            name: "buildKimiStage3Prompt does not include any '{{' or '}}' after replacement",
-            passed: !buildKimiStage3Prompt(baseJob).includes("{{") && !buildKimiStage3Prompt(baseJob).includes("}}"),
+            name: "buildStage3Prompt includes the target workspace path",
+            passed: buildStage3Prompt(baseJob).includes(baseJob.targetWorkspacePath),
+        },
+        {
+            name: "buildStage3Prompt does not include any '{{' or '}}' after replacement",
+            passed: !buildStage3Prompt(baseJob).includes("{{") && !buildStage3Prompt(baseJob).includes("}}"),
         },
         {
             name: "template manifest selection rejects invented template IDs",
@@ -120,7 +114,7 @@ export function runKimiPromptTests(): Array<{ name: string; passed: boolean }> {
         {
             name: "buildBuildManifestPrompt asks for compact editable files",
             passed: buildBuildManifestPrompt(baseJob).includes("4-10 files maximum") &&
-                buildBuildManifestPrompt(baseJob).includes("src/app"),
+                buildBuildManifestPrompt(baseJob).includes("src/App.tsx"),
         },
         {
             name: "buildBundledFileGenerationPrompt includes deterministic file markers",
@@ -131,10 +125,10 @@ export function runKimiPromptTests(): Array<{ name: string; passed: boolean }> {
 }
 
 if (require.main === module) {
-    const results = runKimiPromptTests()
+    const results = runAgentPromptTests()
     const passed = results.filter((result) => result.passed).length
 
-    console.log("\nKimiPrompt Tests\n")
+    console.log("\nAgentPrompt Tests\n")
     results.forEach((result) => {
         console.log(`${result.passed ? "PASS" : "FAIL"}  ${result.name}`)
     })

@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "@/app/api/blueprints/auth"
 import {
     createBuildRun,
-    getApprovedDesignArtifacts,
     getProject,
     getProjectPlanByProjectId,
     setProjectStage,
 } from "@/lib/firebase/collections"
 import { timestampToISO } from "@/lib/firebase/schema"
-import { buildKimiStage3Prompt } from "@/lib/build-worker/agentPrompt"
+import { buildStage3Prompt } from "@/lib/build-worker/agentPrompt"
 import { executeBuildRun } from "@/lib/build-worker/executor"
-import { getTemplateManifest } from "@/lib/project-plan/schema"
+import { getBuildStartPlanError } from "@/lib/build-worker/startGuard"
+import { createBuildContract, getTemplateManifest } from "@/lib/project-plan/schema"
 import { mkdirSync } from "fs"
 import { homedir } from "os"
 import path from "path"
@@ -40,31 +40,25 @@ export async function POST(
         await verifyOwnership(projectId, authResult.userId)
 
         const planDoc = await getProjectPlanByProjectId(projectId)
-        if (!planDoc || planDoc.status !== "approved") {
-            return NextResponse.json({ error: "Approve the project plan before starting build." }, { status: 409 })
+        const planError = getBuildStartPlanError(planDoc)
+        if (planError) {
+            return NextResponse.json({ error: planError.error }, { status: planError.status })
         }
 
-        const designs = await getApprovedDesignArtifacts(projectId)
-        if (designs.length === 0) {
-            return NextResponse.json({ error: "Approve all UI screens before starting build." }, { status: 409 })
+        const templateManifest = getTemplateManifest("vite-react-app")
+        const buildPlan = {
+            ...planDoc!.plan,
+            templateId: templateManifest.id,
         }
-
-        const templateManifest = getTemplateManifest(planDoc.plan.templateId)
+        const buildContract = createBuildContract(projectId, buildPlan, templateManifest)
         const targetWorkspacePath = getTargetWorkspacePath(projectId)
 
         mkdirSync(targetWorkspacePath, { recursive: true })
 
-        const primaryDesign = designs[0]
-        const designArtifact = {
-            ...primaryDesign,
-            createdAt: timestampToISO(primaryDesign.createdAt),
-            approvedAt: primaryDesign.approvedAt ? timestampToISO(primaryDesign.approvedAt) : undefined,
-        }
-
-        const promptSnapshot = buildKimiStage3Prompt({
+        const promptSnapshot = buildStage3Prompt({
             projectId,
-            projectPlan: planDoc.plan,
-            designArtifact,
+            projectPlan: buildPlan,
+            buildContract,
             templateManifest,
             targetWorkspacePath,
             editablePaths: templateManifest.editablePaths,
@@ -94,13 +88,19 @@ export async function POST(
             agentStatus: "prompt_ready",
             commandsRun: [],
             previewAvailable: false,
+            buildContractSnapshot: buildContract,
+            verificationResults: [],
+            detectedPackages: [],
+            installedPackages: [],
+            validationErrors: [],
+            repairAttempts: 0,
         })
 
         // Fire build execution in the background so the HTTP response returns immediately
         const job = {
             projectId,
-            projectPlan: planDoc.plan,
-            designArtifact,
+            projectPlan: buildPlan,
+            buildContract,
             templateManifest,
             targetWorkspacePath,
             editablePaths: templateManifest.editablePaths,

@@ -4,30 +4,18 @@ function js(value: string): string {
     return JSON.stringify(value)
 }
 
-function routePathToPageFile(routePath: string): string | null {
-    if (routePath === "/") return "src/app/page.tsx"
-    const segments = routePath
-        .split("/")
-        .filter(Boolean)
-        .map((segment) => segment.replace(/[^a-zA-Z0-9_[\]-]/g, "-"))
-        .filter(Boolean)
-
-    if (!segments.length) return null
-    return `src/app/${segments.join("/")}/page.tsx`
-}
-
 export function buildFallbackFiles(job: Stage3BuildJob): Record<string, string> {
     const plan = job.projectPlan
+    const contract = job.buildContract
     const productName = plan.metadata.productName
     const routes = plan.routes.slice(0, 8)
     const checks = plan.acceptanceChecks.slice(0, 5)
     const models = plan.dataModels.slice(0, 4)
     const tasks = plan.buildTasks.slice(0, 6)
 
-    const files: Record<string, string> = {
-        "src/app/globals.css": `@tailwind base;
-@tailwind components;
-@tailwind utilities;
+    return {
+        "src/styles.css": `@import "tailwindcss";
+@reference "tailwindcss";
 
 :root {
   --background: #f7f3ec;
@@ -52,49 +40,92 @@ export const dataModels = ${JSON.stringify(models, null, 2)} as const;
 export const buildTasks = ${JSON.stringify(tasks, null, 2)} as const;
 
 export const acceptanceChecks = ${JSON.stringify(checks, null, 2)} as const;
+
+export const visualDirection = ${JSON.stringify(contract.visualDirection.slice(0, 5), null, 2)} as const;
 `,
-        "src/app/layout.tsx": `import type { Metadata } from "next";
-import "./globals.css";
+        "src/components/ui/app-kit.tsx": `import type { ReactNode } from "react";
 
-export const metadata: Metadata = {
-  title: ${js(productName)},
-  description: ${js(plan.appSummary)},
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
+    <main className="min-h-screen bg-[#f6f2eb] px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">{children}</div>
+    </main>
+  );
+}
+
+export function Panel({ title, eyebrow, children }: { title: string; eyebrow?: string; children: ReactNode }) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_18px_50px_-42px_rgba(15,23,42,0.35)]">
+      {eyebrow ? <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#2f8fff]">{eyebrow}</p> : null}
+      <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950">{title}</h2>
+      <div className="mt-4 space-y-3">{children}</div>
+    </section>
+  );
+}
+
+export function Button({ children }: { children: ReactNode }) {
+  return (
+    <button className="inline-flex items-center justify-center rounded-lg bg-[#2f8fff] px-4 py-2.5 text-sm font-bold text-white shadow-[0_16px_28px_-20px_rgba(47,143,255,0.8)]">
+      {children}
+    </button>
+  );
+}
+
+export function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-slate-950 p-4 text-white">
+      <p className="text-2xl font-black">{value}</p>
+      <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-400">{label}</p>
+    </div>
+  );
+}
+
+export function StatusBadge({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+      {children}
+    </span>
+  );
+}
+
+export function EmptyState({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
+      <p className="font-bold text-slate-900">{title}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-500">{body}</p>
+    </div>
   );
 }
 `,
-        "src/app/page.tsx": `import { acceptanceChecks, appSummary, buildTasks, dataModels, productName, routes, successCriteria } from "@/lib/mock-data";
+        "src/App.tsx": `import { AppShell, Button, EmptyState, MetricCard, Panel, StatusBadge } from "./components/ui/app-kit";
+import { acceptanceChecks, appSummary, buildTasks, dataModels, productName, routes, successCriteria, visualDirection } from "./lib/mock-data";
 
-export default function Home() {
+export default function App() {
   return (
-    <main className="min-h-screen px-6 py-8 text-slate-950">
-      <section className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[2rem] border border-white/70 bg-white/82 p-8 shadow-[0_30px_90px_-60px_rgba(18,32,51,0.45)] backdrop-blur">
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#2f8fff]">Generated preview</p>
+    <AppShell>
+      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-lg border border-white/70 bg-white/85 p-8 shadow-[0_30px_90px_-60px_rgba(18,32,51,0.45)] backdrop-blur">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#2f8fff]">Live Vite preview</p>
           <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-6xl">{productName}</h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">{appSummary}</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {visualDirection.map((item) => <StatusBadge key={item}>{item}</StatusBadge>)}
+          </div>
+          <div className="mt-8">
+            <Button>Start primary workflow</Button>
+          </div>
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            <Metric label="Routes" value={String(routes.length)} />
-            <Metric label="Models" value={String(dataModels.length)} />
-            <Metric label="Checks" value={String(acceptanceChecks.length)} />
+            <MetricCard label="Routes" value={String(routes.length)} />
+            <MetricCard label="Models" value={String(dataModels.length)} />
+            <MetricCard label="Checks" value={String(acceptanceChecks.length)} />
           </div>
         </div>
 
-        <div className="rounded-[2rem] bg-[#101827] p-6 text-white shadow-[0_30px_90px_-55px_rgba(16,24,39,0.7)]">
+        <div className="rounded-lg bg-[#101827] p-6 text-white shadow-[0_30px_90px_-55px_rgba(16,24,39,0.7)]">
           <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-300">Build scope</p>
           <div className="mt-5 space-y-3">
             {buildTasks.map((task) => (
-              <div key={task.id} className="rounded-2xl border border-white/10 bg-white/6 p-4">
+              <div key={task.id} className="rounded-lg border border-white/10 bg-white/6 p-4">
                 <p className="text-sm font-semibold">{task.title}</p>
                 <p className="mt-1 text-xs leading-5 text-slate-300">{task.description}</p>
               </div>
@@ -103,10 +134,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto mt-6 grid max-w-7xl gap-6 lg:grid-cols-3">
+      <section className="mt-6 grid gap-6 lg:grid-cols-3">
         <Panel title="Primary routes">
           {routes.map((route) => (
-            <div key={route.path} className="rounded-2xl bg-slate-50 p-4">
+            <div key={route.path} className="rounded-lg bg-slate-50 p-4">
               <p className="text-sm font-bold">{route.name}</p>
               <p className="mt-1 text-xs text-slate-500">{route.path}</p>
               <p className="mt-3 text-sm leading-6 text-slate-600">{route.purpose}</p>
@@ -115,69 +146,24 @@ export default function Home() {
         </Panel>
         <Panel title="Data model">
           {dataModels.length ? dataModels.map((model) => (
-            <div key={model.name} className="rounded-2xl border border-slate-200 p-4">
+            <div key={model.name} className="rounded-lg border border-slate-200 p-4">
               <p className="font-semibold">{model.name}</p>
               <p className="mt-1 text-sm text-slate-500">{model.purpose}</p>
             </div>
-          )) : <p className="text-sm text-slate-500">Local mock data powers this preview.</p>}
+          )) : <EmptyState title="No persisted model yet" body="Local mock data powers this preview." />}
         </Panel>
         <Panel title="Acceptance checks">
           {successCriteria.map((item) => (
-            <div key={item} className="flex gap-3 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-950">
+            <div key={item} className="flex gap-3 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-950">
               <span className="mt-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500" />
               <span>{item}</span>
             </div>
           ))}
         </Panel>
       </section>
-    </main>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-slate-950 p-4 text-white">
-      <p className="text-2xl font-black">{value}</p>
-      <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-400">{label}</p>
-    </div>
-  );
-}
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-[2rem] border border-white/70 bg-white/86 p-6 shadow-[0_20px_60px_-50px_rgba(18,32,51,0.35)]">
-      <h2 className="text-lg font-black tracking-tight">{title}</h2>
-      <div className="mt-4 space-y-3">{children}</div>
-    </div>
+    </AppShell>
   );
 }
 `,
     }
-
-    for (const route of routes) {
-        const filePath = routePathToPageFile(route.path)
-        if (!filePath || filePath === "src/app/page.tsx") continue
-
-        files[filePath] = `const actions = ${JSON.stringify(route.primaryActions.slice(0, 4), null, 2)} as const;
-
-export default function RoutePage() {
-  return (
-    <main className="min-h-screen bg-[#f7f3ec] px-6 py-10 text-slate-950">
-      <section className="mx-auto max-w-4xl rounded-[2rem] border border-white/70 bg-white/86 p-8 shadow-[0_30px_90px_-60px_rgba(18,32,51,0.45)]">
-        <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#2f8fff]">{${js(route.path)}}</p>
-        <h1 className="mt-4 text-4xl font-black tracking-tight">{${js(route.name)}}</h1>
-        <p className="mt-4 text-lg leading-8 text-slate-600">{${js(route.purpose)}}</p>
-        <div className="mt-8 grid gap-3">
-          {actions.map((action) => (
-            <div key={action} className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-700">{action}</div>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
-}
-`
-    }
-
-    return files
 }

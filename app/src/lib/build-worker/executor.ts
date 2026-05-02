@@ -1,23 +1,28 @@
-import { copyTemplate, isServerReady, readWorkspaceFiles, runCommand, startDevServer, writeWorkspaceFile, type CommandResult } from "./fs"
+import { copyTemplate, getPreviewPort, isServerReady, readRepairContextFiles, runCommand, startDevServer, writeWorkspaceFile, type CommandResult } from "./fs"
 import {
     buildBuildManifestPrompt,
     buildBundledFileGenerationPrompt,
+    buildFileGenerationPrompt,
+    buildFormatRetryPrompt,
     buildRepairPrompt,
     type BuildManifest,
     type BuildManifestFile,
     type Stage3BuildJob,
 } from "./agentPrompt"
-import { generateBuildCompletionWithModel } from "./openrouter-build"
+import { generateBuildCompletionWithFallback, generateBuildCompletionWithModel } from "./openrouter-build"
 import { buildFallbackFiles } from "./fallback"
+import { buildMissingImportStubs, detectPackagesFromFiles, normalizeGeneratedFilesForVite, validateImportCoherence, validateVitePreview } from "./vite"
 import { registerActiveBuild, unregisterActiveBuild } from "./cancel"
 import { getBuildRun, setProjectStage, updateBuildRun } from "@/lib/firebase/collections"
 import type { BuildPhase, BuildRun } from "@/lib/project-plan/schema"
 
-const BUILD_MODEL = process.env.OPENROUTER_MODEL_BUILD || "moonshotai/kimi-k2"
+const BUILD_MODEL = process.env.OPENROUTER_MODEL_BUILD || "moonshotai/kimi-k2.6"
 const MAX_MANIFEST_FILES = 10
-const MAX_REPAIR_ATTEMPTS = 1
+const MAX_REPAIR_ATTEMPTS = 2
+const MAX_FORMAT_RETRIES = 2
 const INSTALL_TIMEOUT_MS = 180000
 const BUILD_TIMEOUT_MS = 180000
+const PREVIEW_READY_TIMEOUT_MS = 30000
 
 class BuildCanceledError extends Error {
     constructor() {
@@ -64,20 +69,71 @@ export function isEditablePath(filePath: string, editablePaths: string[]): boole
 }
 
 export function parseBundledFiles(response: string, editablePaths: string[]): Record<string, string> {
-    const files: Record<string, string> = {}
-    const fileBlockRegex = /<<<FILE:([^\n>]+)>>>\s*([\s\S]*?)\s*<<<END_FILE>>>/g
-    let match: RegExpExecArray | null
+    const fileMap = new Map<string, { content: string; isComplete: boolean; length: number }>()
 
-    while ((match = fileBlockRegex.exec(response)) !== null) {
-        const filePath = match[1].trim()
-        if (!isEditablePath(filePath, editablePaths)) {
-            throw new Error(`Generated file is outside editable paths: ${filePath}`)
-        }
-        files[filePath] = stripMarkdownCodeBlocks(match[2])
+    // Helper to decide if content looks truncated (ellipsis not in spread syntax)
+    function isLikelyTruncated(content: string): boolean {
+        return content.includes("...") && !content.includes("...props") && !content.includes("...rest") && !content.includes("...args")
     }
 
-    if (Object.keys(files).length === 0) {
+    // Helper to store a file, preferring complete/longer versions
+    function storeFile(filePath: string, content: string, isComplete: boolean) {
+        if (filePath.startsWith("/") || filePath.includes("..")) {
+            throw new Error(`Generated file is outside editable paths: ${filePath}`)
+        }
+        const existing = fileMap.get(filePath)
+        let shouldReplace = false
+        if (!existing) {
+            shouldReplace = true
+        } else if (!existing.isComplete && isComplete) {
+            shouldReplace = true // replace incomplete with complete
+        } else if (existing.isComplete && isComplete && content.length > existing.length) {
+            shouldReplace = true // replace with longer complete version
+        } else if (!existing.isComplete && !isComplete && content.length > existing.length) {
+            shouldReplace = true // both incomplete, keep longer
+        }
+
+        if (shouldReplace) {
+            fileMap.set(filePath, { content: stripMarkdownCodeBlocks(content), isComplete, length: content.length })
+        }
+    }
+
+    let match: RegExpExecArray | null
+
+    // Parse <<<FILE:path>>> ... <<<END_FILE>>> blocks
+    const fileBlockRegex = /<<<FILE:([^\n>]+)>>>\s*([\s\S]*?)\s*<<<END_FILE>>>/g
+    while ((match = fileBlockRegex.exec(response)) !== null) {
+        storeFile(match[1].trim(), match[2], true)
+    }
+
+    // Parse <file path="..."> ... </file> blocks
+    const xmlFileRegex = /<file\s+path=["']([^"']+)["']>\s*([\s\S]*?)(?:<\/file>|$)/g
+    while ((match = xmlFileRegex.exec(response)) !== null) {
+        const hasClosingTag = response.substring(match.index, match.index + match[0].length).includes("</file>")
+        storeFile(match[1].trim(), match[2], hasClosingTag)
+    }
+
+    // Parse markdown code blocks with file paths like ```file path="..."
+    const markdownFileRegex = /```(?:file )?path="([^"]+)"\n([\s\S]*?)```/g
+    while ((match = markdownFileRegex.exec(response)) !== null) {
+        storeFile(match[1].trim(), match[2], true)
+    }
+
+    if (fileMap.size === 0) {
         throw new Error("No marker-delimited files found in build response")
+    }
+
+    // Build final record and warn about incomplete/truncated files
+    const files: Record<string, string> = {}
+    const entries = Array.from(fileMap.entries())
+    for (const [path, { content, isComplete }] of entries) {
+        if (!isComplete) {
+            console.warn(`[parseBundledFiles] Warning: File ${path} appears truncated (no closing tag)`)
+        }
+        if (isLikelyTruncated(content)) {
+            console.warn(`[parseBundledFiles] Warning: File ${path} contains ellipsis and may be truncated`)
+        }
+        files[path] = content
     }
 
     return files
@@ -104,6 +160,7 @@ export async function executeBuildRun(
     async function updateProgress(updates: Partial<BuildRun>): Promise<void> {
         await updateBuildRun(projectId, runId, {
             elapsedMs: elapsedMs(),
+            buildContractSnapshot: job.buildContract,
             ...updates,
         })
     }
@@ -120,14 +177,15 @@ export async function executeBuildRun(
     }
 
     async function appendCommand(command: string, result: CommandResult): Promise<void> {
+        const combinedOutput = `${result.stderr}\n${result.stdout}`.trim()
         commandsRun.push({
             command,
             status: result.exitCode === 0 ? "success" : "failed",
             summary: result.exitCode === 0
                 ? "Completed successfully"
-                : `Failed with exit code ${result.exitCode}: ${result.stderr.slice(0, 200)}`,
-            stdout: result.stdout.slice(0, 5000),
-            stderr: result.stderr.slice(0, 5000),
+                : `Failed with exit code ${result.exitCode}: ${summarizeCommandOutput(combinedOutput)}`,
+            stdout: result.stdout.slice(0, 10000),
+            stderr: result.stderr.slice(0, 10000),
         })
         await updateProgress({ commandsRun: [...commandsRun] })
     }
@@ -141,8 +199,26 @@ export async function executeBuildRun(
         }
     }
 
-    async function writeFiles(files: Record<string, string>, source: "ai" | "fallback"): Promise<void> {
-        const entries = Object.entries(files)
+    async function writeFiles(files: Record<string, string>, source: "ai" | "fallback"): Promise<Record<string, string>> {
+        const normalized = normalizeGeneratedFilesForVite(files)
+        if (normalized.skippedFiles.length > 0) {
+            await appendLog(`Skipped protected or invalid files: ${normalized.skippedFiles.join(", ")}`)
+        }
+
+        const merged: Record<string, string> = { ...normalized.files }
+
+        // Auto-stub any relative import that does not resolve to a generated file.
+        // This keeps tsc/Vite green when the model forgets to emit a referenced module.
+        const stubs = buildMissingImportStubs(merged)
+        const stubPaths = Object.keys(stubs)
+        if (stubPaths.length > 0) {
+            await appendLog(`Auto-stubbing ${stubPaths.length} missing import(s): ${stubPaths.join(", ")}`)
+            for (const [stubPath, stubContent] of Object.entries(stubs)) {
+                merged[stubPath] = stubContent
+            }
+        }
+
+        const entries = Object.entries(merged)
         await updateProgress({
             totalFiles: entries.length,
             completedFiles: 0,
@@ -152,12 +228,22 @@ export async function executeBuildRun(
         for (let index = 0; index < entries.length; index++) {
             await checkCanceled()
             const [filePath, content] = entries[index]
+            const fileSource = stubs[filePath] !== undefined ? "stub" : source
             await updateProgress({ currentFile: filePath, completedFiles: index })
             await writeWorkspaceFile(job.targetWorkspacePath, filePath, content)
             if (!generatedFiles.includes(filePath)) generatedFiles.push(filePath)
-            await appendLog(`Written ${filePath} (${content.length} chars, ${source})`)
+            await appendLog(`Written ${filePath} (${content.length} chars, ${fileSource})`)
             await updateProgress({ filesChanged: [...generatedFiles], completedFiles: index + 1 })
         }
+
+        const coherenceErrors = validateImportCoherence(merged)
+        if (coherenceErrors.length > 0) {
+            await appendLog(`Import coherence check failed after stubbing: ${coherenceErrors.join("; ")}`)
+        } else {
+            await appendLog("Import coherence check passed")
+        }
+
+        return merged
     }
 
     try {
@@ -189,23 +275,52 @@ export async function executeBuildRun(
         })
 
         try {
-            const bundledResponse = await generateBuildCompletionWithModel(
-                {
-                    messages: [{ role: "user", content: buildBundledFileGenerationPrompt(manifest, job) }],
-                    maxTokens: 14000,
-                    timeoutMs: 90000,
-                    maxRetries: 1,
-                    signal: controller.signal,
-                },
-                BUILD_MODEL
-            )
+            const { content: bundledResponse, model: usedModel } = await generateBuildCompletionWithFallback({
+                messages: [{ role: "user", content: buildBundledFileGenerationPrompt(manifest, job) }],
+                maxTokens: 14000,
+                timeoutMs: 90000,
+                maxRetries: 1,
+                signal: controller.signal,
+            })
+            await appendLog(`Bundled generation succeeded with model: ${usedModel}`)
             const bundledFiles = parseBundledFiles(bundledResponse, job.editablePaths)
             await writeFiles(bundledFiles, "ai")
         } catch (generationError) {
-            fallbackUsed = true
-            await updateProgress({ phase: "fallback", fallbackUsed: true, currentAction: "AI generation stalled; using deterministic fallback" })
-            await appendLog(`AI generation degraded: ${generationError instanceof Error ? generationError.message : String(generationError)}`)
-            await writeFiles(buildFallbackFiles(job), "fallback")
+            await appendLog(`Bundled generation failed: ${generationError instanceof Error ? generationError.message : String(generationError)}`)
+
+            let bundledFiles: Record<string, string> | null = null
+
+            for (let retry = 0; retry < MAX_FORMAT_RETRIES && !bundledFiles; retry++) {
+                try {
+                    await appendLog(`Format retry ${retry + 1}/${MAX_FORMAT_RETRIES}: requesting re-formatted output`)
+                    const lastResponse = generationError instanceof Error ? generationError.message : String(generationError)
+                    const { content: retryResponse } = await generateBuildCompletionWithFallback({
+                        messages: [{ role: "user", content: buildFormatRetryPrompt(lastResponse) }],
+                        maxTokens: 14000,
+                        timeoutMs: 90000,
+                        maxRetries: 0,
+                        signal: controller.signal,
+                    })
+                    bundledFiles = parseBundledFiles(retryResponse, job.editablePaths)
+                    await appendLog(`Format retry ${retry + 1} succeeded`)
+                    await writeFiles(bundledFiles, "ai")
+                } catch (retryError) {
+                    await appendLog(`Format retry ${retry + 1} failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`)
+                }
+            }
+
+            if (!bundledFiles) {
+                await appendLog("All bundled generation attempts failed; trying per-file generation")
+                try {
+                    bundledFiles = await generateFilesIndividually(job, manifest, appendLog, controller.signal)
+                    await writeFiles(bundledFiles, "ai")
+                } catch (perFileError) {
+                    fallbackUsed = true
+                    await updateProgress({ phase: "fallback", fallbackUsed: true, currentAction: "All generation methods failed; using deterministic fallback" })
+                    await appendLog(`Per-file generation failed: ${perFileError instanceof Error ? perFileError.message : String(perFileError)}`)
+                    await writeFiles(buildFallbackFiles(job), "fallback")
+                }
+            }
         }
 
         await checkCanceled()
@@ -220,26 +335,68 @@ export async function executeBuildRun(
             return
         }
 
+        const generatedContext = await readRepairContextFiles(job.targetWorkspacePath, job.editablePaths)
+        const detectedPackages = detectPackagesFromFiles(generatedContext)
+        await updateProgress({ detectedPackages })
+        if (detectedPackages.length > 0) {
+            await appendStep("Installing detected packages")
+            await appendLog(`Detected packages: ${detectedPackages.join(", ")}`)
+            const packageInstallCommand = `npm install --no-audit --no-fund ${detectedPackages.join(" ")}`
+            const packageInstallResult = await runCommand(job.targetWorkspacePath, packageInstallCommand, INSTALL_TIMEOUT_MS, controller.signal)
+            await appendCommand(packageInstallCommand, packageInstallResult)
+            if (packageInstallResult.exitCode !== 0) {
+                await appendLog("Detected package installation failed; continuing to preview validation")
+            } else {
+                await updateProgress({ installedPackages: detectedPackages })
+            }
+        } else {
+            await appendLog("No additional packages detected from generated imports")
+        }
+
         await checkCanceled()
-        await updateProgress({ phase: "building", currentAction: "Compiling generated app" })
-        await appendStep("Running production build")
-        await appendLog(`Executing: npm run build (timeout ${BUILD_TIMEOUT_MS / 1000}s)`)
-        let buildResult = await runCommand(job.targetWorkspacePath, "npm run build", BUILD_TIMEOUT_MS, controller.signal)
-        await appendCommand("npm run build", buildResult)
+        await updateProgress({ phase: "preview", currentAction: "Starting Vite preview server" })
+        await appendStep("Starting Vite preview server")
+        const previewUrl = startDevServer(job.targetWorkspacePath, projectId, getPreviewPort(projectId))
+        await appendLog(`Dev server started at ${previewUrl}`)
+        let ready = await isServerReady(previewUrl, PREVIEW_READY_TIMEOUT_MS, 500)
+        let validation = ready
+            ? await validateVitePreview(previewUrl)
+            : { success: false, errors: ["Preview server did not become ready in time"], warnings: [] }
+        await appendLog(validation.success ? "Preview validation passed" : `Preview validation failed: ${validation.errors.join("; ")}`)
+        if (validation.warnings.length > 0) {
+            await appendLog(`Preview warnings: ${validation.warnings.join("; ")}`)
+        }
+        if (validation.success) {
+            const diagnosticBuild = await runCommand(job.targetWorkspacePath, "npm run build", BUILD_TIMEOUT_MS, controller.signal, { env: { NODE_ENV: "production" } })
+            await appendCommand("npm run build (vite diagnostic)", diagnosticBuild)
+            if (diagnosticBuild.exitCode !== 0) {
+                validation = {
+                    success: false,
+                    errors: [`Vite diagnostic build failed: ${summarizeCommandOutput(`${diagnosticBuild.stderr}\n${diagnosticBuild.stdout}`)}`],
+                    warnings: validation.warnings,
+                }
+            }
+        }
 
         let repairAttempts = 0
-        while (buildResult.exitCode !== 0 && repairAttempts < MAX_REPAIR_ATTEMPTS && !fallbackUsed) {
+        while (!validation.success && repairAttempts < MAX_REPAIR_ATTEMPTS && !fallbackUsed) {
             repairAttempts++
+            await updateProgress({ repairAttempts })
             await checkCanceled()
             await updateProgress({ phase: "repairing", currentAction: `Repairing build errors (${repairAttempts}/${MAX_REPAIR_ATTEMPTS})` })
             await appendStep(`Repairing build errors (${repairAttempts}/${MAX_REPAIR_ATTEMPTS})`)
-            await appendLog(`Build error: ${buildResult.stderr.slice(0, 500)}`)
 
             try {
-                const workspaceFiles = await readWorkspaceFiles(job.targetWorkspacePath)
+                const buildResult = await runCommand(job.targetWorkspacePath, "npm run build", BUILD_TIMEOUT_MS, controller.signal, { env: { NODE_ENV: "production" } })
+                await appendCommand("npm run build (diagnostic)", buildResult)
+                const buildError = buildResult.exitCode === 0
+                    ? validation.errors.join("\n")
+                    : `${buildResult.stderr}\n${buildResult.stdout}`.trim()
+                const workspaceFiles = await readRepairContextFiles(job.targetWorkspacePath, job.editablePaths)
+                await appendLog(`Repair context ready: ${Object.keys(workspaceFiles).length} editable files`)
                 const repairResponse = await generateBuildCompletionWithModel(
                     {
-                        messages: [{ role: "user", content: buildRepairPrompt(buildResult.stderr, workspaceFiles) }],
+                        messages: [{ role: "user", content: buildRepairPrompt(buildError, workspaceFiles) }],
                         maxTokens: 9000,
                         timeoutMs: 60000,
                         maxRetries: 0,
@@ -254,41 +411,70 @@ export async function executeBuildRun(
 
                 if (Object.keys(repairFiles).length > 0) {
                     await writeFiles(repairFiles, "ai")
+                    const repairedContext = await readRepairContextFiles(job.targetWorkspacePath, job.editablePaths)
+                    const repairedPackages = detectPackagesFromFiles(repairedContext)
+                    if (repairedPackages.length > 0) {
+                        const packageInstallCommand = `npm install --no-audit --no-fund ${repairedPackages.join(" ")}`
+                        const packageInstallResult = await runCommand(job.targetWorkspacePath, packageInstallCommand, INSTALL_TIMEOUT_MS, controller.signal)
+                        await appendCommand(`${packageInstallCommand} (repair)`, packageInstallResult)
+                    }
                 }
 
-                buildResult = await runCommand(job.targetWorkspacePath, "npm run build", BUILD_TIMEOUT_MS, controller.signal)
-                await appendCommand("npm run build (retry)", buildResult)
+                ready = await isServerReady(previewUrl, PREVIEW_READY_TIMEOUT_MS, 500)
+                validation = ready
+                    ? await validateVitePreview(previewUrl)
+                    : { success: false, errors: ["Preview server did not become ready after repair"], warnings: [] }
+                if (validation.success) {
+                    const diagnosticBuild = await runCommand(job.targetWorkspacePath, "npm run build", BUILD_TIMEOUT_MS, controller.signal, { env: { NODE_ENV: "production" } })
+                    await appendCommand("npm run build (repair diagnostic)", diagnosticBuild)
+                    if (diagnosticBuild.exitCode !== 0) {
+                        validation = {
+                            success: false,
+                            errors: [`Vite diagnostic build failed after repair: ${summarizeCommandOutput(`${diagnosticBuild.stderr}\n${diagnosticBuild.stdout}`)}`],
+                            warnings: validation.warnings,
+                        }
+                    }
+                }
+                await appendLog(validation.success ? "Preview validation passed after repair" : `Preview validation still failing: ${validation.errors.join("; ")}`)
             } catch (repairError) {
                 await appendLog(`Repair attempt failed: ${repairError instanceof Error ? repairError.message : String(repairError)}`)
                 break
             }
         }
 
-        if (buildResult.exitCode !== 0 && !fallbackUsed) {
+        if (!validation.success && !fallbackUsed) {
             fallbackUsed = true
             await updateProgress({ phase: "fallback", fallbackUsed: true, currentAction: "Repair failed; switching to deterministic fallback" })
             await appendStep("Switching to deterministic fallback")
             await writeFiles(buildFallbackFiles(job), "fallback")
-            buildResult = await runCommand(job.targetWorkspacePath, "npm run build", BUILD_TIMEOUT_MS, controller.signal)
-            await appendCommand("npm run build (fallback)", buildResult)
+            ready = await isServerReady(previewUrl, PREVIEW_READY_TIMEOUT_MS, 500)
+            validation = ready
+                ? await validateVitePreview(previewUrl)
+                : { success: false, errors: ["Preview server did not become ready after fallback"], warnings: [] }
+            if (validation.success) {
+                const diagnosticBuild = await runCommand(job.targetWorkspacePath, "npm run build", BUILD_TIMEOUT_MS, controller.signal, { env: { NODE_ENV: "production" } })
+                await appendCommand("npm run build (fallback diagnostic)", diagnosticBuild)
+                if (diagnosticBuild.exitCode !== 0) {
+                    validation = {
+                        success: false,
+                        errors: [`Vite diagnostic build failed after fallback: ${summarizeCommandOutput(`${diagnosticBuild.stderr}\n${diagnosticBuild.stdout}`)}`],
+                        warnings: validation.warnings,
+                    }
+                }
+            }
+            await appendLog(validation.success ? "Fallback preview validation passed" : `Fallback preview validation failed: ${validation.errors.join("; ")}`)
         }
 
-        if (buildResult.exitCode !== 0) {
-            await finalizeBuild("failed", fallbackUsed ? "Fallback build failed" : "Build failed", logs, steps, commandsRun, projectId, runId, startedAtMs, null, fallbackUsed)
+        if (!validation.success) {
+            await updateProgress({ validationErrors: validation.errors })
+            await finalizeBuild("failed", fallbackUsed ? "Fallback preview failed" : "Preview validation failed", logs, steps, commandsRun, projectId, runId, startedAtMs, previewUrl, fallbackUsed)
             return
         }
 
-        await checkCanceled()
-        await updateProgress({ phase: "preview", currentAction: "Starting preview server" })
-        await appendStep("Starting preview server")
-        const previewUrl = startDevServer(job.targetWorkspacePath, projectId, 3001)
-        await appendLog(`Dev server started at ${previewUrl}`)
-        const ready = await isServerReady(previewUrl, 30000, 500)
-        await appendLog(ready ? "Preview server is ready" : "Preview server did not become ready in time")
-
+        await updateProgress({ validationErrors: [] })
         await finalizeBuild(
             "success",
-            ready ? "Build completed and preview server is running" : "Build completed but preview server is not responding",
+            "Vite preview is running",
             logs,
             steps,
             commandsRun,
@@ -344,24 +530,77 @@ async function createBuildManifest(
 }
 
 function createDeterministicManifest(job: Stage3BuildJob): BuildManifest {
-    const routeFiles = job.projectPlan.routes
-        .slice(0, 5)
-        .map((route) => route.path === "/" ? "src/app/page.tsx" : `src/app${route.path}/page.tsx`)
-        .map((filePath) => filePath.replace(/\/+/g, "/"))
-        .filter((filePath) => isEditablePath(filePath, job.editablePaths))
-
     const files = Array.from(new Set([
-        "src/app/layout.tsx",
-        "src/app/page.tsx",
-        "src/app/globals.css",
+        "src/App.tsx",
+        "src/styles.css",
+        "src/components/ui/app-kit.tsx",
         "src/lib/mock-data.ts",
-        ...routeFiles,
     ])).slice(0, MAX_MANIFEST_FILES)
 
     return {
-        summary: "Deterministic manifest for core app shell and primary routes",
+        summary: "Deterministic manifest for core Vite preview files",
         files: files.map((filePath) => ({ path: filePath, reason: "Core generated app file" })),
     }
+}
+
+/**
+ * Generate files one at a time using the LLM.
+ * Used as a fallback when bundled generation fails.
+ */
+async function generateFilesIndividually(
+    job: Stage3BuildJob,
+    manifest: BuildManifest,
+    appendLog: (line: string) => Promise<void>,
+    signal: AbortSignal,
+): Promise<Record<string, string>> {
+    const files: Record<string, string> = {}
+    const maxRetriesPerFile = 2
+
+    for (const manifestFile of manifest.files) {
+        if (signal.aborted) throw new Error("Build canceled during per-file generation")
+
+        let fileContent: string | null = null
+        for (let attempt = 0; attempt <= maxRetriesPerFile && !fileContent; attempt++) {
+            try {
+                await appendLog(`Generating ${manifestFile.path} (attempt ${attempt + 1}/${maxRetriesPerFile + 1})`)
+                const { content } = await generateBuildCompletionWithFallback({
+                    messages: [{ role: "user", content: buildFileGenerationPrompt(manifestFile.path, job) }],
+                    maxTokens: 6000,
+                    timeoutMs: 60000,
+                    maxRetries: 0,
+                    signal,
+                })
+                fileContent = content
+            } catch (error) {
+                await appendLog(`Failed to generate ${manifestFile.path}: ${error instanceof Error ? error.message : String(error)}`)
+            }
+        }
+
+        if (fileContent) {
+            files[manifestFile.path] = stripMarkdownCodeBlocks(fileContent)
+            await appendLog(`Generated ${manifestFile.path} (${fileContent.length} chars)`)
+        } else {
+            await appendLog(`WARNING: Could not generate ${manifestFile.path} after ${maxRetriesPerFile + 1} attempts`)
+        }
+    }
+
+    if (Object.keys(files).length === 0) {
+        throw new Error("Per-file generation produced no files")
+    }
+
+    await appendLog(`Per-file generation complete: ${Object.keys(files).length}/${manifest.files.length} files generated`)
+    return files
+}
+
+function summarizeCommandOutput(output: string): string {
+    const cleaned = output
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .filter((line) => !line.includes("non-standard \"NODE_ENV\" value"))
+        .join(" ")
+
+    return (cleaned || "No command output captured").slice(0, 300)
 }
 
 async function finalizeBuild(
@@ -378,6 +617,11 @@ async function finalizeBuild(
 ): Promise<void> {
     const finishedAt = new Date().toISOString()
     const phase: BuildPhase = status === "success" ? "completed" : status
+    const verificationResults = commandsRun.map((command) => ({
+        check: command.command,
+        status: command.status === "success" ? "passed" as const : "failed" as const,
+        notes: command.summary,
+    }))
 
     await updateBuildRun(projectId, runId, {
         status,
@@ -389,6 +633,7 @@ async function finalizeBuild(
         previewUrl,
         previewAvailable: status === "success" && previewUrl !== null,
         fallbackUsed,
+        verificationResults,
         finishedAt,
         elapsedMs: Date.now() - startedAtMs,
         currentAction: summary,
