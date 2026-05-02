@@ -17,7 +17,6 @@ Before you begin, ensure you have the following installed:
 You will also need:
 - A Firebase project with Firestore enabled.
 - An OpenRouter API key.
-- (Optional) Stitch API key.
 
 ### Setting up the environment
 

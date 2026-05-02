@@ -7,7 +7,7 @@
 <p align="center">
   <strong>Open-source, self-hosted plan-to-app builder</strong>
   <br />
-  Turn messy ideas into approved plans, generated UI, and local build runs.
+  Turn messy ideas into approved plans, local build runs, and previewable apps.
 </p>
 
 <p align="center">
@@ -32,11 +32,11 @@ Flowro is no longer positioned as a hosted SaaS signup funnel.
 - `https://flowro.app` is a public landing page only.
 - No hosted auth, no hosted dashboard, no cloud-only workflow.
 - The actual product is open-source and self-hosted.
-- Users bring their own Firebase, OpenRouter, Stitch, and monitoring keys.
+- Users bring their own Firebase, OpenRouter, and monitoring keys.
 - The app pipeline is now:
 
 ```text
-Idea -> Project Plan -> Approve Plan -> Product Design Agent -> Approve UI -> Local Build Worker
+Idea -> Project Plan -> Approve Plan -> Local Build Worker -> Preview
 ```
 
 The goal is simple: give AI design and coding agents a real execution contract before they start generating files.
@@ -49,8 +49,8 @@ Flowro adds structure before generation:
 
 - It turns vague product ideas into staged project plans.
 - It keeps humans in the approval loop.
-- It generates UI from approved plans instead of loose prompts.
 - It runs build work locally, where your files and keys already live.
+- It turns approved plans into guarded local build runs and previewable apps.
 - It keeps the cloud out of the critical path unless you choose otherwise.
 
 ## Product Flow
@@ -60,10 +60,9 @@ flowchart LR
     A[Messy idea] --> B[Flowro chat]
     B --> C[Project plan]
     C --> D[Human approval]
-    D --> E[Product design agent]
-    E --> F[UI approval]
-    F --> G[Local build worker]
-    G --> H[Generated app workspace]
+    D --> E[Local build worker]
+    E --> F[Generated app workspace]
+    F --> G[Local preview]
 ```
 
 ## Key Capabilities
@@ -87,10 +86,6 @@ Flowro still supports the Unified Blueprint (UBP) model for structured product t
 9. Change log
 
 Blueprints can be saved, versioned, shared, exported, and refined through chat.
-
-### Product Design Agent
-
-With `STITCH_API_KEY`, Flowro can generate UI artifacts from an approved project plan. The design stage remains explicit: generate screens, review them, then approve before build work starts.
 
 ### Local Build Worker
 
@@ -136,7 +131,6 @@ Auth is mounted at route level for product routes instead of globally.
 | Auth | Firebase Auth | For self-hosted product routes |
 | Database | Firebase Firestore | Projects, plans, blueprints, workspaces |
 | AI | OpenRouter + LangChain | Structured AI generation and intent handling |
-| Design Agent | Google Stitch SDK | Optional, requires `STITCH_API_KEY` |
 | Diagrams | Mermaid.js 11 | Blueprint and flow visualization |
 | Validation | Zod 4 | Runtime schemas for plans and responses |
 | Monitoring | Vercel Analytics / Sentry optional | Configured by env vars |
@@ -148,7 +142,6 @@ Auth is mounted at route level for product routes instead of globally.
 - Node.js 20+
 - Firebase project with Firestore enabled
 - OpenRouter API key
-- Optional: Stitch API key for the Product Design Agent
 - Optional: Sentry and GA keys for monitoring
 
 ### Install
@@ -184,9 +177,6 @@ FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----E
 # OpenRouter
 OPENROUTER_API_KEY=sk-or-your-api-key-here
 OPENROUTER_MODEL=deepseek/deepseek-v3.2
-
-# Product Design Agent
-STITCH_API_KEY=your-stitch-api-key
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -256,14 +246,10 @@ Most product APIs require Firebase auth.
 | `/api/projects/[projectId]/prd` | `GET/PATCH` | Read or replace PRD data |
 | `/api/projects/[projectId]/plan/approve` | `POST` | Approve a project plan |
 
-### Design and Build
+### Build
 
 | Endpoint | Method | Description |
 | --- | --- | --- |
-| `/api/projects/[projectId]/design/generate` | `POST` | Generate one design artifact |
-| `/api/projects/[projectId]/design/generate-all` | `POST` | Generate all design artifacts |
-| `/api/projects/[projectId]/design/screens` | `GET` | List generated screens |
-| `/api/projects/[projectId]/design/approve` | `POST` | Approve generated design artifacts |
 | `/api/projects/[projectId]/build/start` | `POST` | Start a local build run |
 | `/api/projects/[projectId]/build/status` | `GET` | Get build status |
 | `/api/projects/[projectId]/build/logs` | `GET` | Stream or fetch build logs |
@@ -322,7 +308,7 @@ Flowro-PM/
 │       │   ├── langchain/        # AI chains and intent detection
 │       │   ├── prd/              # PRD schema and editor logic
 │       │   ├── project-plan/     # Project plan schema
-│       │   ├── stitch/           # Product Design Agent integration
+│       │   ├── stitch/           # Legacy integration code pending cleanup
 │       │   └── rag/              # RAG helpers
 │       └── __tests__/            # Internal phase tests
 ├── firebase.json
@@ -352,7 +338,6 @@ Flowro-PM/
 - Project planning and UBP generation
 - Versioned blueprints
 - Share links and collaboration APIs
-- Product Design Agent integration
 - Local build worker foundation
 - Next.js app template support
 
@@ -378,7 +363,7 @@ Contributions are welcome.
 
 Flowro is for builders who want AI speed without turning their codebase into a haunted improv show.
 
-Start with a plan. Approve the plan. Generate from the plan. Build locally.
+Start with a plan. Approve the plan. Build locally. Check the preview.
 
 <p align="center">
   <strong>Bring your keys. Run your stack. Keep the cloud out of it.</strong>
