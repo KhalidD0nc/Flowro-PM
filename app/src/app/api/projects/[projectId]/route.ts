@@ -144,11 +144,6 @@ export async function GET(
             updatedAt: timestampToISO(details.project.updatedAt),
             latestPrd,
             latestPlan,
-            designArtifacts: details.designArtifacts.map((artifact) => ({
-                ...artifact,
-                createdAt: timestampToISO(artifact.createdAt),
-                approvedAt: artifact.approvedAt ? timestampToISO(artifact.approvedAt) : undefined,
-            })),
             buildRuns: details.buildRuns.map((run) => ({
                 ...run,
                 createdAt: timestampToISO(run.createdAt),

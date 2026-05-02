@@ -10,7 +10,7 @@
  */
 
 import type { ClarificationQuestion, ClarificationResponse, PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
-import type { BuildRun, DesignArtifact, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
+import type { BuildRun, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
 
 // =============================================================================
 // Intent Types
@@ -107,7 +107,6 @@ export interface ProjectView {
     updatedAt: string
     latestPrd?: PRDView
     latestPlan?: ProjectPlanView
-    designArtifacts?: DesignArtifact[]
     buildRuns?: BuildRun[]
 }
 
