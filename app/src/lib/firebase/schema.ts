@@ -1,5 +1,5 @@
 import type { PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
-import type { BuildRun, DesignArtifact, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
+import type { BuildRun, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
 
 /**
  * Firebase Schema Definitions
@@ -289,11 +289,6 @@ export interface ProjectPlanCreateData {
     updatedAt: FirestoreTimestamp
 }
 
-export type DesignArtifactDocument = Omit<DesignArtifact, "createdAt" | "approvedAt"> & {
-    createdAt: FirestoreTimestamp
-    approvedAt?: FirestoreTimestamp
-}
-
 export type BuildRunDocument = Omit<BuildRun, "createdAt" | "updatedAt"> & {
     createdAt: FirestoreTimestamp
     updatedAt: FirestoreTimestamp
@@ -361,7 +356,6 @@ export interface ProjectWithDetails {
     blueprint: BlueprintDocument | null
     prd: PRDDocument | null
     projectPlan: ProjectPlanDocument | null
-    designArtifacts: DesignArtifactDocument[]
     buildRuns: BuildRunDocument[]
 }
 
@@ -449,7 +443,6 @@ export const COLLECTIONS = {
     BLUEPRINTS: "blueprints",
     PRDS: "prds",
     PROJECT_PLANS: "projectPlans",
-    DESIGN_ARTIFACTS: "designArtifacts",
     BUILD_RUNS: "buildRuns",
     MESSAGES: "messages", // Subcollection under projects
     HISTORY: "history", // Subcollection under blueprints

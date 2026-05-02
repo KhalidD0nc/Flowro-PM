@@ -10,7 +10,7 @@ const jsonLdSoftware = {
   programmingLanguage: ["TypeScript", "React"],
   runtimePlatform: "Next.js",
   description:
-    "Open-source, self-hosted plan-to-app builder that turns messy ideas into approved plans, generated UI, and local build runs.",
+    "Open-source, self-hosted plan-to-app builder that turns messy ideas into approved plans, local build runs, and previewable apps.",
   url: "https://flowro.app",
   license: "https://github.com/KhalidD0nc/Flowro-PM",
 };
@@ -19,9 +19,8 @@ const pipelineSteps = [
   { label: "Idea", detail: "Paste the messy paragraph before it becomes company policy." },
   { label: "Project Plan", detail: "Flowro turns chaos into an execution contract." },
   { label: "Approve Plan", detail: "A human says yes before agents touch sharp objects." },
-  { label: "Design Agent", detail: "Generate screens from the plan, not from vibes." },
-  { label: "Approve UI", detail: "Catch weird buttons before they reproduce." },
   { label: "Local Build", detail: "Run the worker where your keys and files live." },
+  { label: "Preview", detail: "Open the generated app locally and inspect the real output." },
 ];
 
 const features = [
@@ -31,9 +30,9 @@ const features = [
     copy: "A staged project plan with scope, routes, data shape, acceptance checks, and the boring bits agents usually forget.",
   },
   {
-    icon: "draw",
-    title: "Product design agent",
-    copy: "Turn approved plans into UI artifacts, then review before the code machine starts eating tokens.",
+    icon: "schema",
+    title: "Build contracts",
+    copy: "Turn approved plans into concrete build guardrails so the worker generates against scope instead of vibes.",
   },
   {
     icon: "terminal",
@@ -53,7 +52,7 @@ const features = [
   {
     icon: "vpn_key",
     title: "Bring your keys",
-    copy: "OpenRouter, Firebase, Stitch, and whatever else your self-hosted setup needs. Your bill, your blast radius.",
+    copy: "OpenRouter, Firebase, local build workers, and whatever else your self-hosted setup needs. Your bill, your blast radius.",
   },
 ];
 
@@ -253,7 +252,7 @@ cd app
 npm install
 cp env.example .env.local
 
-# add Firebase, OpenRouter, and Stitch keys
+# add Firebase and OpenRouter keys
 npm run dev`}</code></pre>
           </div>
         </div>

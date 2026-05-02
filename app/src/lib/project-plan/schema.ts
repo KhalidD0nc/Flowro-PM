@@ -4,15 +4,12 @@ import type { PRDConfig } from "@/lib/prd/schema"
 export const projectStageSchema = z.enum([
     "planning",
     "plan_approved",
-    "designing",
-    "design_ready",
-    "design_approved",
     "coding",
     "preview_ready",
     "failed",
 ])
 
-export const templateIdSchema = z.enum(["nextjs-app"])
+export const templateIdSchema = z.enum(["vite-react-app", "nextjs-app"])
 
 export const templateManifestSchema = z.object({
     id: templateIdSchema,
@@ -61,7 +58,7 @@ export const projectPlanSchema = z.object({
         version: z.string().min(1).default("0.1"),
         status: z.enum(["draft", "approved"]).default("draft"),
     }),
-    templateId: templateIdSchema.default("nextjs-app"),
+    templateId: templateIdSchema.default("vite-react-app"),
     appSummary: z.string().min(1),
     targetUser: z.string().min(1),
     problem: z.string().min(1),
@@ -85,20 +82,19 @@ export const projectPlanGenerateResponseSchema = z.object({
     projectPlan: projectPlanSchema,
 })
 
-export const designArtifactSchema = z.object({
-    id: z.string().min(1),
+export const buildContractSchema = z.object({
     projectId: z.string().min(1),
-    provider: z.literal("stitch"),
-    stitchProjectId: z.string().min(1),
-    screenId: z.string().min(1),
-    name: z.string().min(1),
-    imageUrl: z.string().nullable(),
-    htmlUrl: z.string().nullable(),
-    htmlSnapshot: z.string().optional(),
-    status: z.enum(["generated", "approved"]).default("generated"),
+    templateId: templateIdSchema,
+    productName: z.string().min(1),
+    visualDirection: z.array(z.string().min(1)).min(1),
+    routes: z.array(routePlanSchema).min(1),
+    componentRules: z.array(z.string().min(1)).min(1),
+    frontendGuardrails: z.array(z.string().min(1)).min(1),
+    securityGuardrails: z.array(z.string().min(1)).min(1),
+    businessLogicGuardrails: z.array(z.string().min(1)).min(1),
+    mockDataStrategy: z.string().min(1),
+    acceptanceChecks: z.array(z.string().min(1)).min(1),
     createdAt: z.string().optional(),
-    approvedAt: z.string().optional(),
-    approvedBy: z.string().optional(),
 })
 
 export const commandRunSchema = z.object({
@@ -107,6 +103,12 @@ export const commandRunSchema = z.object({
     summary: z.string().min(1),
     stdout: z.string().optional(),
     stderr: z.string().optional(),
+})
+
+export const verificationResultSchema = z.object({
+    check: z.string().min(1),
+    status: z.enum(["passed", "failed", "not_run"]),
+    notes: z.string().optional(),
 })
 
 export const buildPhaseSchema = z.enum([
@@ -151,6 +153,12 @@ export const buildRunSchema = z.object({
     completedFiles: z.number().int().nonnegative().optional(),
     currentFile: z.string().optional(),
     fallbackUsed: z.boolean().optional(),
+    buildContractSnapshot: buildContractSchema.optional(),
+    verificationResults: z.array(verificationResultSchema).default([]),
+    detectedPackages: z.array(z.string().min(1)).default([]),
+    installedPackages: z.array(z.string().min(1)).default([]),
+    validationErrors: z.array(z.string().min(1)).default([]),
+    repairAttempts: z.number().int().nonnegative().optional(),
 })
 
 export type ProjectStage = z.infer<typeof projectStageSchema>
@@ -158,11 +166,30 @@ export type TemplateId = z.infer<typeof templateIdSchema>
 export type TemplateManifest = z.infer<typeof templateManifestSchema>
 export type RoutePlan = z.infer<typeof routePlanSchema>
 export type ProjectPlan = z.infer<typeof projectPlanSchema>
-export type DesignArtifact = z.infer<typeof designArtifactSchema>
+export type BuildContract = z.infer<typeof buildContractSchema>
 export type BuildRun = z.infer<typeof buildRunSchema>
 export type BuildPhase = z.infer<typeof buildPhaseSchema>
 
 export const TEMPLATE_MANIFESTS: Record<TemplateId, TemplateManifest> = {
+    "vite-react-app": {
+        id: "vite-react-app",
+        name: "Vite React App",
+        description: "A local-first React preview application using Vite, TypeScript, and Tailwind CSS.",
+        stack: ["Vite", "React", "TypeScript", "Tailwind CSS"],
+        packageManager: "npm",
+        scripts: {
+            install: "npm install",
+            dev: "npm run dev",
+            build: "npm run build",
+        },
+        editablePaths: ["src", "public"],
+        constraints: [
+            "Generate a web application only.",
+            "Use Vite React for the local preview loop.",
+            "Do not change package.json, vite.config.ts, tsconfig.json, or other base config files.",
+            "Prefer existing template conventions over custom architecture.",
+        ],
+    },
     "nextjs-app": {
         id: "nextjs-app",
         name: "Next.js App",
@@ -195,6 +222,44 @@ export function getTemplateManifest(templateId: string): TemplateManifest {
     return manifest
 }
 
+export function createBuildContract(projectId: string, plan: ProjectPlan, templateManifest: TemplateManifest): BuildContract {
+    return buildContractSchema.parse({
+        projectId,
+        templateId: templateManifest.id,
+        productName: plan.metadata.productName,
+        visualDirection: plan.uiRequirements.length > 0
+            ? plan.uiRequirements
+            : ["Create a polished, responsive product app with clear hierarchy."],
+        routes: plan.routes,
+        componentRules: [
+            "Use the template component kit from src/components/ui before creating one-off controls.",
+            "Use AppShell, Button, Panel, MetricCard, StatusBadge, EmptyState, and DataList where they fit.",
+            "Create new components only when the interaction is domain-specific or repeated.",
+        ],
+        frontendGuardrails: [
+            "Build the usable product experience as the first screen, not a marketing landing page.",
+            "Use dense but readable product UI with clear navigation, states, and responsive layouts.",
+            "Avoid decorative-only sections, nested cards, and oversized hero typography inside app surfaces.",
+            "Keep text readable on mobile and desktop without overlapping controls.",
+        ],
+        securityGuardrails: [
+            "Do not expose secrets, API keys, tokens, or private configuration in client code.",
+            "Do not add auth, payments, databases, or cloud services unless explicitly required by the approved plan.",
+            "Use local mock data when an integration is not approved for V1.",
+        ],
+        businessLogicGuardrails: [
+            "Implement the routes, actions, data models, and acceptance checks from the approved plan.",
+            "Show realistic empty, loading, and error states where the workflow implies them.",
+            "If plan details conflict, prioritize acceptance checks and core user actions.",
+        ],
+        mockDataStrategy: plan.integrations.some((integration) => integration.requiredForV1)
+            ? "Use local mock data for preview UI and clearly isolate any integration placeholders."
+            : "Use realistic local mock data only; do not add backend services.",
+        acceptanceChecks: plan.acceptanceChecks,
+        createdAt: new Date().toISOString(),
+    })
+}
+
 export function prdToProjectPlan(prd: PRDConfig): ProjectPlan {
     return projectPlanSchema.parse({
         metadata: {
@@ -202,7 +267,7 @@ export function prdToProjectPlan(prd: PRDConfig): ProjectPlan {
             version: "0.1",
             status: "draft",
         },
-        templateId: "nextjs-app",
+        templateId: "vite-react-app",
         appSummary: `${prd.metadata.productName} is a web app for ${prd.metadata.targetAudience}.`,
         targetUser: prd.metadata.targetAudience,
         problem: prd.features[0]?.description || "The product needs a structured web experience.",

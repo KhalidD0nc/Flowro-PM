@@ -1,4 +1,4 @@
-import { getTemplateManifest, type BuildRun, type DesignArtifact, type ProjectPlan } from "@/lib/project-plan/schema"
+import { createBuildContract, getTemplateManifest, type BuildRun, type ProjectPlan } from "@/lib/project-plan/schema"
 
 export type PromptMetadata = {
     promptPreview: string
@@ -11,12 +11,10 @@ export type PromptMetadata = {
 export function createStubBuildRun(
     projectId: string,
     plan: ProjectPlan,
-    designs: DesignArtifact[],
     promptMetadata?: PromptMetadata
 ): Omit<BuildRun, "id" | "createdAt" | "updatedAt"> {
-    const template = getTemplateManifest(plan.templateId)
-    const primaryDesign = designs[0]
-    const previewUrl = `/api/projects/${projectId}/design/screens/${primaryDesign.screenId}/html`
+    const template = getTemplateManifest("vite-react-app")
+    const buildContract = createBuildContract(projectId, plan, template)
 
     return {
         projectId,
@@ -24,25 +22,31 @@ export function createStubBuildRun(
         status: "success",
         steps: [
             "Validated approved project plan",
-            `Loaded ${designs.length} approved Stitch design artifacts`,
+            "Created internal build contract",
             `Selected ${template.name} template`,
             "Prepared first build task manifest",
-            "Published design-backed preview URL",
+            "Queued contract-backed preview build",
         ],
         logs: [
             `[build-worker] template=${template.id}`,
             `[build-worker] product="${plan.metadata.productName}"`,
-            `[build-worker] screens=${designs.map((d) => d.screenId).join(", ")}`,
+            `[build-worker] routes=${plan.routes.map((route) => route.path).join(", ")}`,
             "[build-worker] stub build completed; autonomous file generation is deferred to the next milestone.",
         ],
         filesChanged: [
-            "templates/nextjs-app/src/app/page.tsx (planned)",
-            "templates/nextjs-app/src/components/generated/AppShell.tsx (planned)",
-            "templates/nextjs-app/src/lib/generated/project-plan.ts (planned)",
+            "templates/vite-react-app/src/App.tsx (planned)",
+            "templates/vite-react-app/src/components/generated/AppShell.tsx (planned)",
+            "templates/vite-react-app/src/lib/generated/project-plan.ts (planned)",
         ],
-        previewUrl,
+        previewUrl: null,
         commandsRun: [],
         previewAvailable: false,
+        buildContractSnapshot: buildContract,
+        verificationResults: [],
+        detectedPackages: [],
+        installedPackages: [],
+        validationErrors: [],
+        repairAttempts: 0,
         promptPreview: promptMetadata?.promptPreview,
         promptSnapshot: promptMetadata?.promptSnapshot,
         targetWorkspacePath: promptMetadata?.targetWorkspacePath,

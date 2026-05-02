@@ -9,7 +9,6 @@ interface ChatHeaderProps {
 
 function statusForProject(project: ProjectView): { label: string; tone: "draft" | "active" | "approved" | "built" } {
   if (project.buildRuns?.some((run) => run.status === "success")) return { label: "Built", tone: "built" };
-  if (project.designArtifacts?.some((a) => a.status === "approved")) return { label: "Design approved", tone: "approved" };
   if (project.latestPlan?.status === "approved") return { label: "Plan approved", tone: "approved" };
   if (project.latestPlan) return { label: "Plan draft", tone: "active" };
   return { label: "Drafting", tone: "draft" };
