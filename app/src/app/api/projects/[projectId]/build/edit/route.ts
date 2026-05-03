@@ -3,6 +3,7 @@ import { mkdirSync } from "fs"
 import { homedir } from "os"
 import path from "path"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "@/app/api/blueprints/auth"
+import { logError } from "@/lib/logger"
 import {
     createBuildRun,
     getBuildRuns,
@@ -120,7 +121,7 @@ export async function POST(
 
         Promise.resolve().then(() =>
             executeEditRun(projectId, run.id, job, instruction).catch((err) => {
-                console.error(`[edit-run ${run.id}] Unhandled executor error:`, err)
+                logError("edit_run_executor", { runId: run.id, error: String(err) })
             })
         )
 

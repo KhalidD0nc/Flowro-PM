@@ -46,9 +46,8 @@ export default function QuickActions() {
   // Local hover state for visual feedback
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // Placeholder handler - logs and dispatches event for dynamic placeholder
+  // Dispatch placeholder event so VisionInput picks it up
   const handleActionClick = (action: QuickAction) => {
-    console.log(`[Phase 3.B] Quick action clicked: ${action.title}`);
     window.dispatchEvent(new CustomEvent('flowro:set-placeholder', { detail: action.label }));
   };
 

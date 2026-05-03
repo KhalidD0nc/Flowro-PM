@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, onAuthStateChanged } from "firebase/auth"
 import { auth } from "@/lib/firebase"
 import { ToastProvider } from "./ui/ToastProvider"
+import { ThemeProvider } from "./ThemeProvider"
+import { Provider as JotaiProvider } from "jotai"
 
 interface AuthContextType {
     user: User | null
@@ -30,10 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [])
 
     return (
-        <AuthContext.Provider value={{ user, loading }}>
-            <ToastProvider>
-                {children}
-            </ToastProvider>
-        </AuthContext.Provider>
+        <JotaiProvider>
+            <ThemeProvider>
+                <AuthContext.Provider value={{ user, loading }}>
+                    <ToastProvider>
+                        {children}
+                    </ToastProvider>
+                </AuthContext.Provider>
+            </ThemeProvider>
+        </JotaiProvider>
     )
 }

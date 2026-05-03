@@ -11,9 +11,7 @@ interface ErrorProps {
 
 export default function Error({ error, reset }: ErrorProps) {
     useEffect(() => {
-        // Log to analytics/Sentry
         analytics.errorOccurred("runtime_error", error.message, "error_boundary")
-        console.error("Application error:", error)
     }, [error])
 
     return (

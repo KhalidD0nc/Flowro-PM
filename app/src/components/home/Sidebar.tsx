@@ -3,9 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/Providers";
+import { useTheme } from "@/components/ThemeProvider";
 import { signOutUser } from "@/app/auth/actions";
 import { authGet, authDelete, authPatch } from "@/lib/authFetch";
 import PricingModal from "@/components/PricingModal";
+import RenameProjectModal from "@/components/RenameProjectModal";
+import DeleteProjectModal from "@/components/DeleteProjectModal";
+import { Button } from "@/components/ui/button";
 
 const SIDEBAR_COLLAPSED_KEY = "flowro_sidebar_collapsed";
 
@@ -24,6 +28,7 @@ interface SidebarProps {
 export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }: SidebarProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
@@ -70,8 +75,8 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
         });
         setRecentProjects(sortedProjects);
       }
-    } catch (error) {
-      console.error("Error fetching recent projects:", error);
+    } catch {
+      // Fetch failed — sidebar shows empty state
     } finally {
       setIsLoadingProjects(false);
     }
@@ -110,8 +115,8 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
     try {
       await signOutUser();
       router.push("/");
-    } catch (error) {
-      console.error("Error signing out:", error);
+    } catch {
+      // Sign-out failed — user stays on current page
     }
   };
 
@@ -144,8 +149,8 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
         setRenameProjectId(null);
         setRenameValue("");
       }
-    } catch (error) {
-      console.error("Error renaming project:", error);
+    } catch {
+      // Rename failed — project name unchanged
     } finally {
       setIsRenaming(false);
     }
@@ -167,8 +172,8 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
           onNewChat();
         }
       }
-    } catch (error) {
-      console.error("Error deleting project:", error);
+    } catch {
+      // Delete failed — project list unchanged
     } finally {
       setIsDeleting(false);
     }
@@ -192,7 +197,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
 
   return (
     <aside
-      className={`relative z-20 flex shrink-0 flex-col justify-between border-r border-[#e4ddd4] bg-[#fbf7f1]/92 px-3 py-4 backdrop-blur-xl transition-all duration-300 ${
+      className={`relative z-20 flex shrink-0 flex-col justify-between border-r border-[#e4ddd4] bg-[#fbf7f1]/92 px-3 py-4 backdrop-blur-xl transition-all duration-300 dark:border-white/[0.06] dark:bg-[#141416]/92 ${
         isCollapsed ? "w-18" : "w-full md:w-72"
       }`}
     >
@@ -209,13 +214,13 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
             className={`flex items-center gap-3 ${isCollapsed ? "justify-center" : ""}`}
             aria-label="Go to app home"
           >
-            <div className="flex size-11 items-center justify-center rounded-2xl border border-[#d9e8fb] bg-white shadow-[0_12px_24px_-18px_rgba(47,143,255,0.4)]">
+            <div className="flex size-11 items-center justify-center rounded-2xl border border-[#d9e8fb] bg-white shadow-[0_12px_24px_-18px_rgba(47,143,255,0.4)] dark:border-white/[0.06] dark:bg-[#1A1A1D]">
               <img src="/logo.png" alt="Flowro Logo" className="h-7 w-7 object-contain" />
             </div>
             {!isCollapsed ? (
               <div className="text-left">
-                <p className="font-medium text-slate-900">Flowro</p>
-                <p className="text-xs text-slate-500">Product workspace</p>
+                <p className="font-medium text-slate-900 dark:text-white/[0.9]">Flowro</p>
+                <p className="text-xs text-slate-500 dark:text-white/[0.5]">Product workspace</p>
               </div>
             ) : null}
           </button>
@@ -223,7 +228,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
           {!isCollapsed ? (
             <button
               onClick={toggleCollapsed}
-              className="rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-slate-700"
+              className="rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-slate-700 dark:hover:bg-[#1E1E22] dark:hover:text-white/[0.7]"
               title="Collapse sidebar"
             >
               <span className="material-symbols-outlined text-[18px]">chevron_left</span>
@@ -231,7 +236,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
           ) : (
             <button
               onClick={toggleCollapsed}
-              className="rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-slate-700"
+              className="rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-slate-700 dark:hover:bg-[#1E1E22] dark:hover:text-white/[0.7]"
               title="Expand sidebar"
             >
               <span className="material-symbols-outlined text-[18px]">chevron_right</span>
@@ -255,17 +260,17 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
         </button>
 
         {!isCollapsed ? (
-          <section className="rounded-[1.5rem] border border-[#e5ddd3] bg-white/72 p-2 shadow-[0_20px_38px_-34px_rgba(34,51,84,0.28)]">
+          <section className="rounded-[1.5rem] border border-[#e5ddd3] bg-white/72 p-2 shadow-[0_20px_38px_-34px_rgba(34,51,84,0.28)] dark:border-white/[0.06] dark:bg-[#1A1A1D]/60">
             <div className="flex items-center justify-between px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Recents</p>
-              <span className="rounded-full bg-[#f4efe8] px-2 py-1 text-[11px] text-slate-500">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-white/[0.5]">Recents</p>
+              <span className="rounded-full bg-[#f4efe8] px-2 py-1 text-[11px] text-slate-500 dark:bg-[#1E1E22] dark:text-white/[0.5]">
                 {recentProjects.length}
               </span>
             </div>
 
             <div className="mt-1 space-y-1">
               {isLoadingProjects ? (
-                <div className="px-3 py-4 text-sm text-slate-500">Loading projects...</div>
+                <div className="px-3 py-4 text-sm text-slate-500 dark:text-white/[0.5]">Loading projects...</div>
               ) : recentProjects.length > 0 ? (
                 recentProjects.map((project) => {
                   const isActive = activeProjectId === project.id;
@@ -283,13 +288,13 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                         }}
                         className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm transition ${
                           isActive
-                            ? "border border-[#bfd8ff] bg-[#edf5ff] text-slate-900"
-                            : "border border-transparent text-slate-600 hover:bg-[#faf6f0] hover:text-slate-900"
+                            ? "border border-[#bfd8ff] bg-[#edf5ff] text-slate-900 dark:border-[#5B8DEF]/30 dark:bg-[#5B8DEF]/10 dark:text-white/[0.9]"
+                            : "border border-transparent text-slate-600 hover:bg-[#faf6f0] hover:text-slate-900 dark:text-white/[0.5] dark:hover:bg-[#1E1E22] dark:hover:text-white/[0.9]"
                         }`}
                       >
                         <div
                           className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${
-                            isActive ? "bg-white text-[#2f8fff]" : "bg-[#f4efe8] text-slate-400"
+                            isActive ? "bg-white text-[#2f8fff] dark:bg-[#0C0C0E] dark:text-[#5B8DEF]" : "bg-[#f4efe8] text-slate-400 dark:bg-[#1E1E22] dark:text-white/[0.4]"
                           }`}
                         >
                           <span className="material-symbols-outlined text-[15px]">description</span>
@@ -308,7 +313,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                           setOpenProjectMenuId(isMenuOpen ? null : project.id);
                         }}
                         className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-xl p-2 transition ${
-                          isMenuOpen ? "bg-white opacity-100" : "opacity-0 group-hover:opacity-100 hover:bg-white"
+                          isMenuOpen ? "bg-white opacity-100 dark:bg-[#1A1A1D]" : "opacity-0 group-hover:opacity-100 hover:bg-white dark:hover:bg-[#1E1E22]"
                         }`}
                         title="Project options"
                       >
@@ -316,17 +321,17 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                       </button>
 
                       {isMenuOpen ? (
-                        <div className="absolute left-full top-0 z-50 ml-3 w-44 overflow-hidden rounded-2xl border border-[#e4ddd4] bg-white shadow-[0_24px_48px_-26px_rgba(20,27,44,0.28)]">
+                        <div className="absolute left-full top-0 z-50 ml-3 w-44 overflow-hidden rounded-2xl border border-[#e4ddd4] bg-white shadow-[0_24px_48px_-26px_rgba(20,27,44,0.28)] dark:border-white/[0.06] dark:bg-[#1A1A1D]">
                           <button
                             onClick={() => openRenameModal(project)}
-                            className="flex w-full items-center gap-2 px-4 py-3 text-sm text-slate-700 transition hover:bg-[#f8fafc]"
+                            className="flex w-full items-center gap-2 px-4 py-3 text-sm text-slate-700 transition hover:bg-[#f8fafc] dark:text-white/[0.7] dark:hover:bg-[#242428]"
                           >
                             <span className="material-symbols-outlined text-[16px]">edit</span>
                             Rename
                           </button>
                           <button
                             onClick={() => openDeleteModal(project.id)}
-                            className="flex w-full items-center gap-2 px-4 py-3 text-sm text-red-500 transition hover:bg-red-50"
+                            className="flex w-full items-center gap-2 px-4 py-3 text-sm text-red-500 transition hover:bg-red-50 dark:hover:bg-red-900/20"
                           >
                             <span className="material-symbols-outlined text-[16px]">delete</span>
                             Delete
@@ -337,7 +342,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                   );
                 })
               ) : (
-                <div className="px-3 py-4 text-sm text-slate-500">
+                <div className="px-3 py-4 text-sm text-slate-500 dark:text-white/[0.5]">
                   No projects yet. Start a new chat to generate your first project plan.
                 </div>
               )}
@@ -346,15 +351,28 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
         ) : null}
       </div>
 
-      <div className="relative pt-4" ref={profileMenuRef}>
+      <div className="flex flex-col gap-2 pt-2">
+        <button
+          onClick={toggleTheme}
+          className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-muted-foreground transition hover:bg-accent hover:text-accent-foreground ${isCollapsed ? "justify-center" : ""}`}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <span className="material-symbols-outlined text-[18px]">
+            {theme === "dark" ? "light_mode" : "dark_mode"}
+          </span>
+          {!isCollapsed && <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>}
+        </button>
+      </div>
+
+      <div className="relative pt-2" ref={profileMenuRef}>
         {isProfileMenuOpen && user ? (
           <div
-            className="absolute bottom-full left-0 z-50 mb-3 w-64 overflow-hidden rounded-[1.5rem] border border-[#e4ddd4] bg-white shadow-[0_24px_48px_-26px_rgba(20,27,44,0.28)]"
+            className="absolute bottom-full left-0 z-50 mb-3 w-64 overflow-hidden rounded-[1.5rem] border border-[#e4ddd4] bg-white shadow-[0_24px_48px_-26px_rgba(20,27,44,0.28)] dark:border-white/[0.06] dark:bg-[#1A1A1D]"
             style={{ minWidth: isCollapsed ? "256px" : "100%" }}
           >
-            <div className="border-b border-[#ece4d9] px-4 py-4">
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Account</p>
-              <p className="mt-2 truncate text-sm text-slate-700">{user.email || "user@example.com"}</p>
+            <div className="border-b border-[#ece4d9] px-4 py-4 dark:border-white/[0.06]">
+              <p className="text-xs uppercase tracking-[0.22em] text-slate-400 dark:text-white/[0.4]">Account</p>
+              <p className="mt-2 truncate text-sm text-slate-700 dark:text-white/[0.7]">{user.email || "user@example.com"}</p>
             </div>
 
             <div className="py-2">
@@ -363,22 +381,22 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                   setIsProfileMenuOpen(false);
                   setIsPricingModalOpen(true);
                 }}
-                className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 transition hover:bg-[#f8fafc]"
+                className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 transition hover:bg-[#f8fafc] dark:text-white/[0.7] dark:hover:bg-[#242428]"
               >
-                <span className="material-symbols-outlined text-[20px] text-slate-400">tune</span>
+                <span className="material-symbols-outlined text-[20px] text-slate-400 dark:text-white/[0.4]">tune</span>
                 View all plans
               </button>
             </div>
 
-            <div className="border-t border-[#ece4d9] py-2">
+            <div className="border-t border-[#ece4d9] py-2 dark:border-white/[0.06]">
               <button
                 onClick={() => {
                   setIsProfileMenuOpen(false);
                   handleLogout();
                 }}
-                className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 transition hover:bg-[#f8fafc]"
+                className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 transition hover:bg-[#f8fafc] dark:text-white/[0.7] dark:hover:bg-[#242428]"
               >
-                <span className="material-symbols-outlined text-[20px] text-slate-400">logout</span>
+                <span className="material-symbols-outlined text-[20px] text-slate-400 dark:text-white/[0.4]">logout</span>
                 Log out
               </button>
             </div>
@@ -388,7 +406,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
         {user ? (
           <button
             onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-            className={`flex w-full items-center gap-3 rounded-[1.5rem] border border-[#e4ddd4] bg-white/82 p-3 shadow-[0_20px_38px_-34px_rgba(34,51,84,0.28)] transition hover:bg-white ${
+            className={`flex w-full items-center gap-3 rounded-[1.5rem] border border-[#e4ddd4] bg-white/82 p-3 shadow-[0_20px_38px_-34px_rgba(34,51,84,0.28)] transition hover:bg-white dark:border-white/[0.06] dark:bg-[#1A1A1D]/82 dark:hover:bg-[#1E1E22] ${
               isCollapsed ? "justify-center" : ""
             }`}
             title="Profile menu"
@@ -396,103 +414,54 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
             {user.photoURL ? (
               <img src={user.photoURL} alt="Profile" className="size-9 rounded-full object-cover" />
             ) : (
-              <div className="flex size-9 items-center justify-center rounded-full bg-[#edf5ff] text-xs font-bold text-[#2f8fff]">
+              <div className="flex size-9 items-center justify-center rounded-full bg-[#edf5ff] text-xs font-bold text-[#2f8fff] dark:bg-[#5B8DEF]/10 dark:text-[#5B8DEF]">
                 {getUserInitials()}
               </div>
             )}
 
             {!isCollapsed ? (
               <div className="min-w-0 flex-1 text-left">
-                <p className="truncate text-sm font-medium text-slate-900">
+                <p className="truncate text-sm font-medium text-slate-900 dark:text-white/[0.9]">
                   {user.displayName || user.email?.split("@")[0] || "User"}
                 </p>
-                <p className="truncate text-xs text-slate-500">Builder Plan</p>
+                <p className="truncate text-xs text-slate-500 dark:text-white/[0.5]">Builder Plan</p>
               </div>
             ) : null}
           </button>
         ) : null}
       </div>
 
-      {renameModalOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[1.75rem] border border-[#e4ddd4] bg-white p-6 shadow-[0_36px_80px_-40px_rgba(20,27,44,0.35)]">
-            <h3 className="text-lg font-semibold text-slate-900">Rename Project</h3>
-            <p className="mt-1 text-sm text-slate-500">Update the project name shown in your workspace rail.</p>
-            <input
-              type="text"
-              value={renameValue}
-              onChange={(event) => setRenameValue(event.target.value)}
-              className="mt-5 w-full rounded-2xl border border-[#d8e0eb] bg-[#faf8f4] px-4 py-3 text-slate-900 outline-none transition focus:border-[#2f8fff] focus:bg-white focus:ring-4 focus:ring-[#2f8fff]/10"
-              placeholder="Project name"
-              autoFocus
-              onKeyDown={(event) => {
-                if (event.key === "Enter") handleRenameProject();
-                if (event.key === "Escape") {
-                  setRenameModalOpen(false);
-                  setRenameProjectId(null);
-                }
-              }}
-            />
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setRenameModalOpen(false);
-                  setRenameProjectId(null);
-                }}
-                className="rounded-full px-4 py-2 text-sm text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRenameProject}
-                disabled={isRenaming || !renameValue.trim()}
-                className="rounded-full bg-[#2f8fff] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#267ce6] disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                {isRenaming ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <RenameProjectModal
+        isOpen={renameModalOpen}
+        onClose={() => { setRenameModalOpen(false); setRenameProjectId(null); setRenameValue(""); }}
+        onRename={async (newName) => {
+          if (!user || !renameProjectId) return;
+          setIsRenaming(true);
+          try {
+            const response = await authPatch(`/api/projects/${renameProjectId}`, user, { name: newName });
+            if (response.ok) {
+              setRecentProjects((prev) =>
+                prev.map((p) => p.id === renameProjectId ? { ...p, name: newName } : p)
+              );
+              setRenameModalOpen(false);
+              setRenameProjectId(null);
+              setRenameValue("");
+            }
+          } finally {
+            setIsRenaming(false);
+          }
+        }}
+        currentName={renameValue}
+        isRenaming={isRenaming}
+      />
 
-      {deleteModalOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/45 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[1.75rem] border border-[#e4ddd4] bg-white p-6 shadow-[0_36px_80px_-40px_rgba(20,27,44,0.35)]">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-full bg-red-50 text-red-500">
-                <span className="material-symbols-outlined">warning</span>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">Delete Project</h3>
-                <p className="text-sm text-slate-500">This action cannot be undone.</p>
-              </div>
-            </div>
-
-            <p className="mt-5 text-sm leading-6 text-slate-600">
-              Are you sure you want to delete this project and remove it from your workspace list?
-            </p>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setDeleteModalOpen(false);
-                  setDeleteProjectId(null);
-                }}
-                className="rounded-full px-4 py-2 text-sm text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteProject}
-                disabled={isDeleting}
-                className="rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300"
-              >
-                {isDeleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <DeleteProjectModal
+        isOpen={deleteModalOpen}
+        onClose={() => { setDeleteModalOpen(false); setDeleteProjectId(null); }}
+        onDelete={handleDeleteProject}
+        projectName={recentProjects.find((p) => p.id === deleteProjectId)?.name ?? ""}
+        isDeleting={isDeleting}
+      />
 
       <PricingModal isOpen={isPricingModalOpen} onClose={() => setIsPricingModalOpen(false)} />
     </aside>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getShareByToken, incrementViewCount } from "../service"
+import { logError } from "@/lib/logger"
 import { getBlueprint, getProject } from "@/lib/firebase/collections"
 import { timestampToISO } from "@/lib/firebase/schema"
 
@@ -42,7 +43,7 @@ export async function GET(
 
         // Increment view count asynchronously (don't await, don't block response)
         incrementViewCount(token).catch(err =>
-            console.error("Failed to increment view count:", err)
+            logError("share_view_count_failed", { error: err instanceof Error ? err.message : String(err) })
         )
 
         return NextResponse.json({
@@ -65,7 +66,7 @@ export async function GET(
             },
         })
     } catch (error) {
-        console.error("Get shared blueprint error:", error)
+        logError("share_blueprint_fetch_failed", { error: error instanceof Error ? error.message : String(error) })
         const message = error instanceof Error ? error.message : "Failed to load shared blueprint"
         return NextResponse.json({ error: message }, { status: 500 })
     }

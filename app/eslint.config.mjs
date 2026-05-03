@@ -13,6 +13,19 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      // Warn on raw console usage — use @/lib/logger (server) or keep dev-only guards
+      "no-console": ["warn", { allow: ["warn", "error"] }],
+    },
+  },
+  {
+    // Test files may use console freely for output formatting
+    files: ["src/__tests__/**"],
+    rules: {
+      "no-console": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

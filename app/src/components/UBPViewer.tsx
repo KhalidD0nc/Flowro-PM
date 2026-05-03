@@ -360,8 +360,8 @@ export default function UBPViewer({
                         try {
                             const { svg } = await mermaid.render(`mermaid-${Math.random().toString(36).substr(2, 9)}`, code)
                             el.innerHTML = svg
-                        } catch (e) {
-                            console.error("Mermaid render error:", e)
+                        } catch {
+                            // Mermaid render failed — leave placeholder visible
                         }
                     }
                 }

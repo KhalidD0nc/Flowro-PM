@@ -208,7 +208,7 @@ export function sanitizeInputForLLM(input: string, maxLength = 10000): string {
   // Detect and redact PII
   const piiCheck = detectPII(sanitized)
   if (piiCheck.hasPII) {
-    console.warn("⚠️ PII detected in user input:", piiCheck.types)
+    process.stderr.write(`[sanitize] PII detected in user input: ${piiCheck.types.join(', ')}\n`)
     sanitized = redactPII(sanitized)
   }
 

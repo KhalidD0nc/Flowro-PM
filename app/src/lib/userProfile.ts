@@ -88,7 +88,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 
         return null
     } catch (error) {
-        console.error("Error fetching user profile:", error)
+        process.stderr.write(`[userProfile] Error fetching user profile: ${error instanceof Error ? error.message : String(error)}\n`)
         return null
     }
 }
@@ -112,7 +112,7 @@ export async function createUserProfile(userId: string): Promise<UserProfile> {
             updatedAt: new Date(),
         }
     } catch (error) {
-        console.error("Error creating user profile:", error)
+        process.stderr.write(`[userProfile] Error creating user profile: ${error instanceof Error ? error.message : String(error)}\n`)
         throw error
     }
 }
@@ -129,7 +129,7 @@ export async function updateUserProfile(
             updatedAt: serverTimestamp(),
         })
     } catch (error) {
-        console.error("Error updating user profile:", error)
+        process.stderr.write(`[userProfile] Error updating user profile: ${error instanceof Error ? error.message : String(error)}\n`)
         throw error
     }
 }

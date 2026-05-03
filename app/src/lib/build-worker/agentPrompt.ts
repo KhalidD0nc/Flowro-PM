@@ -38,8 +38,19 @@ Hard rules:
 - Use existing project conventions and the template component kit before introducing new abstractions.
 - If the BuildContract conflicts with the ProjectPlan, follow the ProjectPlan and note the conflict in the build log.
 
+Pre-installed UI components (use these — do NOT re-implement them):
+The vite-react-app template ships with shadcn/ui components pre-installed. Import them directly:
+- \`import { Button } from "@/components/ui/button"\` — supports variant (default/destructive/outline/secondary/ghost/link) and size (default/sm/lg/icon)
+- \`import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"\`
+- \`import { Input } from "@/components/ui/input"\`
+- \`import { Badge } from "@/components/ui/badge"\` — supports variant (default/secondary/destructive/outline)
+- \`import { cn } from "@/lib/utils"\` — tailwind class merging helper
+- \`import { SomeIcon } from "lucide-react"\` — icon library is pre-installed
+- \`import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom"\` — routing is pre-installed
+CSS design tokens use HSL variables: \`hsl(var(--primary))\`, \`hsl(var(--background))\`, \`hsl(var(--foreground))\`, \`hsl(var(--muted))\`, \`hsl(var(--border))\`, \`hsl(var(--card))\`, \`hsl(var(--destructive))\`. Use these in Tailwind classes with \`bg-[hsl(var(--primary))]\` syntax or directly in inline styles.
+
 Skill guardrails:
-- Frontend/design: build a real product surface, not a landing page; keep layouts responsive, readable, and useful on first load.
+- Frontend/design: build a real product surface, not a landing page; keep layouts responsive, readable, and useful on first load. Use the pre-installed shadcn components for all interactive elements.
 - Security: keep secrets server-only, do not create fake auth guarantees, and avoid unapproved network services.
 - Business logic: prioritize approved routes, primary actions, data models, and acceptance checks over decorative polish.
 - Review: before returning success, check for compile issues, missing imports, inaccessible routes, and obvious placeholder text.
@@ -190,7 +201,8 @@ Rules:
 - Return JSON only. No markdown.
 - Include 4-10 files maximum.
 - Only include files under these editable paths: {{EDITABLE_PATHS}}.
-- MANDATORY core files (always include all four): src/App.tsx, src/styles.css, src/lib/mock-data.ts, src/components/ui/app-kit.tsx. The template ships a placeholder App.tsx that MUST be overwritten — never omit src/App.tsx.
+- MANDATORY core files (always include all three): src/App.tsx, src/styles.css, src/lib/mock-data.ts. The template ships a placeholder App.tsx that MUST be overwritten — never omit src/App.tsx.
+- DO NOT include src/components/ui/button.tsx, src/components/ui/card.tsx, src/components/ui/input.tsx, src/components/ui/badge.tsx, or src/lib/utils.ts — these are pre-installed in the template and must not be overwritten.
 - Add page files (src/pages/*.tsx) for each primary ProjectPlan route, plus shared component files when needed.
 - If a page file (e.g. src/App.tsx) imports a local component (e.g. ./components/Dashboard), that component file MUST also be included in the manifest. Every relative import must have a matching file entry.
 - Do not include package.json, next.config.ts, tailwind.config.ts, or files outside editable paths.

@@ -51,13 +51,6 @@ export async function generateBuildCompletion(options: BuildCompletionOptions): 
 
     const data = await response.json()
 
-    const dataStr = JSON.stringify(data)
-    if (dataStr.length > 500) {
-        console.log("[openrouter-build] Response preview:", dataStr.slice(0, 500), "...")
-    } else {
-        console.log("[openrouter-build] Response:", dataStr)
-    }
-
     if (data.error) {
         throw new Error(`OpenRouter error: ${JSON.stringify(data.error)}`)
     }
@@ -68,9 +61,7 @@ export async function generateBuildCompletion(options: BuildCompletionOptions): 
     const reasoningTokens: number = data.usage?.completion_tokens_details?.reasoning_tokens ?? 0
 
     if (!content) {
-        console.error(
-            `[openrouter-build] Empty content (model=${model}, finish_reason=${finishReason}, reasoning_tokens=${reasoningTokens}).`,
-        )
+        process.stderr.write(`[openrouter-build] Empty content (model=${model}, finish_reason=${finishReason}, reasoning_tokens=${reasoningTokens}).\n`)
         throw new EmptyCompletionError(model, finishReason)
     }
     return content as string
@@ -88,13 +79,13 @@ export async function generateBuildCompletionWithFallback(
 
     for (const model of models) {
         try {
-            console.log(`[openrouter-build] Trying model: ${model}`)
+            process.stdout.write(`[openrouter-build] Trying model: ${model}\n`)
             const content = await generateBuildCompletion({ ...options, model })
-            console.log(`[openrouter-build] Success with model: ${model} (${content.length} chars)`)
+            process.stdout.write(`[openrouter-build] Success with model: ${model} (${content.length} chars)\n`)
             return { content, model }
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
-            console.warn(`[openrouter-build] Model ${model} failed: ${message}`)
+            process.stderr.write(`[openrouter-build] Model ${model} failed: ${message}\n`)
             errors.push(`${model}: ${message}`)
             continue
         }

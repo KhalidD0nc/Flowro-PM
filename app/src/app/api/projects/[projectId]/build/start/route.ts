@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "@/app/api/blueprints/auth"
+import { logError } from "@/lib/logger"
 import {
     createBuildRun,
     getProject,
@@ -110,7 +111,7 @@ export async function POST(
 
         Promise.resolve().then(() =>
             executeBuildRun(projectId, run.id, job).catch((err) => {
-                console.error(`[build-run ${run.id}] Unhandled executor error:`, err)
+                logError("build_run_executor", { runId: run.id, error: String(err) })
             })
         )
 

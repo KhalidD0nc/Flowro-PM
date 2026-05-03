@@ -38,7 +38,7 @@ export default function ActionChipRow({ intent, onPick }: ActionChipRowProps) {
           key={chip}
           type="button"
           onClick={() => onPick(chip)}
-          className="rounded-full border border-[#e2ddd5] bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-[#bfd8ff] hover:bg-[#f8fbff] hover:text-[#2f8fff]"
+          className="rounded-full border border-[#e2ddd5] bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-[#bfd8ff] hover:bg-[#f8fbff] hover:text-[#2f8fff] dark:border-white/[0.06] dark:bg-[#1A1A1D] dark:text-white/[0.6] dark:hover:border-[#5B8DEF]/30 dark:hover:bg-[#5B8DEF]/5 dark:hover:text-[#5B8DEF]"
         >
           {chip}
         </button>

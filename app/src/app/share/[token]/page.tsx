@@ -48,8 +48,7 @@ export default function SharedBlueprintPage() {
 
                 const blueprintData = await response.json()
                 setData(blueprintData)
-            } catch (err) {
-                console.error("Fetch shared blueprint error:", err)
+            } catch {
                 setError("Failed to load shared blueprint")
             } finally {
                 setIsLoading(false)

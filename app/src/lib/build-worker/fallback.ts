@@ -15,16 +15,38 @@ export function buildFallbackFiles(job: Stage3BuildJob): Record<string, string> 
 
     return {
         "src/styles.css": `@import "tailwindcss";
-@reference "tailwindcss";
 
-:root {
-  --background: #f7f3ec;
-  --foreground: #122033;
-}
+@layer base {
+  :root {
+    --background: 40 30% 96%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 213 100% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 213 100% 95%;
+    --accent-foreground: 213 100% 40%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 213 100% 59%;
+    --radius: 0.625rem;
+  }
 
-body {
-  background: radial-gradient(circle at top left, rgba(47, 143, 255, 0.16), transparent 34rem), linear-gradient(135deg, #f7f3ec 0%, #eef5ff 100%);
-  color: var(--foreground);
+  * { border-color: hsl(var(--border)); box-sizing: border-box; }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+  }
 }
 `,
         "src/lib/mock-data.ts": `export const productName = ${js(productName)};
@@ -43,125 +65,82 @@ export const acceptanceChecks = ${JSON.stringify(checks, null, 2)} as const;
 
 export const visualDirection = ${JSON.stringify(contract.visualDirection.slice(0, 5), null, 2)} as const;
 `,
-        "src/components/ui/app-kit.tsx": `import type { ReactNode } from "react";
-
-export function AppShell({ children }: { children: ReactNode }) {
-  return (
-    <main className="min-h-screen bg-[#f6f2eb] px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">{children}</div>
-    </main>
-  );
-}
-
-export function Panel({ title, eyebrow, children }: { title: string; eyebrow?: string; children: ReactNode }) {
-  return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_18px_50px_-42px_rgba(15,23,42,0.35)]">
-      {eyebrow ? <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#2f8fff]">{eyebrow}</p> : null}
-      <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950">{title}</h2>
-      <div className="mt-4 space-y-3">{children}</div>
-    </section>
-  );
-}
-
-export function Button({ children }: { children: ReactNode }) {
-  return (
-    <button className="inline-flex items-center justify-center rounded-lg bg-[#2f8fff] px-4 py-2.5 text-sm font-bold text-white shadow-[0_16px_28px_-20px_rgba(47,143,255,0.8)]">
-      {children}
-    </button>
-  );
-}
-
-export function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-slate-950 p-4 text-white">
-      <p className="text-2xl font-black">{value}</p>
-      <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-400">{label}</p>
-    </div>
-  );
-}
-
-export function StatusBadge({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-      {children}
-    </span>
-  );
-}
-
-export function EmptyState({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
-      <p className="font-bold text-slate-900">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-slate-500">{body}</p>
-    </div>
-  );
-}
-`,
-        "src/App.tsx": `import { AppShell, Button, EmptyState, MetricCard, Panel, StatusBadge } from "./components/ui/app-kit";
-import { acceptanceChecks, appSummary, buildTasks, dataModels, productName, routes, successCriteria, visualDirection } from "./lib/mock-data";
+        "src/App.tsx": `import { Button } from "./components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./components/ui/card";
+import { Badge } from "./components/ui/badge";
+import { acceptanceChecks, appSummary, buildTasks, dataModels, productName, routes, visualDirection } from "./lib/mock-data";
 
 export default function App() {
   return (
-    <AppShell>
-      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-lg border border-white/70 bg-white/85 p-8 shadow-[0_30px_90px_-60px_rgba(18,32,51,0.45)] backdrop-blur">
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#2f8fff]">Live Vite preview</p>
-          <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-6xl">{productName}</h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">{appSummary}</p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            {visualDirection.map((item) => <StatusBadge key={item}>{item}</StatusBadge>)}
-          </div>
-          <div className="mt-8">
-            <Button>Start primary workflow</Button>
-          </div>
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            <MetricCard label="Routes" value={String(routes.length)} />
-            <MetricCard label="Models" value={String(dataModels.length)} />
-            <MetricCard label="Checks" value={String(acceptanceChecks.length)} />
-          </div>
-        </div>
+    <main className="min-h-screen bg-[hsl(var(--background))] px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <Card>
+          <CardHeader>
+            <p className="text-xs font-bold uppercase tracking-[0.24em] text-[hsl(var(--primary))]">Live preview</p>
+            <CardTitle className="text-4xl font-black tracking-tight">{productName}</CardTitle>
+            <CardDescription className="text-base leading-7">{appSummary}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {visualDirection.map((item) => <Badge key={item} variant="secondary">{item}</Badge>)}
+            </div>
+            <div className="mt-6 flex gap-3">
+              <Button>Start primary workflow</Button>
+              <Button variant="outline">View all routes</Button>
+            </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {[
+                { label: "Routes", value: String(routes.length) },
+                { label: "Data models", value: String(dataModels.length) },
+                { label: "Checks", value: String(acceptanceChecks.length) },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-lg bg-[hsl(var(--muted))] p-4">
+                  <p className="text-2xl font-black text-[hsl(var(--foreground))]">{stat.value}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.2em] text-[hsl(var(--muted-foreground))]">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-lg bg-[#101827] p-6 text-white shadow-[0_30px_90px_-55px_rgba(16,24,39,0.7)]">
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-300">Build scope</p>
-          <div className="mt-5 space-y-3">
-            {buildTasks.map((task) => (
-              <div key={task.id} className="rounded-lg border border-white/10 bg-white/6 p-4">
-                <p className="text-sm font-semibold">{task.title}</p>
-                <p className="mt-1 text-xs leading-5 text-slate-300">{task.description}</p>
-              </div>
-            ))}
-          </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card>
+            <CardHeader><CardTitle>Routes</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {routes.map((route) => (
+                <div key={route.path} className="rounded-lg bg-[hsl(var(--muted))] p-4">
+                  <p className="text-sm font-semibold">{route.name}</p>
+                  <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">{route.path}</p>
+                  <p className="mt-2 text-sm leading-6 text-[hsl(var(--foreground))]">{route.purpose}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Build tasks</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {buildTasks.map((task) => (
+                <div key={task.id} className="rounded-lg border border-[hsl(var(--border))] p-4">
+                  <p className="text-sm font-semibold">{task.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{task.description}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Acceptance checks</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {acceptanceChecks.map((check) => (
+                <div key={check} className="flex gap-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                  <span>{check}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </div>
-      </section>
-
-      <section className="mt-6 grid gap-6 lg:grid-cols-3">
-        <Panel title="Primary routes">
-          {routes.map((route) => (
-            <div key={route.path} className="rounded-lg bg-slate-50 p-4">
-              <p className="text-sm font-bold">{route.name}</p>
-              <p className="mt-1 text-xs text-slate-500">{route.path}</p>
-              <p className="mt-3 text-sm leading-6 text-slate-600">{route.purpose}</p>
-            </div>
-          ))}
-        </Panel>
-        <Panel title="Data model">
-          {dataModels.length ? dataModels.map((model) => (
-            <div key={model.name} className="rounded-lg border border-slate-200 p-4">
-              <p className="font-semibold">{model.name}</p>
-              <p className="mt-1 text-sm text-slate-500">{model.purpose}</p>
-            </div>
-          )) : <EmptyState title="No persisted model yet" body="Local mock data powers this preview." />}
-        </Panel>
-        <Panel title="Acceptance checks">
-          {successCriteria.map((item) => (
-            <div key={item} className="flex gap-3 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-950">
-              <span className="mt-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500" />
-              <span>{item}</span>
-            </div>
-          ))}
-        </Panel>
-      </section>
-    </AppShell>
+      </div>
+    </main>
   );
 }
 `,

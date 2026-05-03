@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../../../blueprints/auth"
+import { logError } from "@/lib/logger"
 import {
     getBlueprint,
     getProject,
@@ -92,7 +93,7 @@ export async function GET(
             })),
         })
     } catch (error) {
-        console.error("Get blueprint history error:", error)
+        logError("get_blueprint_history", { error: String(error) })
         const message = error instanceof Error ? error.message : "Failed to get blueprint history"
         const status = message.includes("Access denied")
             ? 403

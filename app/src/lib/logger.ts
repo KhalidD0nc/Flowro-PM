@@ -50,6 +50,7 @@ export function log(options: {
     : options.level === "info" ? "ℹ️"
     : "🔍"
 
+  // eslint-disable-next-line no-console
   console.log(`${emoji} [${options.level.toUpperCase()}]`, JSON.stringify(entry))
 }
 

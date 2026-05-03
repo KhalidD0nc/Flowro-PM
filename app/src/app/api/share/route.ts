@@ -6,6 +6,7 @@ import {
     revokeShareToken,
 } from "./service"
 import { getBlueprint, getProject } from "@/lib/firebase/collections"
+import { logError } from "@/lib/logger"
 
 async function verifyBlueprintOwnership(blueprintId: string, userId: string): Promise<void> {
     const blueprint = await getBlueprint(blueprintId)
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
             shareUrl,
         })
     } catch (error) {
-        console.error("Create share token error:", error)
+        logError("share_token_create_failed", { error: error instanceof Error ? error.message : String(error) })
         const message = error instanceof Error ? error.message : "Failed to create share token"
         const status = message.includes("Access denied") ? 403 : message.includes("not found") ? 404 : 500
         return NextResponse.json({ error: message }, { status })
@@ -98,7 +99,7 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true, message: "Share link revoked" })
     } catch (error) {
-        console.error("Revoke share token error:", error)
+        logError("share_token_revoke_failed", { error: error instanceof Error ? error.message : String(error) })
         const message = error instanceof Error ? error.message : "Failed to revoke share token"
         const status = message.includes("Access denied") ? 403 : message.includes("not found") ? 404 : 500
         return NextResponse.json({ error: message }, { status })

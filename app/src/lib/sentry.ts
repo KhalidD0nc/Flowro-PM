@@ -16,6 +16,7 @@ interface ErrorContext {
 export function captureException(error: Error, context?: ErrorContext): void {
     // Log to console in development
     if (process.env.NODE_ENV === "development") {
+        // eslint-disable-next-line no-console
         console.error("[Error Capture]", error, context)
     }
 
@@ -51,6 +52,7 @@ export function captureException(error: Error, context?: ErrorContext): void {
 // Capture a message (not an error)
 export function captureMessage(message: string, level: "info" | "warning" | "error" = "info", context?: ErrorContext): void {
     if (process.env.NODE_ENV === "development") {
+        // eslint-disable-next-line no-console
         console.log(`[${level.toUpperCase()}]`, message, context)
     }
 

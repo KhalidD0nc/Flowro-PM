@@ -101,7 +101,7 @@ export async function* generateStream(options: StreamOptions): AsyncGenerator<St
     yield { type: "done", rawContent: accumulated }
 
   } catch (error) {
-    console.error("Stream generation error:", error)
+    process.stderr.write(`[stream] Generation error: ${error instanceof Error ? error.message : String(error)}\n`)
     yield {
       type: "error",
       error: error instanceof Error ? error.message : "Unknown stream error"
