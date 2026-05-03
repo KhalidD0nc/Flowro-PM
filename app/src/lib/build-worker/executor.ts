@@ -1,3 +1,5 @@
+import { promises as fsp } from "fs"
+import path from "path"
 import { copyTemplate, getPreviewPort, isServerReady, readRepairContextFiles, runCommand, startDevServer, writeWorkspaceFile, type CommandResult } from "./fs"
 import {
     buildBuildManifestPrompt,
@@ -277,7 +279,7 @@ export async function executeBuildRun(
         try {
             const { content: bundledResponse, model: usedModel } = await generateBuildCompletionWithFallback({
                 messages: [{ role: "user", content: buildBundledFileGenerationPrompt(manifest, job) }],
-                maxTokens: 14000,
+                maxTokens: 40000,
                 timeoutMs: 90000,
                 maxRetries: 1,
                 signal: controller.signal,
@@ -296,7 +298,7 @@ export async function executeBuildRun(
                     const lastResponse = generationError instanceof Error ? generationError.message : String(generationError)
                     const { content: retryResponse } = await generateBuildCompletionWithFallback({
                         messages: [{ role: "user", content: buildFormatRetryPrompt(lastResponse) }],
-                        maxTokens: 14000,
+                        maxTokens: 40000,
                         timeoutMs: 90000,
                         maxRetries: 0,
                         signal: controller.signal,
@@ -324,6 +326,35 @@ export async function executeBuildRun(
         }
 
         await checkCanceled()
+
+        // Safety net: if AI generation skipped App.tsx, the template placeholder
+        // ("Generated app ready") survives and the user sees nothing. Force-overwrite
+        // from the deterministic fallback so the preview always shows real content.
+        const appTsxPath = path.join(job.targetWorkspacePath, "src/App.tsx")
+        try {
+            const currentApp = await fsp.readFile(appTsxPath, "utf-8")
+            if (
+                currentApp.includes("Generated app ready") ||
+                currentApp.includes("Stage 3 worker will replace")
+            ) {
+                await appendLog("Detected placeholder App.tsx after generation; overwriting from deterministic fallback")
+                const fb = buildFallbackFiles(job)
+                const overrides: Record<string, string> = {}
+                for (const key of ["src/App.tsx", "src/components/ui/app-kit.tsx", "src/lib/mock-data.ts", "src/styles.css"]) {
+                    if (fb[key]) overrides[key] = fb[key]
+                }
+                await writeFiles(overrides, "fallback")
+                fallbackUsed = true
+                await updateProgress({ fallbackUsed: true })
+            }
+        } catch {
+            // App.tsx missing entirely — write fallback core files
+            await appendLog("App.tsx missing after generation; writing deterministic fallback core files")
+            await writeFiles(buildFallbackFiles(job), "fallback")
+            fallbackUsed = true
+            await updateProgress({ fallbackUsed: true })
+        }
+
         await updateProgress({ phase: "installing", currentAction: "Installing dependencies" })
         await appendStep("Installing dependencies")
         await appendLog(`Executing: npm install --no-audit --no-fund (timeout ${INSTALL_TIMEOUT_MS / 1000}s)`)
@@ -397,7 +428,7 @@ export async function executeBuildRun(
                 const repairResponse = await generateBuildCompletionWithModel(
                     {
                         messages: [{ role: "user", content: buildRepairPrompt(buildError, workspaceFiles) }],
-                        maxTokens: 9000,
+                        maxTokens: 40000,
                         timeoutMs: 60000,
                         maxRetries: 0,
                         signal: controller.signal,
@@ -497,6 +528,26 @@ export async function executeBuildRun(
     }
 }
 
+// Core files that MUST always be regenerated. Without App.tsx the template
+// placeholder ("Generated app ready") survives and the user sees nothing.
+const REQUIRED_CORE_FILES: BuildManifestFile[] = [
+    { path: "src/App.tsx", reason: "App entry: mounts router and wires generated pages" },
+    { path: "src/styles.css", reason: "Tailwind entry and theme tokens" },
+    { path: "src/lib/mock-data.ts", reason: "Local mock data for the preview" },
+    { path: "src/components/ui/app-kit.tsx", reason: "Shared UI primitives" },
+]
+
+function mergeRequiredCoreFiles(files: BuildManifestFile[]): BuildManifestFile[] {
+    const existingPaths = new Set(files.map((f) => f.path))
+    const merged = [...files]
+    for (const required of REQUIRED_CORE_FILES) {
+        if (!existingPaths.has(required.path)) {
+            merged.unshift(required)
+        }
+    }
+    return merged.slice(0, MAX_MANIFEST_FILES)
+}
+
 async function createBuildManifest(
     job: Stage3BuildJob,
     signal: AbortSignal,
@@ -505,23 +556,26 @@ async function createBuildManifest(
     const fallbackManifest = createDeterministicManifest(job)
 
     try {
-        const response = await generateBuildCompletionWithModel(
-            {
-                messages: [{ role: "user", content: buildBuildManifestPrompt(job) }],
-                maxTokens: 2000,
-                timeoutMs: 45000,
-                maxRetries: 0,
-                signal,
-            },
-            BUILD_MODEL
-        )
+        const { content: response, model: usedModel } = await generateBuildCompletionWithFallback({
+            messages: [{ role: "user", content: buildBuildManifestPrompt(job) }],
+            maxTokens: 40000,
+            timeoutMs: 60000,
+            maxRetries: 0,
+            signal,
+        })
+        await appendLog(`Manifest planning succeeded with model: ${usedModel}`)
         const parsed = extractJsonFromResponse(response) as Partial<BuildManifest>
-        const files = (parsed.files ?? [])
+        const aiFiles = (parsed.files ?? [])
             .filter((file): file is BuildManifestFile => Boolean(file?.path && file.reason))
             .filter((file) => isEditablePath(file.path, job.editablePaths))
-            .slice(0, MAX_MANIFEST_FILES)
 
-        if (files.length === 0) throw new Error("Manifest did not include editable files")
+        if (aiFiles.length === 0) throw new Error("Manifest did not include editable files")
+
+        const files = mergeRequiredCoreFiles(aiFiles)
+        const added = files.length - aiFiles.length
+        if (added > 0) {
+            await appendLog(`Forced ${added} required core file(s) into AI manifest (App.tsx, styles, etc.)`)
+        }
         return { summary: parsed.summary || "AI-selected core files", files }
     } catch (error) {
         await appendLog(`Manifest planning degraded: ${error instanceof Error ? error.message : String(error)}`)
@@ -565,7 +619,7 @@ async function generateFilesIndividually(
                 await appendLog(`Generating ${manifestFile.path} (attempt ${attempt + 1}/${maxRetriesPerFile + 1})`)
                 const { content } = await generateBuildCompletionWithFallback({
                     messages: [{ role: "user", content: buildFileGenerationPrompt(manifestFile.path, job) }],
-                    maxTokens: 6000,
+                    maxTokens: 40000,
                     timeoutMs: 60000,
                     maxRetries: 0,
                     signal,

@@ -190,8 +190,8 @@ Rules:
 - Return JSON only. No markdown.
 - Include 4-10 files maximum.
 - Only include files under these editable paths: {{EDITABLE_PATHS}}.
-- Prefer these core files: src/App.tsx, src/styles.css, src/lib/mock-data.ts, src/components/ui/app-kit.tsx.
-- Add component files only when they are needed for important ProjectPlan routes or repeated UI.
+- MANDATORY core files (always include all four): src/App.tsx, src/styles.css, src/lib/mock-data.ts, src/components/ui/app-kit.tsx. The template ships a placeholder App.tsx that MUST be overwritten — never omit src/App.tsx.
+- Add page files (src/pages/*.tsx) for each primary ProjectPlan route, plus shared component files when needed.
 - If a page file (e.g. src/App.tsx) imports a local component (e.g. ./components/Dashboard), that component file MUST also be included in the manifest. Every relative import must have a matching file entry.
 - Do not include package.json, next.config.ts, tailwind.config.ts, or files outside editable paths.
 
@@ -249,7 +249,7 @@ export default function App() {
 RULES:
 - Return ONLY file blocks. No prose, no markdown fences, no explanations.
 - Use the exact <<<FILE:path>>> and <<<END_FILE>>> markers shown above.
-- Generate files in this order: styles.css → mock-data.ts → app-kit.tsx → App.tsx → other components.
+- Generate files in this order: styles.css → mock-data.ts → app-kit.tsx → App.tsx → other components/pages.
 - Use Vite-compatible TypeScript React components.
 - Keep dependencies limited to the selected template dependencies.
 - Use Tailwind CSS classes and plain React.
@@ -260,6 +260,13 @@ RULES:
 - CRITICAL: Every relative import (starting with ./ or ../) MUST point to another file in this exact response. Do not assume any file exists unless it is generated here.
 - CRITICAL: Every file must be COMPLETE. No ellipsis (...), no truncation, no "rest of file" comments.
 - You have 14000 tokens. Use them to generate complete, working files.
+
+App.tsx requirements (MANDATORY — the template's App.tsx is a placeholder that MUST be overwritten):
+- src/App.tsx MUST be emitted. Do not skip it.
+- src/App.tsx MUST render the actual product surface from the ProjectPlan routes. NEVER emit a "Generated app ready" / "Stage 3 worker will replace this" placeholder — that string is forbidden in your output.
+- If the manifest contains 2+ pages under src/pages/* OR the ProjectPlan has 2+ routes, App.tsx MUST set up react-router-dom: import { BrowserRouter, Routes, Route, Link } from "react-router-dom"; render a persistent shell (nav + outlet area) and wire one <Route> per page. Add a sensible default route ("/" → first page).
+- If only one route exists, App.tsx renders that page directly inside the AppShell — but it must still render real content from mock-data, not a placeholder.
+- Every page imported from src/pages/* MUST also appear as a <<<FILE:...>>> block in this response.
 
 Manifest:
 {{MANIFEST_JSON}}
