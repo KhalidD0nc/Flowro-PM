@@ -7,8 +7,16 @@ const BUILD_MODEL_FALLBACKS = [
     "google/gemini-3-flash-preview",
 ]
 const BUILD_MAX_TOKENS = 12000
+const BUILD_MIN_TOKENS = 4000
 const BUILD_TIMEOUT_MS = 90000
 const BUILD_MAX_RETRIES = 1
+
+export class EmptyCompletionError extends Error {
+    constructor(public readonly model: string, public readonly finishReason: string | undefined) {
+        super(`Empty response from build model. Model: ${model} (finish_reason=${finishReason ?? "unknown"})`)
+        this.name = "EmptyCompletionError"
+    }
+}
 
 export interface BuildCompletionOptions {
     messages: Message[]
@@ -29,11 +37,12 @@ export interface BuildCompletionResult {
  */
 export async function generateBuildCompletion(options: BuildCompletionOptions): Promise<string> {
     const model = options.model || BUILD_MODEL_PRIMARY
+    const requestedMaxTokens = Math.max(options.maxTokens || BUILD_MAX_TOKENS, BUILD_MIN_TOKENS)
     const response = await generateCompletion({
         messages: options.messages,
         stream: false,
         reasoning: false,
-        maxTokens: options.maxTokens || BUILD_MAX_TOKENS,
+        maxTokens: requestedMaxTokens,
         timeoutMs: options.timeoutMs || BUILD_TIMEOUT_MS,
         maxRetries: options.maxRetries ?? BUILD_MAX_RETRIES,
         signal: options.signal,
@@ -53,10 +62,16 @@ export async function generateBuildCompletion(options: BuildCompletionOptions): 
         throw new Error(`OpenRouter error: ${JSON.stringify(data.error)}`)
     }
 
-    const content = data.choices?.[0]?.message?.content
+    const choice = data.choices?.[0]
+    const content = choice?.message?.content
+    const finishReason: string | undefined = choice?.finish_reason ?? choice?.native_finish_reason
+    const reasoningTokens: number = data.usage?.completion_tokens_details?.reasoning_tokens ?? 0
+
     if (!content) {
-        console.error("[openrouter-build] Empty content. Full response:", JSON.stringify(data, null, 2))
-        throw new Error(`Empty response from build model. Model: ${model}`)
+        console.error(
+            `[openrouter-build] Empty content (model=${model}, finish_reason=${finishReason}, reasoning_tokens=${reasoningTokens}).`,
+        )
+        throw new EmptyCompletionError(model, finishReason)
     }
     return content as string
 }
