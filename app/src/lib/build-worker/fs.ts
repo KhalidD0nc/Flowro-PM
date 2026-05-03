@@ -239,20 +239,20 @@ export function startDevServer(workspacePath: string, projectId: string, port = 
     })
 
     child.stdout?.on("data", (data) => {
-        console.log(`[dev-server ${projectId}]`, data.toString().trim())
+        process.stdout.write(`[dev-server ${projectId}] ${data.toString().trim()}\n`)
     })
 
     child.stderr?.on("data", (data) => {
-        console.error(`[dev-server ${projectId}]`, data.toString().trim())
+        process.stderr.write(`[dev-server ${projectId}] ${data.toString().trim()}\n`)
     })
 
     child.on("exit", (code) => {
-        console.log(`[dev-server ${projectId}] exited with code ${code}`)
+        process.stdout.write(`[dev-server ${projectId}] exited with code ${code}\n`)
         activeServers.delete(projectId)
     })
 
     child.on("error", (err) => {
-        console.error(`[dev-server ${projectId}] error:`, err)
+        process.stderr.write(`[dev-server ${projectId}] error: ${err instanceof Error ? err.message : String(err)}\n`)
         activeServers.delete(projectId)
     })
 

@@ -75,8 +75,7 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
       if (onProjectCreated) {
         onProjectCreated(id, value.trim());
       }
-    } catch (err) {
-      console.error("Error creating project:", err);
+    } catch {
       setError("Failed to create project. Please try again.");
       setIsSubmitting(false);
     }

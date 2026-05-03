@@ -29,8 +29,7 @@ export default function SettingsPage() {
             setIsSigningOut(true)
             await signOut(auth)
             router.push("/")
-        } catch (error) {
-            console.error("Error signing out:", error)
+        } catch {
             setIsSigningOut(false)
         }
     }
@@ -59,7 +58,6 @@ export default function SettingsPage() {
             await signOut(auth)
             router.push("/")
         } catch (error) {
-            console.error("Error deleting account:", error)
             setDeleteError(error instanceof Error ? error.message : "Failed to delete account")
             setIsDeleting(false)
         }

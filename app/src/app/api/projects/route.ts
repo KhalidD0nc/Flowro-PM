@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../blueprints/auth"
+import { logError } from "@/lib/logger"
 import {
     createProject,
     getUserProjects,
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ projects: enriched })
     } catch (error) {
-        console.error("List projects error:", error)
+        logError("list_projects", { error: String(error) })
         return NextResponse.json(
             { error: "Failed to list projects" },
             { status: 500 }
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
             updatedAt: timestampToISO(project.updatedAt),
         })
     } catch (error) {
-        console.error("Create project error:", error)
+        logError("create_project", { error: String(error) })
         return NextResponse.json(
             { error: "Failed to create project" },
             { status: 500 }

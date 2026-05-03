@@ -130,10 +130,10 @@ export function parseBundledFiles(response: string, editablePaths: string[]): Re
     const entries = Array.from(fileMap.entries())
     for (const [path, { content, isComplete }] of entries) {
         if (!isComplete) {
-            console.warn(`[parseBundledFiles] Warning: File ${path} appears truncated (no closing tag)`)
+            process.stderr.write(`[parseBundledFiles] Warning: File ${path} appears truncated (no closing tag)\n`)
         }
         if (isLikelyTruncated(content)) {
-            console.warn(`[parseBundledFiles] Warning: File ${path} contains ellipsis and may be truncated`)
+            process.stderr.write(`[parseBundledFiles] Warning: File ${path} contains ellipsis and may be truncated\n`)
         }
         files[path] = content
     }
@@ -169,7 +169,7 @@ export async function executeBuildRun(
 
     async function appendLog(line: string): Promise<void> {
         logs.push(line)
-        console.log(`[build-run ${runId}] ${line}`)
+        process.stdout.write(`[build-run ${runId}] ${line}\n`)
         await updateProgress({ logs: [...logs] })
     }
 
@@ -700,7 +700,7 @@ async function finalizeBuild(
         await setProjectStage(projectId, "failed")
     }
 
-    console.log(`[build-run ${runId}] Finalized: ${status} - ${summary}`)
+    process.stdout.write(`[build-run ${runId}] Finalized: ${status} - ${summary}\n`)
 }
 
 /**

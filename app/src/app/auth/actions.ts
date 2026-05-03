@@ -69,21 +69,11 @@ export async function signInWithGoogle(): Promise<void> {
             prompt: 'select_account'
         })
 
-        console.log('Attempting Google Sign-In...')
         const result = await signInWithPopup(auth, provider)
-        console.log('Google Sign-In successful:', result.user.email)
 
         // Store user in Firestore if first time
         await storeUserInFirestore(result)
-        console.log('User stored in Firestore successfully')
     } catch (error: unknown) {
-        const err = error as { code?: string; message?: string; stack?: string; customData?: unknown }
-        console.error('Google Sign-In Error Details:', {
-            code: err.code,
-            message: err.message,
-            stack: err.stack,
-            customData: err.customData
-        })
         throw error
     }
 }

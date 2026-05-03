@@ -7,7 +7,7 @@ import { useEffect, useState, useMemo } from "react"
 import CreateProjectModal from "@/components/CreateProjectModal"
 import RenameProjectModal from "@/components/RenameProjectModal"
 import DeleteProjectModal from "@/components/DeleteProjectModal"
-import { SkeletonCardGrid, SkeletonStat } from "@/components/ui/Skeleton"
+import { Skeleton } from "@/components/ui/skeleton"
 import { analytics } from "@/lib/analytics"
 
 interface Project {
@@ -420,7 +420,7 @@ export default function DashboardPage() {
 
                         {/* Projects Grid */}
                         {loadingProjects ? (
-                            <SkeletonCardGrid count={6} />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}</div>
                         ) : filteredProjects.length === 0 ? (
                             <div className="bg-gradient-to-br from-[#18212b] to-[#0d141c] border border-[#283039] rounded-2xl p-8 lg:p-12">
                                 {searchQuery ? (

@@ -1,6 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useAtom } from "jotai"
+import { chatSplitAtom } from "@/atoms/workspaceAtoms"
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react"
 import type { User } from "firebase/auth"
 import { authGet, authPost } from "@/lib/authFetch"
@@ -17,10 +19,12 @@ import {
   updateClarificationCustomText,
   updateClarificationSelection,
 } from "@/lib/clarificationFlow"
+import { classifyEditIntent } from "@/lib/editIntentAnalyzer"
 import { ChatPanel } from "@/components/chat"
 import type { ChatMessage, SelectionContext } from "@/components/chat/types"
-import StageCard, { type StageStatus } from "@/components/workspace/StageCard"
 import WorkspaceTabs, { type WorkspaceTabKey } from "@/components/workspace/WorkspaceTabs"
+import { BuilderWorkspace, EmptyTab, type PlanView } from "@/components/workspace/BuilderWorkspace"
+import { mergeBuildRun, isBuildRunning } from "@/components/workspace/BuildMissionControl"
 
 interface ChatViewProps {
   projectId: string
@@ -30,12 +34,8 @@ interface ChatViewProps {
   isExisting?: boolean
 }
 
-type PlanView = NonNullable<ProjectView["latestPlan"]>
-
-const DEFAULT_CHAT_SPLIT_PERCENT = 34
 const MIN_CHAT_SPLIT_PERCENT = 26
 const MAX_CHAT_SPLIT_PERCENT = 48
-const CHAT_SPLIT_STORAGE_KEY = "flowro_builder_chat_split"
 
 function clampChatSplit(percent: number) {
   return Math.min(MAX_CHAT_SPLIT_PERCENT, Math.max(MIN_CHAT_SPLIT_PERCENT, percent))
@@ -54,516 +54,6 @@ function deriveSeedMessage(project: ProjectView, initialMessage: string): string
     .find((message) => message.role === "user" && message.content.trim())
 
   return latestUserMessage?.content.trim() || project.description?.trim() || project.projectName.trim()
-}
-
-function EmptyTab({ icon, title, body }: { icon: string; title: string; body: string }) {
-  return (
-    <div className="flex h-full items-center justify-center px-6 py-12">
-      <div className="max-w-sm text-center">
-        <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-white shadow-[0_18px_36px_-26px_rgba(29,41,65,0.25)]">
-          <span className="material-symbols-outlined text-[26px] text-[#2f8fff]">{icon}</span>
-        </div>
-        <h3 className="mt-4 text-lg font-semibold text-slate-900">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-500">{body}</p>
-        <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-[#fef3c7] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
-          Coming soon
-        </span>
-      </div>
-    </div>
-  )
-}
-
-function StatusPill({ active, label }: { active: boolean; label: string }) {
-  return (
-    <span
-      className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] ${
-        active ? "border-[#2f8fff] bg-[#edf5ff] text-[#2f8fff]" : "border-[#e4ddd4] bg-white/70 text-slate-400"
-      }`}
-    >
-      {label}
-    </span>
-  )
-}
-
-function ActionButton({
-  children,
-  onClick,
-  disabled,
-  tone = "primary",
-}: {
-  children: React.ReactNode
-  onClick: () => void
-  disabled?: boolean
-  tone?: "primary" | "secondary"
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-        tone === "primary"
-          ? "bg-[#2f8fff] text-white shadow-[0_18px_30px_-22px_rgba(47,143,255,0.8)] hover:bg-[#1f7fe8]"
-          : "border border-[#d7e4f8] bg-[#edf5ff] text-[#2f8fff] hover:bg-[#e2efff]"
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
-const BUILD_TERMINAL_STATUSES = new Set(["success", "failed", "canceled"])
-
-const BUILD_PHASES: Array<{ key: NonNullable<BuildRun["phase"]>; label: string; icon: string }> = [
-  { key: "queued", label: "Queued", icon: "hourglass_top" },
-  { key: "planning", label: "Planning", icon: "route" },
-  { key: "generating", label: "Generating", icon: "auto_fix_high" },
-  { key: "installing", label: "Installing", icon: "deployed_code" },
-  { key: "building", label: "Building", icon: "construction" },
-  { key: "repairing", label: "Repairing", icon: "build" },
-  { key: "preview", label: "Preview", icon: "smart_display" },
-]
-
-function isBuildRunning(build: BuildRun | null) {
-  return Boolean(build && !BUILD_TERMINAL_STATUSES.has(build.status))
-}
-
-function mergeBuildRun(current: BuildRun[], nextRun: BuildRun): BuildRun[] {
-  const existingIndex = current.findIndex((run) => run.id === nextRun.id)
-  if (existingIndex === -1) return [nextRun, ...current]
-  return current.map((run, index) => index === existingIndex ? nextRun : run)
-}
-
-function formatElapsed(ms?: number) {
-  if (!ms) return "00:00"
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
-  const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0")
-  const seconds = (totalSeconds % 60).toString().padStart(2, "0")
-  return `${minutes}:${seconds}`
-}
-
-function getBuildProgress(build: BuildRun | null) {
-  if (!build) return 0
-  if (BUILD_TERMINAL_STATUSES.has(build.status)) return 100
-  if (build.phase === "generating" && build.totalFiles && build.totalFiles > 0) {
-    return Math.min(55, 18 + Math.round(((build.completedFiles ?? 0) / build.totalFiles) * 37))
-  }
-  const phaseProgress: Record<string, number> = {
-    queued: 4,
-    planning: 12,
-    generating: 35,
-    installing: 58,
-    building: 74,
-    repairing: 84,
-    fallback: 82,
-    preview: 94,
-    completed: 100,
-    failed: 100,
-    canceled: 100,
-  }
-  return phaseProgress[build.phase || "queued"] ?? 4
-}
-
-function BuildMissionControl({
-  build,
-  busyAction,
-  onCancelBuild,
-  onRetryBuild,
-}: {
-  build: BuildRun
-  busyAction: string | null
-  onCancelBuild: () => void
-  onRetryBuild: () => void
-}) {
-  const running = isBuildRunning(build)
-  const progress = getBuildProgress(build)
-  const activePhase = build.phase || (build.status === "queued" ? "queued" : build.status === "running" ? "planning" : "completed")
-  const recentLogs = build.logs.slice(-8)
-  const fileChips = build.filesChanged.slice(-10)
-  const canRetry = build.status === "failed" || build.status === "canceled"
-  const runLabel = build.runType === "edit" ? "Targeted edit" : "Build worker"
-
-  return (
-    <div className="overflow-hidden rounded-[2rem] border border-[#16253f] bg-[#080d17] text-white shadow-[0_36px_90px_-55px_rgba(8,13,23,0.9)]">
-      <div className="relative overflow-hidden p-6">
-        <div className="absolute inset-0 opacity-60 [background:radial-gradient(circle_at_18%_16%,rgba(47,143,255,0.32),transparent_26rem),radial-gradient(circle_at_86%_18%,rgba(16,185,129,0.2),transparent_24rem)]" />
-        <div className="relative flex flex-wrap items-start justify-between gap-5">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-blue-200/70">Mission control</p>
-            <h3 className="mt-3 text-2xl font-black tracking-tight">{runLabel} is {running ? "assembling" : build.status}</h3>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-              {build.currentAction || "Waiting for the next build signal."}
-            </p>
-            {build.runType === "edit" && build.editInstruction ? (
-              <p className="mt-3 max-w-2xl rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-xs leading-5 text-slate-300">
-                Edit: {build.editInstruction}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {build.fallbackUsed ? (
-              <span className="rounded-full border border-amber-300/30 bg-amber-300/12 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-amber-200">
-                AI fallback used
-              </span>
-            ) : null}
-            <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-slate-200">
-              {formatElapsed(build.elapsedMs)}
-            </span>
-            {running ? (
-              <ActionButton onClick={onCancelBuild} disabled={busyAction !== null} tone="secondary">
-                <span className="material-symbols-outlined text-[18px]">stop_circle</span>
-                Cancel build
-              </ActionButton>
-            ) : canRetry ? (
-              <ActionButton onClick={onRetryBuild} disabled={busyAction !== null}>
-                <span className="material-symbols-outlined text-[18px]">refresh</span>
-                Retry build
-              </ActionButton>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="relative mt-6 h-3 overflow-hidden rounded-full bg-white/10">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-[#2f8fff] via-cyan-300 to-emerald-300 transition-all duration-700"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        <div className="relative mt-6 grid gap-3 md:grid-cols-7">
-          {BUILD_PHASES.map((phase, index) => {
-            const activeIndex = BUILD_PHASES.findIndex((item) => item.key === activePhase)
-            const active = phase.key === activePhase
-            const complete = activeIndex > index || build.status === "success"
-            return (
-              <div
-                key={phase.key}
-                className={`rounded-2xl border p-3 transition ${
-                  active
-                    ? "border-cyan-300/60 bg-cyan-300/12 shadow-[0_0_35px_-18px_rgba(103,232,249,0.9)]"
-                    : complete
-                      ? "border-emerald-300/30 bg-emerald-300/10"
-                      : "border-white/10 bg-white/[0.04]"
-                }`}
-              >
-                <span className={`material-symbols-outlined text-[20px] ${active && running ? "animate-pulse text-cyan-200" : "text-slate-300"}`}>
-                  {complete ? "check_circle" : phase.icon}
-                </span>
-                <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-300">{phase.label}</p>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="grid gap-px bg-white/10 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="bg-[#0d1422] p-5">
-          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">Generated files</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {fileChips.length ? fileChips.map((file) => (
-              <span key={file} className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-xs text-slate-200">
-                {file}
-              </span>
-            )) : (
-              <span className="text-sm text-slate-500">File output will appear here as the worker writes it.</span>
-            )}
-          </div>
-          {build.commandsRun.length ? (
-            <div className="mt-5 space-y-2">
-              {build.commandsRun.slice(-3).map((command, index) => (
-                <div key={`${command.command}-${index}`} className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-bold text-slate-200">{command.command}</p>
-                    <span className={command.status === "success" ? "text-xs font-bold text-emerald-300" : "text-xs font-bold text-red-300"}>
-                      {command.status}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">{command.summary}</p>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="bg-[#050914] p-5">
-          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">Live activity feed</p>
-          <pre className="mt-4 max-h-72 overflow-auto rounded-2xl border border-white/10 bg-black/40 p-4 text-xs leading-6 text-slate-300 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {recentLogs.length ? recentLogs.join("\n") : "Awaiting worker logs..."}
-          </pre>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function BuilderWorkspace({
-  project,
-  planView,
-  buildRuns,
-  busyAction,
-  error,
-  onApprovePlan,
-  onRegeneratePlan,
-  onStartBuild,
-  onCancelBuild,
-  onApplyBuildEdit,
-}: {
-  project: ProjectView
-  planView: PlanView | null
-  buildRuns: BuildRun[]
-  busyAction: string | null
-  error: string | null
-  onApprovePlan: () => void
-  onRegeneratePlan: () => void
-  onStartBuild: () => void
-  onCancelBuild: () => void
-  onApplyBuildEdit: (instruction: string) => void
-}) {
-  const [editInstruction, setEditInstruction] = useState("")
-  const plan = planView?.plan ?? null
-  const approvedPlan = planView?.status === "approved"
-  const latestBuild = buildRuns[0] ?? null
-  const planStatus: StageStatus = approvedPlan ? "complete" : plan ? "active" : "active"
-  const contractStatus: StageStatus = !approvedPlan ? "locked" : "complete"
-  const buildStatus: StageStatus = !approvedPlan ? "locked" : latestBuild?.status === "success" ? "complete" : latestBuild ? "active" : "active"
-
-  return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-32">
-      <section className="rounded-[2rem] border border-[#e4ddd4] bg-[#111827] p-6 text-white shadow-[0_32px_80px_-42px_rgba(17,24,39,0.65)]">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-blue-200/70">Plan-to-app pipeline</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight">{plan?.metadata.productName || project.projectName}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-              Approve the product plan to create a build contract, then start the local worker. UI direction, security rules, and acceptance checks move with the contract.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <StatusPill active={Boolean(plan)} label="Plan" />
-            <StatusPill active={approvedPlan} label="Approved" />
-            <StatusPill active={approvedPlan} label="Contract" />
-            <StatusPill active={Boolean(latestBuild)} label="Build" />
-          </div>
-        </div>
-      </section>
-
-      {error ? (
-        <div className="rounded-[1.5rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {error}
-        </div>
-      ) : null}
-
-      <StageCard
-        step={1}
-        title="Project Plan"
-        description="Approve your project plan to unlock the internal build contract."
-        status={planStatus}
-        autoExpanded={!approvedPlan}
-        statusLabel={approvedPlan ? "Approved" : plan ? "Draft ready" : "Awaiting context"}
-      >
-        {!plan ? (
-          <div className="rounded-[1.5rem] border border-dashed border-[#d9d1c6] bg-[#faf8f4] p-6 text-sm leading-7 text-slate-600">
-            Flowro is still collecting the initial context. Answer the setup questions in chat to generate the first project plan.
-          </div>
-        ) : (
-          <div className="space-y-5">
-            <div className="grid gap-4 lg:grid-cols-3">
-              <div className="lg:col-span-2 rounded-[1.5rem] border border-[#ebe4db] bg-[#fcfaf7] p-5">
-                <p className="text-sm font-semibold text-slate-900">{plan.appSummary}</p>
-                <p className="mt-3 text-sm leading-7 text-slate-600">{plan.problem}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-[#d8e7fb] bg-[#f8fbff] p-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Template</p>
-                <p className="mt-2 text-base font-semibold text-slate-900">{plan.templateId}</p>
-                <p className="mt-2 text-sm text-slate-500">Template-first generation; the AI cannot invent the base stack.</p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-2">
-              <div className="rounded-[1.5rem] border border-[#ebe4db] bg-white p-5">
-                <h3 className="font-semibold text-slate-900">Routes <span className="text-xs font-normal text-slate-400">({plan.routes.length} planned)</span></h3>
-                <div className="mt-4 space-y-3">
-                  {plan.routes.map((route) => (
-                    <div key={route.path} className="rounded-[1rem] bg-[#faf8f4] p-4">
-                      <p className="text-sm font-semibold text-slate-900">{route.name} <span className="text-slate-400">{route.path}</span></p>
-                      <p className="mt-1 text-sm leading-6 text-slate-600">{route.purpose}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-[1.5rem] border border-[#ebe4db] bg-white p-5">
-                <h3 className="font-semibold text-slate-900">Build Tasks</h3>
-                <div className="mt-4 space-y-3">
-                  {plan.buildTasks.map((task) => (
-                    <div key={task.id} className="rounded-[1rem] bg-[#faf8f4] p-4">
-                      <p className="text-sm font-semibold text-slate-900">{task.id}: {task.title}</p>
-                      <p className="mt-1 text-sm leading-6 text-slate-600">{task.description}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <ActionButton onClick={onApprovePlan} disabled={approvedPlan || busyAction !== null}>
-                <span className="material-symbols-outlined text-[18px]">task_alt</span>
-                {approvedPlan ? "Plan Approved" : "Approve Plan"}
-              </ActionButton>
-              <ActionButton onClick={onRegeneratePlan} disabled={busyAction !== null} tone="secondary">
-                <span className="material-symbols-outlined text-[18px]">refresh</span>
-                Regenerate Plan
-              </ActionButton>
-              {planView?.legacyPrd ? (
-                <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
-                  Legacy PRD transformed into a project plan
-                </span>
-              ) : null}
-            </div>
-          </div>
-        )}
-      </StageCard>
-
-      <StageCard
-        step={2}
-        title="Build Contract"
-        description="Flowro converts the approved plan into design, security, and business-logic guardrails for the coding agent."
-        status={contractStatus}
-        autoExpanded={approvedPlan && !latestBuild}
-        statusLabel={contractStatus === "locked" ? "Locked" : "Ready"}
-      >
-        {!approvedPlan || !plan ? (
-          <div className="rounded-[1.5rem] border border-dashed border-[#d9d1c6] bg-[#faf8f4] p-6 text-sm text-slate-600">
-            Approve the project plan to generate the internal build contract.
-          </div>
-        ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            <div className="rounded-[1.5rem] border border-[#d8e7fb] bg-[#f8fbff] p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Design guardrails</p>
-              <div className="mt-4 space-y-2">
-                {plan.uiRequirements.slice(0, 5).map((item) => (
-                  <div key={item} className="rounded-[1rem] bg-white px-4 py-3 text-sm text-slate-700">{item}</div>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-[1.5rem] border border-[#ebe4db] bg-white p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Agent guardrails</p>
-              <div className="mt-4 grid gap-3">
-                {["Use template components first", "Keep secrets out of client code", "Use local mock data unless integrations are approved", "Verify acceptance checks after build"].map((item) => (
-                  <div key={item} className="flex gap-3 rounded-[1rem] bg-[#faf8f4] p-4 text-sm text-slate-700">
-                    <span className="material-symbols-outlined mt-0.5 text-[18px] text-[#2f8fff]">verified</span>
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </StageCard>
-
-      <StageCard
-        step={3}
-        title="Local Build Worker"
-        description="Run a local build and preview the generated app."
-        status={buildStatus}
-        autoExpanded={Boolean(approvedPlan && (!latestBuild || isBuildRunning(latestBuild)))}
-        statusLabel={buildStatus === "locked" ? "Locked" : latestBuild?.status === "success" ? "Built" : latestBuild ? latestBuild.status : "Ready"}
-      >
-        {!approvedPlan ? (
-          <div className="rounded-[1.5rem] border border-dashed border-[#d9d1c6] bg-[#faf8f4] p-6 text-sm text-slate-600">
-            Approve the project plan before starting the build worker.
-          </div>
-        ) : (
-          <div className="space-y-5">
-            {!isBuildRunning(latestBuild) && latestBuild?.status !== "failed" && latestBuild?.status !== "canceled" ? (
-              <ActionButton onClick={onStartBuild} disabled={busyAction !== null}>
-                <span className="material-symbols-outlined text-[18px]">terminal</span>
-                Start Build
-              </ActionButton>
-            ) : null}
-
-            {latestBuild ? (
-              <div className="space-y-4">
-                <BuildMissionControl
-                  build={latestBuild}
-                  busyAction={busyAction}
-                  onCancelBuild={onCancelBuild}
-                  onRetryBuild={onStartBuild}
-                />
-
-                {latestBuild.previewAvailable && latestBuild.previewUrl && (
-                  <div className="space-y-4">
-                    <form
-                      onSubmit={(event) => {
-                        event.preventDefault()
-                        const trimmed = editInstruction.trim()
-                        if (!trimmed) return
-                        onApplyBuildEdit(trimmed)
-                        setEditInstruction("")
-                      }}
-                      className="rounded-[1.5rem] border border-[#d8e7fb] bg-[#f8fbff] p-4"
-                    >
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                        <div className="min-w-0 flex-1">
-                          <label htmlFor="targeted-build-edit" className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                            Targeted preview edit
-                          </label>
-                          <input
-                            id="targeted-build-edit"
-                            value={editInstruction}
-                            onChange={(event) => setEditInstruction(event.target.value)}
-                            disabled={busyAction !== null || isBuildRunning(latestBuild)}
-                            placeholder="Example: change the dashboard title to Team Command Center"
-                            className="mt-2 w-full rounded-2xl border border-[#d7e4f8] bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#2f8fff] focus:ring-4 focus:ring-[#2f8fff]/10 disabled:cursor-not-allowed disabled:opacity-60"
-                          />
-                        </div>
-                        <ActionButton disabled={busyAction !== null || isBuildRunning(latestBuild) || !editInstruction.trim()} onClick={() => {
-                          const trimmed = editInstruction.trim()
-                          if (!trimmed) return
-                          onApplyBuildEdit(trimmed)
-                          setEditInstruction("")
-                        }}>
-                          <span className="material-symbols-outlined text-[18px]">edit_note</span>
-                          Apply edit
-                        </ActionButton>
-                      </div>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">
-                        P0 edits modify one existing generated file at a time. New pages, dependencies, and config changes are blocked.
-                      </p>
-                    </form>
-
-                    <div className="overflow-hidden rounded-[1.5rem] border border-[#d8e7fb] bg-white">
-                      <div className="flex items-center justify-between border-b border-[#e4ddd4] bg-[#faf8f4] px-5 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Live Preview</p>
-                        <a
-                          href={latestBuild.previewUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-bold uppercase tracking-[0.16em] text-[#2f8fff] hover:underline"
-                        >
-                          Open tab
-                        </a>
-                        <span className="inline-flex h-2 w-2 rounded-full bg-green-500" />
-                      </div>
-                      <iframe
-                        src={latestBuild.previewUrl}
-                        title="Generated app preview"
-                        className="h-[500px] w-full border-0"
-                        sandbox="allow-scripts allow-same-origin allow-forms"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-[#d9d1c6] bg-[#faf8f4] p-6 text-sm text-slate-600">
-                No build run yet. The first run creates generated app files from the approved build contract.
-              </div>
-            )}
-          </div>
-        )}
-      </StageCard>
-    </div>
-  )
 }
 
 export default function ChatView({ projectId, initialMessage, user, onBack: _onBack }: ChatViewProps) {
@@ -586,7 +76,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
   const [lastFailedSubmission, setLastFailedSubmission] = useState<string | null>(null)
   const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, ClarificationAnswerState>>({})
   const [mobilePane, setMobilePane] = useState<"chat" | "workspace">("chat")
-  const [chatSplitPercent, setChatSplitPercent] = useState(DEFAULT_CHAT_SPLIT_PERCENT)
+  const [chatSplitPercent, setChatSplitPercent] = useAtom(chatSplitAtom)
   const [isDraggingChatSplit, setIsDraggingChatSplit] = useState(false)
   const hasInitialized = useRef(false)
   const hasBootstrappedSeed = useRef(false)
@@ -610,17 +100,6 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
     if (bounds.width <= 0) return
     setChatSplitPercent(clampChatSplit(((clientX - bounds.left) / bounds.width) * 100))
   }, [])
-
-  useEffect(() => {
-    const stored = localStorage.getItem(CHAT_SPLIT_STORAGE_KEY)
-    if (!stored) return
-    const parsed = Number(stored)
-    if (Number.isFinite(parsed)) setChatSplitPercent(clampChatSplit(parsed))
-  }, [])
-
-  useEffect(() => {
-    localStorage.setItem(CHAT_SPLIT_STORAGE_KEY, String(chatSplitPercent))
-  }, [chatSplitPercent])
 
   useEffect(() => {
     if (!clarificationQuestions?.length) {
@@ -849,6 +328,35 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
     if (isPrePlanConversation && clarificationQuestions?.length && !isClarificationReady) return
     if (!messageToSend) return
     if (isPrePlanConversation) setClarificationAnswers({})
+
+    // After a successful build preview, classify intent to route targeted edits directly to the build worker
+    const hasPreview = Boolean(latestBuild?.previewAvailable && latestBuild?.previewUrl)
+    if (hasPreview && !customMessage && !isBuildRunning(latestBuild)) {
+      const intent = classifyEditIntent(messageToSend)
+      if (intent === "targeted_edit") {
+        setMessage("")
+        setProject((prev) =>
+          prev
+            ? {
+                ...prev,
+                chatHistory: [
+                  ...prev.chatHistory,
+                  {
+                    id: createTemporaryMessageId(),
+                    role: "user" as const,
+                    content: messageToSend,
+                    intent: "discussion" as const,
+                    timestamp: new Date().toISOString(),
+                  },
+                ],
+              }
+            : prev
+        )
+        await handleApplyBuildEdit(messageToSend)
+        return
+      }
+    }
+
     await submitGenerate(messageToSend)
   }
 
@@ -951,18 +459,18 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
 
   return (
     <div className="relative flex h-full flex-1 flex-col overflow-hidden">
-      <div className="flex border-b border-[#e7dfd5] bg-white/80 p-2 lg:hidden">
-        <button onClick={() => setMobilePane("chat")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "chat" ? "bg-[#2f8fff] text-white" : "text-slate-500"}`}>
+      <div className="flex border-b border-[#e7dfd5] bg-white/80 p-2 dark:border-white/[0.06] dark:bg-[#141416]/80 lg:hidden">
+        <button onClick={() => setMobilePane("chat")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "chat" ? "bg-[#2f8fff] text-white" : "text-slate-500 dark:text-white/[0.5]"}`}>
           Chat
         </button>
-        <button onClick={() => setMobilePane("workspace")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "workspace" ? "bg-[#2f8fff] text-white" : "text-slate-500"}`}>
+        <button onClick={() => setMobilePane("workspace")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "workspace" ? "bg-[#2f8fff] text-white" : "text-slate-500 dark:text-white/[0.5]"}`}>
           Builder
         </button>
       </div>
 
       <div ref={desktopWorkspaceRef} className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
-          className={`h-full w-full shrink-0 border-r border-[#e7dfd5] bg-[#fcf8f3]/78 lg:flex lg:w-[var(--chat-pane-width)] ${mobilePane === "chat" ? "flex" : "hidden"}`}
+          className={`h-full w-full shrink-0 border-r border-[#e7dfd5] bg-[#fcf8f3]/78 lg:flex lg:w-[var(--chat-pane-width)] dark:border-white/[0.06] dark:bg-[#141416]/78 ${mobilePane === "chat" ? "flex" : "hidden"}`}
           style={{ "--chat-pane-width": `${chatSplitPercent}%` } as CSSProperties}
         >
           <ChatPanel
@@ -1007,10 +515,10 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
           onPointerDown={handleChatResizePointerDown}
           className="group relative hidden w-4 shrink-0 cursor-col-resize touch-none items-stretch justify-center bg-transparent lg:flex"
         >
-          <div className="my-3 w-px rounded-full bg-[#d6deea] transition group-hover:bg-[#2f8fff]/70" />
+          <div className="my-3 w-px rounded-full bg-[#d6deea] transition group-hover:bg-[#2f8fff]/70 dark:bg-white/[0.1] dark:group-hover:bg-[#5B8DEF]/50" />
         </div>
 
-        <div className={`min-h-0 flex-1 ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
+        <div className={`min-h-0 flex-1 bg-background dark:bg-[#0C0C0E] ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
           <WorkspaceTabs
             previewAvailable={Boolean(latestBuild?.previewAvailable && latestBuild?.previewUrl)}
             uiViewsCount={draftPlan ? 1 : 0}
@@ -1020,7 +528,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
                   <iframe
                     src={latestBuild.previewUrl}
                     title="Generated app preview"
-                    className="h-full w-full border-0 bg-white"
+                    className="h-full w-full border-0 bg-white dark:bg-[#0C0C0E]"
                     sandbox="allow-scripts allow-same-origin allow-forms"
                   />
                 )
@@ -1032,29 +540,29 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
                       <EmptyTab icon="grid_view" title="No build contract yet" body="Generate and approve a project plan to see the build contract." />
                     ) : (
                       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-2">
-                        <div className="rounded-[1.5rem] border border-[#d8e7fb] bg-[#f8fbff] p-5">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Visual direction</p>
+                        <div className="rounded-[1.5rem] border border-[#d8e7fb] bg-[#f8fbff] p-5 dark:border-white/[0.06] dark:bg-[#1A1A1D]/50">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-white/[0.4]">Visual direction</p>
                           <div className="mt-4 space-y-2">
                             {draftPlan.plan.uiRequirements.map((item) => (
-                              <div key={item} className="rounded-[1rem] bg-white px-4 py-3 text-sm text-slate-700">{item}</div>
+                              <div key={item} className="rounded-[1rem] bg-white px-4 py-3 text-sm text-slate-700 dark:bg-[#0C0C0E] dark:text-white/[0.7]">{item}</div>
                             ))}
                           </div>
                         </div>
-                        <div className="rounded-[1.5rem] border border-[#ebe4db] bg-white p-5">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Build contract</p>
+                        <div className="rounded-[1.5rem] border border-[#ebe4db] bg-white p-5 dark:border-white/[0.06] dark:bg-[#1A1A1D]">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-white/[0.4]">Build contract</p>
                           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-[1rem] bg-[#faf8f4] p-4">
-                              <p className="text-2xl font-black text-slate-900">{draftPlan.plan.routes.length}</p>
-                              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Routes</p>
+                            <div className="rounded-[1rem] bg-[#faf8f4] p-4 dark:bg-[#0C0C0E]">
+                              <p className="text-2xl font-black text-slate-900 dark:text-white/[0.9]">{draftPlan.plan.routes.length}</p>
+                              <p className="text-xs uppercase tracking-[0.16em] text-slate-400 dark:text-white/[0.4]">Routes</p>
                             </div>
-                            <div className="rounded-[1rem] bg-[#faf8f4] p-4">
-                              <p className="text-2xl font-black text-slate-900">{draftPlan.plan.acceptanceChecks.length}</p>
-                              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Checks</p>
+                            <div className="rounded-[1rem] bg-[#faf8f4] p-4 dark:bg-[#0C0C0E]">
+                              <p className="text-2xl font-black text-slate-900 dark:text-white/[0.9]">{draftPlan.plan.acceptanceChecks.length}</p>
+                              <p className="text-xs uppercase tracking-[0.16em] text-slate-400 dark:text-white/[0.4]">Checks</p>
                             </div>
                           </div>
                           <div className="mt-4 space-y-2">
                             {draftPlan.plan.acceptanceChecks.slice(0, 5).map((check) => (
-                              <div key={check} className="flex gap-2 rounded-[1rem] bg-emerald-50 p-3 text-sm text-emerald-900">
+                              <div key={check} className="flex gap-2 rounded-[1rem] bg-emerald-50 p-3 text-sm text-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-300">
                                 <span className="material-symbols-outlined text-[18px]">check_circle</span>
                                 <span>{check}</span>
                               </div>
@@ -1074,18 +582,18 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
               }
               return (
                 <div className="px-4 py-6 sm:px-6 lg:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <BuilderWorkspace
-                      project={project}
-                      planView={draftPlan}
-                      buildRuns={buildRuns}
-                      busyAction={busyAction}
-                      error={workspaceError}
-                      onApprovePlan={handleApprovePlan}
-                      onRegeneratePlan={handleRegeneratePlan}
-                      onStartBuild={handleStartBuild}
-                      onCancelBuild={handleCancelBuild}
-                      onApplyBuildEdit={handleApplyBuildEdit}
-                    />
+                  <BuilderWorkspace
+                    project={project}
+                    planView={draftPlan}
+                    buildRuns={buildRuns}
+                    busyAction={busyAction}
+                    error={workspaceError}
+                    onApprovePlan={handleApprovePlan}
+                    onRegeneratePlan={handleRegeneratePlan}
+                    onStartBuild={handleStartBuild}
+                    onCancelBuild={handleCancelBuild}
+                    onApplyBuildEdit={handleApplyBuildEdit}
+                  />
                 </div>
               )
             }}

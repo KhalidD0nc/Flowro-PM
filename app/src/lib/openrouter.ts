@@ -155,7 +155,7 @@ export async function generateCompletion(options: GenerateOptions) {
       const errorBody = await response.text()
       const { type, retryable, message } = categorizeError(response.status, errorBody)
 
-      console.error(`OpenRouter error (attempt ${attempt + 1}/${maxRetries + 1}) - Model: ${model}, Status: ${response.status}, Type: ${type}`)
+      process.stderr.write(`[openrouter] Error attempt ${attempt + 1}/${maxRetries + 1} — Model: ${model}, Status: ${response.status}, Type: ${type}\n`)
 
       if (!retryable || attempt === maxRetries) {
         throw new OpenRouterError(message, response.status, type, retryable)
@@ -174,10 +174,10 @@ export async function generateCompletion(options: GenerateOptions) {
 
       if (isTimeout) {
         const message = signal?.aborted ? "Request canceled." : "Request timed out. Please try again."
-        console.error(`OpenRouter timeout (attempt ${attempt + 1}/${maxRetries + 1})`)
+        process.stderr.write(`[openrouter] Timeout attempt ${attempt + 1}/${maxRetries + 1}\n`)
         lastError = new OpenRouterError(message, 0, "timeout", !signal?.aborted)
       } else if (isNetworkError) {
-        console.error(`OpenRouter network error (attempt ${attempt + 1}/${CONFIG.maxRetries + 1}):`, error)
+        process.stderr.write(`[openrouter] Network error attempt ${attempt + 1}/${CONFIG.maxRetries + 1}: ${error instanceof Error ? error.message : String(error)}\n`)
         lastError = new OpenRouterError("Network error. Please check your connection.", 0, "network", true)
       } else {
         // Unknown error - don't retry
@@ -191,7 +191,7 @@ export async function generateCompletion(options: GenerateOptions) {
 
     // Wait before retrying with exponential backoff
     const delay = getRetryDelay(attempt)
-    console.log(`Retrying in ${Math.round(delay)}ms...`)
+    process.stdout.write(`[openrouter] Retrying in ${Math.round(delay)}ms...\n`)
     await sleep(delay)
   }
 

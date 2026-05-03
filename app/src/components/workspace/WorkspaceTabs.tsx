@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { useAtom } from "jotai";
+import { workspaceTabAtom } from "@/atoms/workspaceAtoms";
 
 export type WorkspaceTabKey = "preview" | "plan" | "code" | "files" | "ui";
 
@@ -18,21 +20,8 @@ interface WorkspaceTabsProps {
   renderTab: (tab: WorkspaceTabKey) => ReactNode;
 }
 
-const STORAGE_KEY = "flowro_workspace_tab";
-
 export default function WorkspaceTabs({ previewAvailable, uiViewsCount, renderTab }: WorkspaceTabsProps) {
-  const [active, setActive] = useState<WorkspaceTabKey>(() => {
-    if (typeof window === "undefined") return "plan";
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "preview" || stored === "plan" || stored === "code" || stored === "files" || stored === "ui") {
-      return stored;
-    }
-    return "plan";
-  });
-
-  useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem(STORAGE_KEY, active);
-  }, [active]);
+  const [active, setActive] = useAtom(workspaceTabAtom);
 
   const effectiveActive: WorkspaceTabKey = active === "preview" && !previewAvailable ? "plan" : active;
 
@@ -46,7 +35,7 @@ export default function WorkspaceTabs({ previewAvailable, uiViewsCount, renderTa
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-1 border-b border-[#e8e0d6] bg-[#fbf7f1]/92 px-3 py-2 backdrop-blur-md">
+      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-1 border-b border-[#e8e0d6] bg-[#fbf7f1]/92 px-3 py-2 backdrop-blur-md dark:border-white/[0.06] dark:bg-[#141416]/92">
         {tabs.map((tab) => {
           const isActive = effectiveActive === tab.key;
           return (
@@ -58,10 +47,10 @@ export default function WorkspaceTabs({ previewAvailable, uiViewsCount, renderTa
               title={tab.disabled ? tab.disabledHint : undefined}
               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                 isActive
-                  ? "bg-white text-slate-900 shadow-[0_4px_14px_-8px_rgba(29,41,65,0.25)]"
+                  ? "bg-white text-slate-900 shadow-[0_4px_14px_-8px_rgba(29,41,65,0.25)] dark:bg-[#1A1A1D] dark:text-white/[0.9]"
                   : tab.disabled
-                    ? "cursor-not-allowed text-slate-300"
-                    : "text-slate-500 hover:bg-white/60 hover:text-slate-900"
+                    ? "cursor-not-allowed text-slate-300 dark:text-white/[0.4]"
+                    : "text-slate-500 hover:bg-white/60 hover:text-slate-900 dark:text-white/[0.5] dark:hover:bg-[#1E1E22]/60 dark:hover:text-white/[0.9]"
               }`}
             >
               <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>

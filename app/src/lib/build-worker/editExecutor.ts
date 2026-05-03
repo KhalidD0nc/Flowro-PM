@@ -79,7 +79,7 @@ export async function executeEditRun(
 
     async function appendLog(line: string): Promise<void> {
         logs.push(line)
-        console.log(`[edit-run ${runId}] ${line}`)
+        process.stdout.write(`[edit-run ${runId}] ${line}\n`)
         await updateProgress({ logs: [...logs] })
     }
 
@@ -171,8 +171,8 @@ export async function executeEditRun(
         try {
             const { content, model } = await generateBuildCompletionWithFallback({
                 messages: [{ role: "user", content: buildEditSearchPlanPrompt(instruction, manifest) }],
-                maxTokens: 6000,
-                timeoutMs: 60000,
+                maxTokens: 50000,
+                timeoutMs: 120000,
                 maxRetries: 0,
                 signal: controller.signal,
             })
@@ -208,7 +208,7 @@ export async function executeEditRun(
                     searchResults: searchExecution.results,
                 }),
             }],
-            maxTokens: 24000,
+            maxTokens: 50000,
             timeoutMs: 90000,
             maxRetries: 1,
             signal: controller.signal,
@@ -262,9 +262,9 @@ export async function executeEditRun(
                     instruction,
                     targetFiles: targetContents,
                 }) }],
-                maxTokens: 24000,
-                timeoutMs: 60000,
-                maxRetries: 0,
+                maxTokens: 50000,
+                timeoutMs: 120000,
+                maxRetries: 1,
                 signal: controller.signal,
             }, BUILD_MODEL)
             const repairPlan = extractJsonFromResponse(repairResponse) as { files?: Array<{ path: string; content: string }> }

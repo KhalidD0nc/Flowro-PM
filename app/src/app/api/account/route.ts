@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin"
+import { logError } from "@/lib/logger"
 
 export async function DELETE(request: NextRequest) {
     try {
@@ -51,7 +52,7 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true })
     } catch (error) {
-        console.error("Error deleting account:", error)
+        logError("delete_account", { error: String(error) })
         return NextResponse.json(
             { error: "Failed to delete account" },
             { status: 500 }

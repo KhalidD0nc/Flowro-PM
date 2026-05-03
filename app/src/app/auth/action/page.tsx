@@ -24,7 +24,6 @@ function AuthActionContent() {
                 router.push("/app")
             }, 2000)
         } catch (error: unknown) {
-            console.error("Verification error:", error)
             setStatus("error")
             if (error instanceof Error) {
                 if (error.message.includes("invalid-action-code")) {

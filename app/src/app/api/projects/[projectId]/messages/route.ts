@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Timestamp } from "firebase-admin/firestore"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../../../blueprints/auth"
+import { logError } from "@/lib/logger"
 import {
     getProject,
     addMessage,
@@ -122,7 +123,7 @@ export async function GET(
             nextCursor: result.nextCursor,
         })
     } catch (error) {
-        console.error("Get messages error:", error)
+        logError("get_messages", { error: String(error) })
         const message = error instanceof Error ? error.message : "Failed to get messages"
         const status = message.includes("Access denied")
             ? 403
@@ -216,7 +217,7 @@ export async function POST(
             timestamp: timestampToISO(message.timestamp),
         })
     } catch (error) {
-        console.error("Add message error:", error)
+        logError("add_message", { error: String(error) })
         const message = error instanceof Error ? error.message : "Failed to add message"
         const status = message.includes("Access denied")
             ? 403
