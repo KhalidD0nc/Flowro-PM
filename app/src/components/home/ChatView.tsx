@@ -181,6 +181,7 @@ function BuildMissionControl({
   const recentLogs = build.logs.slice(-8)
   const fileChips = build.filesChanged.slice(-10)
   const canRetry = build.status === "failed" || build.status === "canceled"
+  const runLabel = build.runType === "edit" ? "Targeted edit" : "Build worker"
 
   return (
     <div className="overflow-hidden rounded-[2rem] border border-[#16253f] bg-[#080d17] text-white shadow-[0_36px_90px_-55px_rgba(8,13,23,0.9)]">
@@ -189,10 +190,15 @@ function BuildMissionControl({
         <div className="relative flex flex-wrap items-start justify-between gap-5">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.28em] text-blue-200/70">Mission control</p>
-            <h3 className="mt-3 text-2xl font-black tracking-tight">Build worker is {running ? "assembling" : build.status}</h3>
+            <h3 className="mt-3 text-2xl font-black tracking-tight">{runLabel} is {running ? "assembling" : build.status}</h3>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
               {build.currentAction || "Waiting for the next build signal."}
             </p>
+            {build.runType === "edit" && build.editInstruction ? (
+              <p className="mt-3 max-w-2xl rounded-2xl border border-white/10 bg-white/8 px-4 py-3 text-xs leading-5 text-slate-300">
+                Edit: {build.editInstruction}
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {build.fallbackUsed ? (
@@ -300,6 +306,7 @@ function BuilderWorkspace({
   onRegeneratePlan,
   onStartBuild,
   onCancelBuild,
+  onApplyBuildEdit,
 }: {
   project: ProjectView
   planView: PlanView | null
@@ -310,7 +317,9 @@ function BuilderWorkspace({
   onRegeneratePlan: () => void
   onStartBuild: () => void
   onCancelBuild: () => void
+  onApplyBuildEdit: (instruction: string) => void
 }) {
+  const [editInstruction, setEditInstruction] = useState("")
   const plan = planView?.plan ?? null
   const approvedPlan = planView?.status === "approved"
   const latestBuild = buildRuns[0] ?? null
@@ -482,25 +491,66 @@ function BuilderWorkspace({
                 />
 
                 {latestBuild.previewAvailable && latestBuild.previewUrl && (
-                  <div className="overflow-hidden rounded-[1.5rem] border border-[#d8e7fb] bg-white">
-                    <div className="flex items-center justify-between border-b border-[#e4ddd4] bg-[#faf8f4] px-5 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Live Preview</p>
-                      <a
-                        href={latestBuild.previewUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs font-bold uppercase tracking-[0.16em] text-[#2f8fff] hover:underline"
-                      >
-                        Open tab
-                      </a>
-                      <span className="inline-flex h-2 w-2 rounded-full bg-green-500" />
+                  <div className="space-y-4">
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        const trimmed = editInstruction.trim()
+                        if (!trimmed) return
+                        onApplyBuildEdit(trimmed)
+                        setEditInstruction("")
+                      }}
+                      className="rounded-[1.5rem] border border-[#d8e7fb] bg-[#f8fbff] p-4"
+                    >
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                        <div className="min-w-0 flex-1">
+                          <label htmlFor="targeted-build-edit" className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                            Targeted preview edit
+                          </label>
+                          <input
+                            id="targeted-build-edit"
+                            value={editInstruction}
+                            onChange={(event) => setEditInstruction(event.target.value)}
+                            disabled={busyAction !== null || isBuildRunning(latestBuild)}
+                            placeholder="Example: change the dashboard title to Team Command Center"
+                            className="mt-2 w-full rounded-2xl border border-[#d7e4f8] bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#2f8fff] focus:ring-4 focus:ring-[#2f8fff]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          />
+                        </div>
+                        <ActionButton disabled={busyAction !== null || isBuildRunning(latestBuild) || !editInstruction.trim()} onClick={() => {
+                          const trimmed = editInstruction.trim()
+                          if (!trimmed) return
+                          onApplyBuildEdit(trimmed)
+                          setEditInstruction("")
+                        }}>
+                          <span className="material-symbols-outlined text-[18px]">edit_note</span>
+                          Apply edit
+                        </ActionButton>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">
+                        P0 edits modify one existing generated file at a time. New pages, dependencies, and config changes are blocked.
+                      </p>
+                    </form>
+
+                    <div className="overflow-hidden rounded-[1.5rem] border border-[#d8e7fb] bg-white">
+                      <div className="flex items-center justify-between border-b border-[#e4ddd4] bg-[#faf8f4] px-5 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Live Preview</p>
+                        <a
+                          href={latestBuild.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-bold uppercase tracking-[0.16em] text-[#2f8fff] hover:underline"
+                        >
+                          Open tab
+                        </a>
+                        <span className="inline-flex h-2 w-2 rounded-full bg-green-500" />
+                      </div>
+                      <iframe
+                        src={latestBuild.previewUrl}
+                        title="Generated app preview"
+                        className="h-[500px] w-full border-0"
+                        sandbox="allow-scripts allow-same-origin allow-forms"
+                      />
                     </div>
-                    <iframe
-                      src={latestBuild.previewUrl}
-                      title="Generated app preview"
-                      className="h-[500px] w-full border-0"
-                      sandbox="allow-scripts allow-same-origin allow-forms"
-                    />
                   </div>
                 )}
               </div>
@@ -862,6 +912,21 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
     }
   }
 
+  async function handleApplyBuildEdit(instruction: string) {
+    try {
+      setBusyAction("apply-build-edit")
+      setWorkspaceError(null)
+      const response = await authPost(`/api/projects/${projectId}/build/edit`, user, { instruction })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Failed to apply targeted edit")
+      setBuildRuns((current) => mergeBuildRun(current, data))
+    } catch (error) {
+      setWorkspaceError(error instanceof Error ? error.message : "Failed to apply targeted edit")
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   if (loadingProject) {
     return (
       <div className="premium-bg flex flex-1 items-center justify-center">
@@ -1009,17 +1074,18 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
               }
               return (
                 <div className="px-4 py-6 sm:px-6 lg:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <BuilderWorkspace
-                    project={project}
-                    planView={draftPlan}
-                    buildRuns={buildRuns}
-                    busyAction={busyAction}
-                    error={workspaceError}
-                    onApprovePlan={handleApprovePlan}
-                    onRegeneratePlan={handleRegeneratePlan}
-                    onStartBuild={handleStartBuild}
-                    onCancelBuild={handleCancelBuild}
-                  />
+                    <BuilderWorkspace
+                      project={project}
+                      planView={draftPlan}
+                      buildRuns={buildRuns}
+                      busyAction={busyAction}
+                      error={workspaceError}
+                      onApprovePlan={handleApprovePlan}
+                      onRegeneratePlan={handleRegeneratePlan}
+                      onStartBuild={handleStartBuild}
+                      onCancelBuild={handleCancelBuild}
+                      onApplyBuildEdit={handleApplyBuildEdit}
+                    />
                 </div>
               )
             }}

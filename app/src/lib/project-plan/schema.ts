@@ -159,6 +159,8 @@ export const buildRunSchema = z.object({
     installedPackages: z.array(z.string().min(1)).default([]),
     validationErrors: z.array(z.string().min(1)).default([]),
     repairAttempts: z.number().int().nonnegative().optional(),
+    runType: z.enum(["initial_build", "edit"]).optional(),
+    editInstruction: z.string().optional(),
 })
 
 export type ProjectStage = z.infer<typeof projectStageSchema>

@@ -8,6 +8,9 @@ import { buildFallbackFiles } from "../lib/build-worker/fallback"
 import { readRepairContextFiles } from "../lib/build-worker/fs"
 import { buildCompletionDefaults } from "../lib/build-worker/openrouter-build"
 import { detectPackagesFromFiles, normalizeGeneratedFilesForVite, normalizeGeneratedPath } from "../lib/build-worker/vite"
+import { buildWorkspaceManifest } from "../lib/build-worker/manifest"
+import { executeEditSearch, selectTargetFiles, type EditSearchPlan } from "../lib/build-worker/editSearch"
+import { filterFilesToTargetSet } from "../lib/build-worker/editExecutor"
 import { createBuildContract, getTemplateManifest } from "../lib/project-plan/schema"
 import type { Stage3BuildJob } from "../lib/build-worker/agentPrompt"
 import { promises as fs } from "fs"
@@ -144,6 +147,33 @@ export async function runBuildExecutorTests(): Promise<Array<{ name: string; pas
                 return packages.length === 1 && packages[0] === "lucide-react"
             })(),
         },
+        {
+            name: "workspace manifest excludes dependencies and protected config files",
+            passed: await workspaceManifestExcludesProtectedFiles(),
+        },
+        {
+            name: "edit search executor finds exact text with line context",
+            passed: await editSearchFindsExactText(),
+        },
+        {
+            name: "target selector chooses one component file for simple edits",
+            passed: await targetSelectorChoosesSingleComponentFile(),
+        },
+        {
+            name: "targeted edit parser rejects files outside target set",
+            passed: (() => {
+                try {
+                    filterFilesToTargetSet({ "src/App.tsx": "ok", "src/Other.tsx": "bad" }, ["src/App.tsx"], ["src"])
+                    return false
+                } catch {
+                    return true
+                }
+            })(),
+        },
+        {
+            name: "targeted edit blocks new feature requests in P0",
+            passed: await targetedEditBlocksFeatureRequests(),
+        },
     ]
 }
 
@@ -180,6 +210,97 @@ async function repairContextExcludesDependencies(): Promise<boolean> {
         return Boolean(files["src/App.tsx"])
             && !files["node_modules/big-package/index.ts"]
             && JSON.stringify(files).length < 10_000
+    } finally {
+        await fs.rm(workspacePath, { recursive: true, force: true })
+    }
+}
+
+async function workspaceManifestExcludesProtectedFiles(): Promise<boolean> {
+    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), "flowro-manifest-"))
+    try {
+        await fs.mkdir(path.join(workspacePath, "src"), { recursive: true })
+        await fs.mkdir(path.join(workspacePath, "node_modules/pkg"), { recursive: true })
+        await fs.writeFile(path.join(workspacePath, "src/App.tsx"), "export default function App() { return <h1>Dashboard</h1> }\n")
+        await fs.writeFile(path.join(workspacePath, "src/styles.css"), "@import \"tailwindcss\";\n")
+        await fs.writeFile(path.join(workspacePath, "package.json"), "{}\n")
+        await fs.writeFile(path.join(workspacePath, "src/vite.config.ts"), "export default {}\n")
+        await fs.writeFile(path.join(workspacePath, "node_modules/pkg/index.ts"), "export const x = 1\n")
+
+        const manifest = await buildWorkspaceManifest(workspacePath, ["src"])
+        return Boolean(manifest.files["src/App.tsx"])
+            && Boolean(manifest.files["src/styles.css"])
+            && !manifest.files["package.json"]
+            && !manifest.files["src/vite.config.ts"]
+            && !manifest.files["node_modules/pkg/index.ts"]
+    } finally {
+        await fs.rm(workspacePath, { recursive: true, force: true })
+    }
+}
+
+async function editSearchFindsExactText(): Promise<boolean> {
+    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), "flowro-search-"))
+    try {
+        await fs.mkdir(path.join(workspacePath, "src"), { recursive: true })
+        await fs.writeFile(path.join(workspacePath, "src/App.tsx"), [
+            "export default function App() {",
+            "  return <h1>Old Dashboard</h1>",
+            "}",
+        ].join("\n"))
+        const manifest = await buildWorkspaceManifest(workspacePath, ["src"])
+        const plan: EditSearchPlan = {
+            editType: "UPDATE_COMPONENT",
+            reasoning: "Find visible title",
+            searchTerms: ["Old Dashboard"],
+            fileTypesToSearch: [".tsx"],
+        }
+        const result = executeEditSearch(plan, manifest)
+        return result.success
+            && result.results[0]?.filePath === "src/App.tsx"
+            && result.results[0]?.lineNumber === 2
+            && result.results[0]?.contextBefore.length === 1
+    } finally {
+        await fs.rm(workspacePath, { recursive: true, force: true })
+    }
+}
+
+async function targetSelectorChoosesSingleComponentFile(): Promise<boolean> {
+    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), "flowro-target-"))
+    try {
+        await fs.mkdir(path.join(workspacePath, "src/components"), { recursive: true })
+        await fs.writeFile(path.join(workspacePath, "src/App.tsx"), "import Header from './components/Header'; export default function App() { return <Header /> }\n")
+        await fs.writeFile(path.join(workspacePath, "src/components/Header.tsx"), "export default function Header() { return <header className=\"bg-white\">Flowro</header> }\n")
+        const manifest = await buildWorkspaceManifest(workspacePath, ["src"])
+        const plan: EditSearchPlan = {
+            editType: "UPDATE_STYLE",
+            reasoning: "Find header class",
+            searchTerms: ["Header", "header"],
+            fileTypesToSearch: [".tsx"],
+        }
+        const search = executeEditSearch(plan, manifest)
+        const selection = selectTargetFiles("make the header black", plan, search.results, manifest)
+        return selection.ok
+            && selection.targetFiles.length === 1
+            && selection.targetFiles[0] === "src/components/Header.tsx"
+    } finally {
+        await fs.rm(workspacePath, { recursive: true, force: true })
+    }
+}
+
+async function targetedEditBlocksFeatureRequests(): Promise<boolean> {
+    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), "flowro-block-"))
+    try {
+        await fs.mkdir(path.join(workspacePath, "src"), { recursive: true })
+        await fs.writeFile(path.join(workspacePath, "src/App.tsx"), "export default function App() { return <h1>Dashboard</h1> }\n")
+        const manifest = await buildWorkspaceManifest(workspacePath, ["src"])
+        const plan: EditSearchPlan = {
+            editType: "ADD_FEATURE",
+            reasoning: "New page request",
+            searchTerms: ["settings"],
+            fileTypesToSearch: [".tsx"],
+        }
+        const search = executeEditSearch(plan, manifest)
+        const selection = selectTargetFiles("add a new settings page", plan, search.results, manifest)
+        return !selection.ok && selection.reason.includes("P0 targeted edits")
     } finally {
         await fs.rm(workspacePath, { recursive: true, force: true })
     }

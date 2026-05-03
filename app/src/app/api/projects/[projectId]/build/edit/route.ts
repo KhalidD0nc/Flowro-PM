@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
+import { mkdirSync } from "fs"
+import { homedir } from "os"
+import path from "path"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "@/app/api/blueprints/auth"
 import {
     createBuildRun,
+    getBuildRuns,
     getProject,
     getProjectPlanByProjectId,
     setProjectStage,
 } from "@/lib/firebase/collections"
 import { timestampToISO } from "@/lib/firebase/schema"
-import { buildStage3Prompt } from "@/lib/build-worker/agentPrompt"
-import { executeBuildRun } from "@/lib/build-worker/executor"
+import { executeEditRun } from "@/lib/build-worker/editExecutor"
 import { getBuildStartPlanError } from "@/lib/build-worker/startGuard"
 import { createBuildContract, getTemplateManifest } from "@/lib/project-plan/schema"
-import { mkdirSync } from "fs"
-import { homedir } from "os"
-import path from "path"
+import { buildStage3Prompt } from "@/lib/build-worker/agentPrompt"
 
 const BUILD_MODEL = process.env.OPENROUTER_MODEL_BUILD || "moonshotai/kimi-k2.6"
 const GENERATED_APPS_BASE = process.env.FLOWRO_GENERATED_APPS_PATH || path.join(homedir(), "Desktop", "Flowro-Apps")
@@ -39,6 +40,18 @@ export async function POST(
         const { projectId } = await params
         await verifyOwnership(projectId, authResult.userId)
 
+        const body = await request.json().catch(() => ({}))
+        const instruction = typeof body.instruction === "string" ? body.instruction.trim() : ""
+        if (!instruction) {
+            return NextResponse.json({ error: "instruction is required" }, { status: 400 })
+        }
+
+        const latestRuns = await getBuildRuns(projectId)
+        const latestSuccessfulPreview = latestRuns.find((run) => run.status === "success" && run.previewAvailable && run.previewUrl)
+        if (!latestSuccessfulPreview) {
+            return NextResponse.json({ error: "Start and complete a build before applying targeted edits." }, { status: 409 })
+        }
+
         const planDoc = await getProjectPlanByProjectId(projectId)
         const planError = getBuildStartPlanError(planDoc)
         if (planError) {
@@ -52,7 +65,6 @@ export async function POST(
         }
         const buildContract = createBuildContract(projectId, buildPlan, templateManifest)
         const targetWorkspacePath = getTargetWorkspacePath(projectId)
-
         mkdirSync(targetWorkspacePath, { recursive: true })
 
         const promptSnapshot = buildStage3Prompt({
@@ -65,39 +77,37 @@ export async function POST(
             commands: templateManifest.scripts,
         })
 
-        const promptPreview = promptSnapshot.slice(0, 1000)
-
         await setProjectStage(projectId, "coding")
         const run = await createBuildRun({
             projectId,
             templateId: templateManifest.id,
             status: "queued",
-            steps: ["Build queued"],
-            logs: [`[build-worker] Queued build with model ${BUILD_MODEL}`],
+            steps: ["Targeted edit queued"],
+            logs: [`[build-worker] Queued targeted edit with model ${BUILD_MODEL}: ${instruction}`],
             filesChanged: [],
-            previewUrl: null,
+            previewUrl: latestSuccessfulPreview.previewUrl ?? null,
             phase: "queued",
-            currentAction: "Queued build worker",
+            currentAction: "Queued targeted edit worker",
             totalFiles: 0,
             completedFiles: 0,
             fallbackUsed: false,
-            promptPreview,
+            promptPreview: promptSnapshot.slice(0, 1000),
             promptSnapshot,
             targetWorkspacePath,
             model: BUILD_MODEL,
             agentStatus: "prompt_ready",
             commandsRun: [],
-            previewAvailable: false,
+            previewAvailable: true,
             buildContractSnapshot: buildContract,
             verificationResults: [],
             detectedPackages: [],
             installedPackages: [],
             validationErrors: [],
             repairAttempts: 0,
-            runType: "initial_build",
+            runType: "edit",
+            editInstruction: instruction,
         })
 
-        // Fire build execution in the background so the HTTP response returns immediately
         const job = {
             projectId,
             projectPlan: buildPlan,
@@ -109,8 +119,8 @@ export async function POST(
         }
 
         Promise.resolve().then(() =>
-            executeBuildRun(projectId, run.id, job).catch((err) => {
-                console.error(`[build-run ${run.id}] Unhandled executor error:`, err)
+            executeEditRun(projectId, run.id, job, instruction).catch((err) => {
+                console.error(`[edit-run ${run.id}] Unhandled executor error:`, err)
             })
         )
 
@@ -120,7 +130,7 @@ export async function POST(
             updatedAt: timestampToISO(run.updatedAt),
         })
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to start build"
+        const message = error instanceof Error ? error.message : "Failed to start targeted edit"
         const status = message.includes("Access denied") ? 403 : message.includes("not found") ? 404 : 500
         return NextResponse.json({ error: message }, { status })
     }
