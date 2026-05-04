@@ -143,7 +143,7 @@ function AppHomeContent() {
   }
 
   return (
-    <div className="premium-bg flex h-screen w-full flex-row overflow-hidden font-sans text-slate-900 selection:bg-blue-200 selection:text-slate-900">
+    <div className="flex h-screen w-full flex-row overflow-hidden bg-[#080a0f] font-sans text-slate-900 selection:bg-blue-200 selection:text-slate-900">
       {!activeSession ? (
         <Sidebar
           onProjectSelect={handleProjectSelect}
@@ -156,7 +156,7 @@ function AppHomeContent() {
       <div className="relative flex-1 flex flex-col overflow-hidden bg-transparent">
         {/* Transition overlay */}
         <div
-          className={`pointer-events-none absolute inset-0 z-50 bg-[#f5efe7] transition-opacity duration-150 ${isTransitioning ? "opacity-100" : "opacity-0"
+          className={`pointer-events-none absolute inset-0 z-50 bg-[#080a0f] transition-opacity duration-150 ${isTransitioning ? "opacity-100" : "opacity-0"
             }`}
         />
 
