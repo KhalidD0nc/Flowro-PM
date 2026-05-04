@@ -80,6 +80,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
   const latestBuild = buildRuns[0] ?? null
   const latestBuildId = latestBuild?.id
   const shouldPollBuild = isBuildRunning(latestBuild)
+  const hasWorkspaceContent = Boolean(draftPlan)
 
   useEffect(() => {
     if (!clarificationQuestions?.length) {
@@ -422,18 +423,20 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
 
   return (
     <div className="relative flex h-full flex-1 flex-col overflow-hidden bg-[#111111] text-slate-100">
-      <div className="flex border-b border-white/[0.07] bg-[#181818] p-2 backdrop-blur-xl lg:hidden">
-        <button onClick={() => setMobilePane("chat")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "chat" ? "bg-[#2f2f2d] text-white shadow-[0_10px_26px_-18px_rgba(0,0,0,0.95)]" : "text-[#8f8f8b]"}`}>
-          Chat
-        </button>
-        <button onClick={() => setMobilePane("workspace")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "workspace" ? "bg-[#2f2f2d] text-white shadow-[0_10px_26px_-18px_rgba(0,0,0,0.95)]" : "text-[#8f8f8b]"}`}>
-          Builder
-        </button>
-      </div>
+      {hasWorkspaceContent ? (
+        <div className="flex border-b border-white/[0.07] bg-[#181818] p-2 backdrop-blur-xl lg:hidden">
+          <button onClick={() => setMobilePane("chat")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "chat" ? "bg-[#2f2f2d] text-white shadow-[0_10px_26px_-18px_rgba(0,0,0,0.95)]" : "text-[#8f8f8b]"}`}>
+            Chat
+          </button>
+          <button onClick={() => setMobilePane("workspace")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "workspace" ? "bg-[#2f2f2d] text-white shadow-[0_10px_26px_-18px_rgba(0,0,0,0.95)]" : "text-[#8f8f8b]"}`}>
+            Builder
+          </button>
+        </div>
+      ) : null}
 
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
-          className={`h-full w-full shrink-0 border-r border-white/[0.07] bg-[#191919] lg:flex lg:w-[39%] ${mobilePane === "chat" ? "flex" : "hidden"}`}
+          className={`h-full w-full shrink-0 bg-[#191919] lg:flex ${hasWorkspaceContent ? "border-r border-white/[0.07] lg:w-[39%]" : "lg:w-full"} ${mobilePane === "chat" || !hasWorkspaceContent ? "flex" : "hidden"}`}
         >
           <ChatPanel
             project={project}
@@ -451,7 +454,9 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
             onSendMessage={() => { void handleSendMessage() }}
             actionMode={composerActionMode}
             onActionModeChange={setComposerActionMode}
-            onOpenBlueprint={() => setMobilePane("workspace")}
+            onOpenBlueprint={() => {
+              if (hasWorkspaceContent) setMobilePane("workspace")
+            }}
             onProjectSelect={onProjectSelect}
             onGoHome={onBack}
             onApplyProposedChanges={() => undefined}
@@ -476,51 +481,55 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
           />
         </div>
 
-        <div
-          role="separator"
-          aria-label="Chat and builder divider"
-          className="hidden w-px shrink-0 bg-white/[0.07] lg:block"
-        />
+        {hasWorkspaceContent ? (
+          <>
+            <div
+              role="separator"
+              aria-label="Chat and builder divider"
+              className="hidden w-px shrink-0 bg-white/[0.07] lg:block"
+            />
 
-        <div className={`min-h-0 flex-1 bg-[#111111] ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
-          <WorkspaceTabs
-            previewRoutes={draftPlan?.plan.routes}
-            selectedPreviewPath={selectedPreviewPath}
-            onPreviewPathChange={setSelectedPreviewPath}
-            renderTab={(tab: WorkspaceTabKey) => {
-              if (tab === "code") {
-                return (
-                  <GeneratedAppExplorer
-                    projectId={projectId}
-                    user={user}
-                    fallbackPath={latestBuild?.targetWorkspacePath || `/Users/khalidr/Desktop/Flowro-Apps/${projectId}`}
-                  />
-                )
-              }
+            <div className={`min-h-0 flex-1 bg-[#111111] ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
+              <WorkspaceTabs
+                previewRoutes={draftPlan?.plan.routes}
+                selectedPreviewPath={selectedPreviewPath}
+                onPreviewPathChange={setSelectedPreviewPath}
+                renderTab={(tab: WorkspaceTabKey) => {
+                  if (tab === "code") {
+                    return (
+                      <GeneratedAppExplorer
+                        projectId={projectId}
+                        user={user}
+                        fallbackPath={latestBuild?.targetWorkspacePath || `/Users/khalidr/Desktop/Flowro-Apps/${projectId}`}
+                      />
+                    )
+                  }
 
-              if (tab === "files") {
-                return <EmptyTab icon="folder_open" title="Files" body="File management is coming soon." />
-              }
+                  if (tab === "files") {
+                    return <EmptyTab icon="folder_open" title="Files" body="File management is coming soon." />
+                  }
 
-              return (
-                <BuilderWorkspace
-                  project={project}
-                  planView={draftPlan}
-                  buildRuns={buildRuns}
-                  busyAction={busyAction}
-                  error={workspaceError}
-                  user={user}
-                  selectedPreviewPath={selectedPreviewPath}
-                  onApprovePlan={handleApprovePlan}
-                  onRegeneratePlan={handleRegeneratePlan}
-                  onStartBuild={handleStartBuild}
-                  onCancelBuild={handleCancelBuild}
-                  onApplyBuildEdit={handleApplyBuildEdit}
-                />
-              )
-            }}
-          />
-        </div>
+                  return (
+                    <BuilderWorkspace
+                      project={project}
+                      planView={draftPlan}
+                      buildRuns={buildRuns}
+                      busyAction={busyAction}
+                      error={workspaceError}
+                      user={user}
+                      selectedPreviewPath={selectedPreviewPath}
+                      onApprovePlan={handleApprovePlan}
+                      onRegeneratePlan={handleRegeneratePlan}
+                      onStartBuild={handleStartBuild}
+                      onCancelBuild={handleCancelBuild}
+                      onApplyBuildEdit={handleApplyBuildEdit}
+                    />
+                  )
+                }}
+              />
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   )
