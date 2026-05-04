@@ -234,7 +234,11 @@ Rules:
 - templateId must equal exactly "vite-react-app".
 - Routes must describe real screens/pages the generated app should implement.
 - Build tasks must be concrete and implementation-relevant.
-- UI requirements must be specific enough for the build contract to guide generated product screens.
+- UI requirements must be specific enough for the build contract to guide generated landing and product screens.
+- UI requirements must include a visual thesis, landing page direction, product app direction, and motion/accessibility expectations.
+- The generated app should open with a polished landing page first, then move users into the usable product app.
+- The landing page should make the product name the strongest first-viewport signal with one memorable visual idea and a clear CTA into the app.
+- The product app should be dense, useful, and workflow-oriented rather than a marketing page.
 - Data models should only contain necessary product data.
 - Never use "Flowro" as the product name.`,
     ],

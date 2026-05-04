@@ -113,13 +113,25 @@ export function runAgentPromptTests(): Array<{ name: string; passed: boolean }> 
         },
         {
             name: "buildBuildManifestPrompt asks for compact editable files",
-            passed: buildBuildManifestPrompt(baseJob).includes("4-10 files maximum") &&
-                buildBuildManifestPrompt(baseJob).includes("src/App.tsx"),
+            passed: buildBuildManifestPrompt(baseJob).includes("6-10 files maximum") &&
+                buildBuildManifestPrompt(baseJob).includes("src/App.tsx") &&
+                buildBuildManifestPrompt(baseJob).includes("src/pages/LandingPage.tsx") &&
+                buildBuildManifestPrompt(baseJob).includes("src/pages/AppWorkspace.tsx"),
         },
         {
             name: "buildBundledFileGenerationPrompt includes deterministic file markers",
-            passed: buildBundledFileGenerationPrompt(manifest, baseJob).includes("<<<FILE:path/to/file>>>") &&
+            passed: buildBundledFileGenerationPrompt(manifest, baseJob).includes("<<<FILE:src/styles.css>>>") &&
+                buildBundledFileGenerationPrompt(manifest, baseJob).includes("<<<END_FILE>>>") &&
                 buildBundledFileGenerationPrompt(manifest, baseJob).includes("src/lib/mock-data.ts"),
+        },
+        {
+            name: "stage 3 prompts require landing route and app workspace",
+            passed: buildStage3Prompt(baseJob).includes('Route "/" is a polished product landing page') &&
+                buildStage3Prompt(baseJob).includes('route "/app" is the usable product workspace') &&
+                buildStage3Prompt(baseJob).includes('landing CTA must navigate to "/app"') &&
+                buildBundledFileGenerationPrompt(manifest, baseJob).includes('Route "/" MUST render a landing page') &&
+                buildBundledFileGenerationPrompt(manifest, baseJob).includes('Route "/app" MUST render the product workspace') &&
+                buildBundledFileGenerationPrompt(manifest, baseJob).includes("BrowserRouter"),
         },
     ]
 }
