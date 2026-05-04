@@ -1,9 +1,9 @@
 import { generateCompletion, type Message } from "@/lib/openrouter"
 
-const BUILD_MODEL_PRIMARY = process.env.OPENROUTER_MODEL_BUILD || "moonshotai/kimi-k2.6"
+const BUILD_MODEL_PRIMARY = process.env.OPENROUTER_MODEL_BUILD || "openai/gpt-5.4"
 const BUILD_MODEL_FALLBACKS = [
     "anthropic/claude-sonnet-4.6",
-    "minimax/minimax-m2.7",
+    "openai/gpt-5.4",
     "google/gemini-3-flash-preview",
 ]
 const BUILD_MAX_TOKENS = 12000
