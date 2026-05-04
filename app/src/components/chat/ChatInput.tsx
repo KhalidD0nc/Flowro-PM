@@ -48,15 +48,15 @@ export default function ChatInput({
   const showOtherInput = Boolean(activeClarificationQuestion && selectedOtherId);
 
   return (
-    <div className="sticky bottom-0 border-t border-[#e8e0d6] bg-[#fbf7f1]/92 px-4 pt-4 pb-8 backdrop-blur-xl dark:border-white/[0.06] dark:bg-[#141416]/92">
+    <div className="sticky bottom-0 border-t border-white/[0.07] bg-[#111216]/88 px-4 pt-4 pb-8 backdrop-blur-2xl">
       <div className="mx-auto max-w-3xl">
         {selectionContext ? (
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-[1.25rem] border border-[#d8e7fb] bg-[#edf5ff] px-3 py-2 text-sm text-[#2f8fff] dark:border-[#5B8DEF]/30 dark:bg-[#5B8DEF]/10 dark:text-[#5B8DEF]">
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-[#2f8fff]/25 bg-[#2f8fff]/10 px-3 py-2 text-sm text-[#8fc5ff]">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[16px]">auto_fix</span>
               <span className="font-medium">Editing: {selectionContext.section}</span>
             </div>
-            <button onClick={onClearContext} className="rounded-full p-1 text-[#2f8fff] transition hover:bg-white/70 dark:text-[#5B8DEF] dark:hover:bg-[#1E1E22]/70">
+            <button onClick={onClearContext} className="rounded-full p-1 text-[#8fc5ff] transition hover:bg-white/[0.06]">
               <span className="material-symbols-outlined text-[16px]">close</span>
             </button>
           </div>
@@ -64,13 +64,13 @@ export default function ChatInput({
 
         <form
           onSubmit={handleSubmit}
-          className="rounded-[1.5rem] border border-[#dbe3ef] bg-white px-3 py-2 shadow-[0_24px_40px_-34px_rgba(25,37,62,0.3)] transition focus-within:border-[#bfd8ff] focus-within:ring-4 focus-within:ring-[#2f8fff]/10 dark:border-white/[0.06] dark:bg-[#1A1A1D] dark:focus-within:border-[#5B8DEF]/50 dark:focus-within:ring-[#5B8DEF]/10"
+          className="rounded-[1.35rem] border border-white/[0.08] bg-[#17191f]/95 px-3 py-2 shadow-[0_26px_60px_-42px_rgba(0,0,0,0.95)] transition focus-within:border-[#2f8fff]/45 focus-within:ring-4 focus-within:ring-[#2f8fff]/10"
         >
           {hasClarificationFlow ? (
             <div className="space-y-4">
-              <div className="rounded-[1.4rem] border border-[#e8e0d6] bg-[#fcfaf7] px-4 py-3 dark:border-white/[0.06] dark:bg-[#0C0C0E]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-white/[0.4]">Waiting for answers</p>
-                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-white/[0.5]">
+              <div className="rounded-xl border border-white/[0.08] bg-[#0c0e13] px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Waiting for answers</p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
                   Collecting one setup round before generating the project plan.
                 </p>
               </div>
@@ -78,32 +78,32 @@ export default function ChatInput({
               {clarificationSummaries?.length ? (
                 <div className="space-y-2">
                   {clarificationSummaries.map((summary, index) => (
-                    <div key={summary.questionId} className="rounded-[1.1rem] border border-[#e8e0d6] bg-[#fcfaf7] px-4 py-3 dark:border-white/[0.06] dark:bg-[#0C0C0E]">
+                    <div key={summary.questionId} className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.045] px-4 py-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-white/[0.4]">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300/70">
                             Answered {index + 1}
                           </p>
-                          <p className="mt-1 text-sm font-medium leading-6 text-slate-900 dark:text-white/[0.9]">{summary.prompt}</p>
+                          <p className="mt-1 text-sm font-medium leading-6 text-slate-100">{summary.prompt}</p>
                         </div>
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
+                        <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
                           Done
                         </span>
                       </div>
-                      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-white/[0.5]">{summary.answerText}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">{summary.answerText}</p>
                     </div>
                   ))}
                 </div>
               ) : null}
 
               {activeClarificationQuestion ? (
-                <div className="rounded-[1.35rem] border border-[#dde8f7] bg-[#f8fbff] p-4 dark:border-white/[0.06] dark:bg-[#1A1A1D]/50">
+                <div className="rounded-xl border border-[#2f8fff]/22 bg-[#2f8fff]/[0.055] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-white/[0.4]">Current question</p>
-                      <p className="mt-2 text-base font-semibold leading-7 text-slate-900 dark:text-white/[0.9]">{activeClarificationQuestion.prompt}</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8fc5ff]">Current question</p>
+                      <p className="mt-2 text-base font-semibold leading-7 text-slate-100">{activeClarificationQuestion.prompt}</p>
                     </div>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2f8fff] dark:bg-[#0C0C0E] dark:text-[#5B8DEF]">
+                    <span className="rounded-full border border-white/[0.08] bg-[#0b0d12] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
                       {activeClarificationQuestion.selectionMode === "single" ? "Select one answer" : "Select one or more"}
                     </span>
                   </div>
@@ -118,10 +118,10 @@ export default function ChatInput({
                           type="button"
                           onClick={() => onClarificationToggle?.(activeClarificationQuestion, option.id)}
                           disabled={isGenerating}
-                          className={`rounded-[1rem] border px-3 py-3 text-left transition ${
+                          className={`rounded-xl border px-3 py-3 text-left transition ${
                             isSelected
-                              ? "border-[#2f8fff] bg-[#edf5ff] text-slate-900 dark:border-[#5B8DEF] dark:bg-[#5B8DEF]/10 dark:text-white/[0.9]"
-                               : "border-[#e2ddd5] bg-white text-slate-700 hover:border-[#bfd8ff] hover:bg-white dark:border-white/[0.06] dark:bg-[#1A1A1D] dark:text-white/[0.7] dark:hover:border-[#5B8DEF]/50 dark:hover:bg-[#1E1E22]"
+                              ? "border-[#2f8fff]/55 bg-[#2f8fff]/12 text-white"
+                               : "border-white/[0.08] bg-[#111318] text-slate-300 hover:border-[#2f8fff]/35 hover:bg-[#151d2a]"
                           } ${isGenerating ? "cursor-not-allowed opacity-70" : ""}`}
                         >
                           <div className="flex items-start gap-3">
@@ -129,7 +129,7 @@ export default function ChatInput({
                               className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${
                                 isSelected
                                   ? "border-[#2f8fff] bg-[#2f8fff] text-white dark:border-[#5B8DEF] dark:bg-[#5B8DEF]"
-                                  : "border-[#cfd7e4] text-transparent dark:border-white/[0.1]"
+                                  : "border-white/[0.14] text-transparent"
                               }`}
                             >
                               {activeClarificationQuestion.selectionMode === "single" ? "●" : "✓"}
@@ -137,7 +137,7 @@ export default function ChatInput({
                             <div>
                               <p className="text-sm font-medium">{option.label}</p>
                               {option.description ? (
-                                <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-white/[0.5]">{option.description}</p>
+                                <p className="mt-1 text-xs leading-5 text-slate-500">{option.description}</p>
                               ) : null}
                             </div>
                           </div>
@@ -147,8 +147,8 @@ export default function ChatInput({
                   </div>
 
                   {showOtherInput ? (
-                    <div className="mt-4 rounded-[1rem] border border-[#e2ddd5] bg-white p-3 dark:border-white/[0.06] dark:bg-[#0C0C0E]">
-                      <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-white/[0.4]">
+                    <div className="mt-4 rounded-xl border border-white/[0.08] bg-[#0b0d12] p-3">
+                      <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Tell Flowro what to do instead
                       </label>
                       <textarea
@@ -157,21 +157,21 @@ export default function ChatInput({
                         rows={3}
                         placeholder="Type your custom answer..."
                         disabled={isGenerating}
-                        className="mt-3 w-full resize-none rounded-[1rem] border border-[#e2ddd5] bg-[#fcfaf7] px-3 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-[#2f8fff] focus:bg-white focus:ring-4 focus:ring-[#2f8fff]/10 dark:border-white/[0.06] dark:bg-[#1A1A1D] dark:text-white/[0.9] dark:focus:border-[#5B8DEF] dark:focus:bg-[#1A1A1D] dark:focus:ring-[#5B8DEF]/10"
+                        className="mt-3 w-full resize-none rounded-xl border border-white/[0.08] bg-[#151820] px-3 py-3 text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-[#2f8fff]/50 focus:ring-4 focus:ring-[#2f8fff]/10"
                       />
                     </div>
                   ) : null}
 
                   {activeClarificationQuestion.selectionMode === "multiple" || showOtherInput ? (
                     <div className="mt-4 flex items-center justify-between gap-3">
-                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
                         {canContinueClarificationStep ? "Answer ready" : "Complete this answer to continue"}
                       </span>
                       <button
                         type="button"
                         onClick={() => onClarificationContinue?.()}
                         disabled={!canContinueClarificationStep || isGenerating}
-                        className="send-button-gradient inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+                        className="send-button-gradient inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
                       >
                         Continue
                       </button>
@@ -179,22 +179,22 @@ export default function ChatInput({
                   ) : null}
                 </div>
               ) : (
-                <div className="rounded-[1.35rem] border border-[#dde8f7] bg-[#f8fbff] p-4 dark:border-white/[0.06] dark:bg-[#1A1A1D]/50">
-                  <p className="text-sm font-medium text-slate-800 dark:text-white/[0.8]">All questions are answered.</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-white/[0.5]">
+                <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.055] p-4">
+                  <p className="text-sm font-medium text-slate-100">All questions are answered.</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
                     Submit the selected answers so Flowro can generate the project plan.
                   </p>
                 </div>
               )}
 
               <div className="flex items-center justify-between gap-3 pt-1">
-                <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
                   {isClarificationReady ? "Ready to submit all answers" : "Flowro is waiting for the next answer"}
                 </span>
                 <button
                   type="submit"
                   disabled={!isClarificationReady || isGenerating}
-                  className="send-button-gradient inline-flex h-11 items-center justify-center rounded-2xl px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+                  className="send-button-gradient inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
                 >
                   {isGenerating ? (
                     <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
@@ -211,7 +211,7 @@ export default function ChatInput({
                   type="button"
                   disabled={isGenerating}
                   title="Attach (coming soon)"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-[#f5efe5] hover:text-slate-600 disabled:opacity-40 dark:hover:bg-[#242428] dark:hover:text-white/[0.7]"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-white/[0.06] hover:text-slate-200 disabled:opacity-40"
                 >
                   <span className="material-symbols-outlined text-[20px]">add</span>
                 </button>
@@ -222,7 +222,7 @@ export default function ChatInput({
                   onKeyDown={handleKeyDown}
                   placeholder={defaultPlaceholder}
                   rows={1}
-                  className="max-h-28 min-h-[40px] w-full resize-none border-0 bg-transparent py-2 text-sm leading-6 text-slate-900 placeholder:text-slate-400 focus:ring-0 dark:text-white/[0.9] dark:placeholder:text-white/[0.4]"
+                  className="max-h-28 min-h-[40px] w-full resize-none border-0 bg-transparent py-2 text-sm leading-6 text-slate-100 placeholder:text-slate-600 focus:ring-0"
                   disabled={isGenerating}
                 />
 
@@ -230,7 +230,7 @@ export default function ChatInput({
                   type="button"
                   disabled={isGenerating}
                   title="Voice (coming soon)"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-[#f5efe5] hover:text-slate-600 disabled:opacity-40 dark:hover:bg-[#242428] dark:hover:text-white/[0.7]"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-white/[0.06] hover:text-slate-200 disabled:opacity-40"
                 >
                   <span className="material-symbols-outlined text-[20px]">mic</span>
                 </button>
@@ -238,7 +238,7 @@ export default function ChatInput({
                 <button
                   type="submit"
                   disabled={!message.trim() || isGenerating}
-                  className="send-button-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+                  className="send-button-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-[0_14px_28px_-18px_rgba(47,143,255,0.95)] disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500 disabled:shadow-none"
                   title="Send"
                 >
                   {isGenerating ? (
@@ -249,8 +249,8 @@ export default function ChatInput({
                 </button>
               </div>
 
-              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-400 dark:text-white/[0.4]">
-                <span className="font-medium text-slate-500 dark:text-white/[0.5]">Flowro AI</span>
+              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-600">
+                <span className="font-medium text-slate-500">Flowro AI</span>
                 <span>⏎ to send · ⇧⏎ for newline</span>
               </div>
             </>

@@ -4,60 +4,53 @@ import { type ReactNode } from "react";
 import { useAtom } from "jotai";
 import { workspaceTabAtom } from "@/atoms/workspaceAtoms";
 
-export type WorkspaceTabKey = "preview" | "plan" | "code" | "files" | "ui";
+export type WorkspaceTabKey = "preview" | "code" | "files";
 
 interface TabDef {
   key: WorkspaceTabKey;
   label: string;
   icon: string;
-  disabled?: boolean;
-  disabledHint?: string;
 }
 
 interface WorkspaceTabsProps {
-  previewAvailable: boolean;
-  uiViewsCount: number;
   renderTab: (tab: WorkspaceTabKey) => ReactNode;
 }
 
-export default function WorkspaceTabs({ previewAvailable, uiViewsCount, renderTab }: WorkspaceTabsProps) {
+export default function WorkspaceTabs({ renderTab }: WorkspaceTabsProps) {
   const [active, setActive] = useAtom(workspaceTabAtom);
-
-  const effectiveActive: WorkspaceTabKey = active === "preview" && !previewAvailable ? "plan" : active;
+  const effectiveActive: WorkspaceTabKey =
+    active === "code" || active === "files" ? active : "preview";
 
   const tabs: TabDef[] = [
-    { key: "preview", label: "Preview", icon: "visibility", disabled: !previewAvailable, disabledHint: "Run a build to see the live preview" },
-    { key: "plan", label: "Plan", icon: "checklist" },
-    { key: "ui", label: "Contract", icon: "rule_settings", disabled: uiViewsCount === 0, disabledHint: "Approve a plan to see the build contract" },
+    { key: "preview", label: "Preview and build status", icon: "web_asset" },
     { key: "code", label: "Code", icon: "code" },
     { key: "files", label: "Files", icon: "folder" },
   ];
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="sticky top-0 z-10 flex shrink-0 items-center gap-1 border-b border-[#e8e0d6] bg-[#fbf7f1]/92 px-3 py-2 backdrop-blur-md dark:border-white/[0.06] dark:bg-[#141416]/92">
+      <div className="sticky top-0 z-10 flex shrink-0 justify-end px-4 pt-4">
+        <div className="inline-flex items-center gap-1 rounded-[1.15rem] border border-[#e7e4dc] bg-white/90 p-1 shadow-[0_18px_34px_-30px_rgba(17,17,17,0.22)] backdrop-blur-xl">
         {tabs.map((tab) => {
           const isActive = effectiveActive === tab.key;
           return (
             <button
               key={tab.key}
               type="button"
-              onClick={() => !tab.disabled && setActive(tab.key)}
-              disabled={tab.disabled}
-              title={tab.disabled ? tab.disabledHint : undefined}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+              onClick={() => setActive(tab.key)}
+              title={tab.label}
+              aria-label={tab.label}
+              className={`inline-flex size-10 items-center justify-center rounded-xl transition ${
                 isActive
-                  ? "bg-white text-slate-900 shadow-[0_4px_14px_-8px_rgba(29,41,65,0.25)] dark:bg-[#1A1A1D] dark:text-white/[0.9]"
-                  : tab.disabled
-                    ? "cursor-not-allowed text-slate-300 dark:text-white/[0.4]"
-                    : "text-slate-500 hover:bg-white/60 hover:text-slate-900 dark:text-white/[0.5] dark:hover:bg-[#1E1E22]/60 dark:hover:text-white/[0.9]"
+                  ? "bg-[#111111] text-white shadow-[0_14px_24px_-20px_rgba(17,17,17,0.55)]"
+                  : "text-[#6b7280] hover:bg-[#f4f4f1] hover:text-[#111111]"
               }`}
             >
-              <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
-              {tab.label}
+              <span className="material-symbols-outlined text-[19px]">{tab.icon}</span>
             </button>
           );
         })}
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {renderTab(effectiveActive)}
