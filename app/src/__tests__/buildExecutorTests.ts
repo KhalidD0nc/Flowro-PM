@@ -107,7 +107,25 @@ export async function runBuildExecutorTests(): Promise<Array<{ name: string; pas
             name: "buildFallbackFiles produces required app files",
             passed: (() => {
                 const files = buildFallbackFiles(baseJob)
-                return Boolean(files["src/App.tsx"] && files["src/styles.css"] && files["src/lib/mock-data.ts"] && files["src/components/ui/app-kit.tsx"])
+                return Boolean(files["src/App.tsx"] &&
+                    files["src/styles.css"] &&
+                    files["src/lib/mock-data.ts"] &&
+                    files["src/components/ui/app-kit.tsx"] &&
+                    files["src/pages/LandingPage.tsx"] &&
+                    files["src/pages/AppWorkspace.tsx"])
+            })(),
+        },
+        {
+            name: "buildFallbackFiles implements landing-to-app flow without starter placeholder",
+            passed: (() => {
+                const files = buildFallbackFiles(baseJob)
+                const allContent = Object.values(files).join("\n")
+                return files["src/App.tsx"].includes("BrowserRouter") &&
+                    files["src/App.tsx"].includes('path="/"') &&
+                    files["src/App.tsx"].includes('path="/app/*"') &&
+                    files["src/pages/LandingPage.tsx"].includes('to="/app"') &&
+                    files["src/pages/AppWorkspace.tsx"].includes("Product workspace") &&
+                    !allContent.includes("Generated app ready")
             })(),
         },
         {

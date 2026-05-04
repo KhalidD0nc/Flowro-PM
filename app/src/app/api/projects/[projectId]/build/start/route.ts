@@ -8,7 +8,7 @@ import {
     setProjectStage,
 } from "@/lib/firebase/collections"
 import { timestampToISO } from "@/lib/firebase/schema"
-import { buildStage3Prompt } from "@/lib/build-worker/agentPrompt"
+import { buildStage3Prompt, type Stage3BuildJob } from "@/lib/build-worker/agentPrompt"
 import { executeBuildRun } from "@/lib/build-worker/executor"
 import { getBuildStartPlanError } from "@/lib/build-worker/startGuard"
 import { createBuildContract, getTemplateManifest } from "@/lib/project-plan/schema"
@@ -98,8 +98,21 @@ export async function POST(
             runType: "initial_build",
         })
 
+        // Infer design archetype from project description for quick-win theming
+        const planText = JSON.stringify(buildPlan).toLowerCase()
+        let designArchetype: Stage3BuildJob["designArchetype"] = "saas"
+        if (planText.includes("portfolio") || planText.includes("blog") || planText.includes("creative") || planText.includes("editorial")) {
+            designArchetype = "editorial"
+        } else if (planText.includes("dark") || planText.includes("night") || planText.includes("crypto") || planText.includes("gaming")) {
+            designArchetype = "darkmode"
+        } else if (planText.includes("playful") || planText.includes("fun") || planText.includes("kids") || planText.includes("community")) {
+            designArchetype = "playful"
+        } else if (planText.includes("minimal") || planText.includes("swiss") || planText.includes("luxury")) {
+            designArchetype = "minimal"
+        }
+
         // Fire build execution in the background so the HTTP response returns immediately
-        const job = {
+        const job: Stage3BuildJob = {
             projectId,
             projectPlan: buildPlan,
             buildContract,
@@ -107,6 +120,7 @@ export async function POST(
             targetWorkspacePath,
             editablePaths: templateManifest.editablePaths,
             commands: templateManifest.scripts,
+            designArchetype,
         }
 
         Promise.resolve().then(() =>

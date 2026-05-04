@@ -23,6 +23,15 @@ export async function copyTemplate(templateId: string, targetPath: string): Prom
     await copyDir(templatePath, targetPath)
 }
 
+const SKIP_TEMPLATE_DIRS = new Set([
+    "node_modules",
+    "dist",
+    ".git",
+    ".next",
+    "coverage",
+    "out",
+])
+
 async function copyDir(src: string, dest: string): Promise<void> {
     await fs.mkdir(dest, { recursive: true })
     const entries = await fs.readdir(src, { withFileTypes: true })
@@ -30,6 +39,7 @@ async function copyDir(src: string, dest: string): Promise<void> {
         const srcPath = path.join(src, entry.name)
         const destPath = path.join(dest, entry.name)
         if (entry.isDirectory()) {
+            if (SKIP_TEMPLATE_DIRS.has(entry.name)) continue
             await copyDir(srcPath, destPath)
         } else {
             await fs.copyFile(srcPath, destPath)

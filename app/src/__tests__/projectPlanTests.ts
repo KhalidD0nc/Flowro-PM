@@ -80,6 +80,21 @@ export function runProjectPlanTests(): Array<{ name: string; passed: boolean }> 
             })(),
         },
         {
+            name: "build contract requires landing-first generated apps",
+            passed: (() => {
+                const approvedPlan = projectPlanSchema.parse({
+                    ...validPlan,
+                    metadata: { ...validPlan.metadata, status: "approved" },
+                })
+                const manifest = getTemplateManifest("vite-react-app")
+                const contract = createBuildContract("project-1", approvedPlan, manifest)
+                return contract.frontendGuardrails.some((rule) => rule.includes("route /") && rule.includes("route /app")) &&
+                    contract.frontendGuardrails.some((rule) => rule.includes("CTA") && rule.includes("/app")) &&
+                    contract.frontendGuardrails.some((rule) => rule.includes("prefers-reduced-motion")) &&
+                    contract.componentRules.some((rule) => rule.includes("lucide-react"))
+            })(),
+        },
+        {
             name: "build start guard rejects missing or draft plans",
             passed: getBuildStartPlanError(null)?.status === 409 &&
                 getBuildStartPlanError({ status: "draft" })?.error.includes("Approve the project plan"),

@@ -206,6 +206,7 @@ export async function executeEditRun(
                     manifest,
                     searchPlan,
                     searchResults: searchExecution.results,
+                    designSystem: job.designSystem,
                 }),
             }],
             maxTokens: 50000,

@@ -9,6 +9,10 @@ export type EditType =
     | "ADD_FEATURE"
     | "ADD_DEPENDENCY"
     | "REFACTOR"
+    | "REDESIGN"
+    | "ANIMATE"
+    | "UPDATE_TOKENS"
+    | "ADD_PAGE"
 
 export interface EditSearchPlan {
     editType: EditType
@@ -48,19 +52,25 @@ export interface TargetSelection {
     selectedResult?: EditSearchResult
 }
 
-const SIMPLE_EDIT_TYPES = new Set<EditType>(["UPDATE_COMPONENT", "UPDATE_STYLE", "FIX_ISSUE", "REMOVE_ELEMENT", "REFACTOR"])
+const SIMPLE_EDIT_TYPES = new Set<EditType>(["UPDATE_COMPONENT", "UPDATE_STYLE", "FIX_ISSUE", "REMOVE_ELEMENT", "REFACTOR", "UPDATE_TOKENS"])
+const MULTI_FILE_EDIT_TYPES = new Set<EditType>(["ADD_FEATURE", "ADD_PAGE", "REDESIGN", "ANIMATE"])
 
 export function createDeterministicSearchPlan(instruction: string, manifest: WorkspaceManifest): EditSearchPlan {
     const lowerInstruction = instruction.toLowerCase()
     const searchTerms = extractQuotedTerms(instruction)
     const componentTerms = extractComponentTerms(lowerInstruction, manifest)
 
-    const editType: EditType = /\b(add|create|new|page|component|install|dependency|package)\b/i.test(instruction)
-        ? /\b(install|dependency|package)\b/i.test(instruction) ? "ADD_DEPENDENCY" : "ADD_FEATURE"
-        : /\b(remove|delete|hide)\b/i.test(instruction) ? "REMOVE_ELEMENT"
-            : /\b(color|background|style|spacing|font|layout|mobile|responsive)\b/i.test(instruction) ? "UPDATE_STYLE"
-                : /\b(fix|broken|bug|error|issue)\b/i.test(instruction) ? "FIX_ISSUE"
-                    : "UPDATE_COMPONENT"
+    let editType: EditType
+    if (/\b(install|dependency|package)\b/i.test(instruction)) editType = "ADD_DEPENDENCY"
+    else if (/\b(add\s+a?\s*new\s*page|create\s+a?\s*page)\b/i.test(instruction)) editType = "ADD_PAGE"
+    else if (/\b(add|create|new)\b/i.test(instruction)) editType = "ADD_FEATURE"
+    else if (/\b(remove|delete|hide)\b/i.test(instruction)) editType = "REMOVE_ELEMENT"
+    else if (/\b(redesign|make\s*it\s*look|change\s*the\s*style|make\s*it\s*more)\b/i.test(instruction)) editType = "REDESIGN"
+    else if (/\b(animate|animation|motion|transition|fade|slide)\b/i.test(instruction)) editType = "ANIMATE"
+    else if (/\b(update\s*tokens|change\s*colors|change\s*the\s*palette|update\s*theme)\b/i.test(instruction)) editType = "UPDATE_TOKENS"
+    else if (/\b(color|background|style|spacing|font|layout|mobile|responsive|theme|dark\s*mode|light)\b/i.test(instruction)) editType = "UPDATE_STYLE"
+    else if (/\b(fix|broken|bug|error|issue)\b/i.test(instruction)) editType = "FIX_ISSUE"
+    else editType = "UPDATE_COMPONENT"
 
     const fallbackTerms = [...new Set([...componentTerms, ...instruction.split(/\s+/).filter((word) => word.length > 4).slice(0, 6)])]
 
@@ -111,20 +121,52 @@ export function selectTargetFiles(
     searchResults: EditSearchResult[],
     manifest: WorkspaceManifest,
 ): TargetSelection {
-    if (!SIMPLE_EDIT_TYPES.has(searchPlan.editType)) {
-        return {
-            ok: false,
-            targetFiles: [],
-            reason: `P0 targeted edits only support modifying existing files. "${searchPlan.editType}" requires a broader feature workflow.`,
-        }
-    }
-
     const protectedTarget = findProtectedTargetMention(instruction)
     if (protectedTarget) {
         return {
             ok: false,
             targetFiles: [],
-            reason: `Protected file edits are not allowed in P0 targeted edits: ${protectedTarget}`,
+            reason: `Protected file edits are not allowed in targeted edits: ${protectedTarget}`,
+        }
+    }
+
+    // Multi-file edits: allow ADD_FEATURE, ADD_PAGE, REDESIGN, ANIMATE to touch multiple files
+    if (MULTI_FILE_EDIT_TYPES.has(searchPlan.editType)) {
+        const editableResults = searchResults.filter(
+            (result) => Boolean(manifest.files[result.filePath]) && !isProtectedWorkspaceFile(result.filePath)
+        )
+        // Deduplicate by file path, keep highest confidence
+        const byPath = new Map<string, EditSearchResult>()
+        for (const result of editableResults) {
+            const existing = byPath.get(result.filePath)
+            if (!existing || result.confidence === "high" && existing.confidence !== "high") {
+                byPath.set(result.filePath, result)
+            }
+        }
+        const targetFiles = Array.from(byPath.keys()).slice(0, 5)
+        if (targetFiles.length > 0) {
+            return {
+                ok: true,
+                targetFiles,
+                reason: `Multi-file ${searchPlan.editType} targeting ${targetFiles.length} file(s): ${targetFiles.join(", ")}`,
+                selectedResult: editableResults[0],
+            }
+        }
+        // For ADD_PAGE, App.tsx is always a target
+        if (searchPlan.editType === "ADD_PAGE" && manifest.files["src/App.tsx"]) {
+            return {
+                ok: true,
+                targetFiles: ["src/App.tsx"],
+                reason: `ADD_PAGE targeting App.tsx for route wiring`,
+            }
+        }
+    }
+
+    if (!SIMPLE_EDIT_TYPES.has(searchPlan.editType)) {
+        return {
+            ok: false,
+            targetFiles: [],
+            reason: `Targeted edits do not support "${searchPlan.editType}" on existing files. Try rephrasing as a style or component update.`,
         }
     }
 

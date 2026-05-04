@@ -13,6 +13,7 @@ import {
 } from "./agentPrompt"
 import { generateBuildCompletionWithFallback, generateBuildCompletionWithModel } from "./openrouter-build"
 import { buildFallbackFiles } from "./fallback"
+import { generateDesignSystem, type DesignSystemSpec } from "./designAgent"
 import { buildMissingImportStubs, detectPackagesFromFiles, normalizeGeneratedFilesForVite, validateImportCoherence, validateVitePreview } from "./vite"
 import { registerActiveBuild, unregisterActiveBuild } from "./cancel"
 import { getBuildRun, setProjectStage, updateBuildRun } from "@/lib/firebase/collections"
@@ -81,6 +82,9 @@ export function parseBundledFiles(response: string, editablePaths: string[]): Re
     // Helper to store a file, preferring complete/longer versions
     function storeFile(filePath: string, content: string, isComplete: boolean) {
         if (filePath.startsWith("/") || filePath.includes("..")) {
+            throw new Error(`Generated file is outside editable paths: ${filePath}`)
+        }
+        if (!isEditablePath(filePath, editablePaths)) {
             throw new Error(`Generated file is outside editable paths: ${filePath}`)
         }
         const existing = fileMap.get(filePath)
@@ -264,6 +268,19 @@ export async function executeBuildRun(
         await appendLog("Template copied successfully")
         await checkCanceled()
 
+        await updateProgress({ phase: "planning", currentAction: "Generating design system" })
+        await appendStep("Generating design system")
+        let designSystem: DesignSystemSpec | undefined
+        try {
+            designSystem = await generateDesignSystem(job.projectPlan, job.buildContract, job.designArchetype ?? "saas", controller.signal)
+            job.designSystem = designSystem as unknown as Record<string, unknown>
+            await appendLog(`Design system generated: ${designSystem.personality}`)
+            await appendLog(`Colors: primary=${designSystem.colorPalette.primary}, background=${designSystem.colorPalette.background}`)
+            await appendLog(`Typography: heading=${designSystem.typography.headingFont}, density=${designSystem.spacing.density}`)
+        } catch (dsError) {
+            await appendLog(`Design system generation failed: ${dsError instanceof Error ? dsError.message : String(dsError)}. Using deterministic fallback.`)
+        }
+
         await updateProgress({ phase: "planning", currentAction: "Planning file manifest" })
         await appendStep("Planning core app files")
         const manifest = await createBuildManifest(job, controller.signal, appendLog)
@@ -276,6 +293,8 @@ export async function executeBuildRun(
             completedFiles: 0,
         })
 
+        let allFiles: Record<string, string> | null = null
+
         try {
             const { content: bundledResponse, model: usedModel } = await generateBuildCompletionWithFallback({
                 messages: [{ role: "user", content: buildBundledFileGenerationPrompt(manifest, job) }],
@@ -285,14 +304,13 @@ export async function executeBuildRun(
                 signal: controller.signal,
             })
             await appendLog(`Bundled generation succeeded with model: ${usedModel}`)
-            const bundledFiles = parseBundledFiles(bundledResponse, job.editablePaths)
-            await writeFiles(bundledFiles, "ai")
+            allFiles = parseBundledFiles(bundledResponse, job.editablePaths)
+            await writeFiles(allFiles, "ai")
         } catch (generationError) {
             await appendLog(`Bundled generation failed: ${generationError instanceof Error ? generationError.message : String(generationError)}`)
 
-            let bundledFiles: Record<string, string> | null = null
-
-            for (let retry = 0; retry < MAX_FORMAT_RETRIES && !bundledFiles; retry++) {
+            // Format retries for full bundled generation
+            for (let retry = 0; retry < MAX_FORMAT_RETRIES && !allFiles; retry++) {
                 try {
                     await appendLog(`Format retry ${retry + 1}/${MAX_FORMAT_RETRIES}: requesting re-formatted output`)
                     const lastResponse = generationError instanceof Error ? generationError.message : String(generationError)
@@ -303,19 +321,63 @@ export async function executeBuildRun(
                         maxRetries: 0,
                         signal: controller.signal,
                     })
-                    bundledFiles = parseBundledFiles(retryResponse, job.editablePaths)
+                    allFiles = parseBundledFiles(retryResponse, job.editablePaths)
                     await appendLog(`Format retry ${retry + 1} succeeded`)
-                    await writeFiles(bundledFiles, "ai")
+                    await writeFiles(allFiles, "ai")
                 } catch (retryError) {
                     await appendLog(`Format retry ${retry + 1} failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`)
                 }
             }
 
-            if (!bundledFiles) {
-                await appendLog("All bundled generation attempts failed; trying per-file generation")
+            // Hybrid generation: bundled design system + per-file pages
+            if (!allFiles && manifest.files.length > 6) {
+                await appendLog("Switching to hybrid generation: design system bundled, pages per-file")
                 try {
-                    bundledFiles = await generateFilesIndividually(job, manifest, appendLog, controller.signal)
-                    await writeFiles(bundledFiles, "ai")
+                    const designSystemPaths = new Set(["src/styles.css", "src/components/ui/app-kit.tsx", "src/lib/mock-data.ts"])
+                    const dsManifest: BuildManifest = {
+                        summary: `${manifest.summary} (design system)`,
+                        files: manifest.files.filter((f) => designSystemPaths.has(f.path)),
+                    }
+                    const pageManifest: BuildManifest = {
+                        summary: `${manifest.summary} (pages)`,
+                        files: manifest.files.filter((f) => !designSystemPaths.has(f.path)),
+                    }
+
+                    // Generate design system files bundled
+                    if (dsManifest.files.length > 0) {
+                        await appendLog(`Hybrid step 1: generating ${dsManifest.files.length} design system files bundled`)
+                        const { content: dsResponse } = await generateBuildCompletionWithFallback({
+                            messages: [{ role: "user", content: buildBundledFileGenerationPrompt(dsManifest, job) }],
+                            maxTokens: 40000,
+                            timeoutMs: 90000,
+                            maxRetries: 1,
+                            signal: controller.signal,
+                        })
+                        const dsFiles = parseBundledFiles(dsResponse, job.editablePaths)
+                        await writeFiles(dsFiles, "ai")
+                        allFiles = { ...(allFiles ?? {}), ...dsFiles }
+                        await appendLog(`Design system files generated: ${Object.keys(dsFiles).join(", ")}`)
+                    }
+
+                    // Generate page files per-file
+                    if (pageManifest.files.length > 0) {
+                        await appendLog(`Hybrid step 2: generating ${pageManifest.files.length} page files individually`)
+                        const pageFiles = await generateFilesIndividually(job, pageManifest, appendLog, controller.signal)
+                        await writeFiles(pageFiles, "ai")
+                        allFiles = { ...(allFiles ?? {}), ...pageFiles }
+                    }
+                } catch (hybridError) {
+                    await appendLog(`Hybrid generation failed: ${hybridError instanceof Error ? hybridError.message : String(hybridError)}`)
+                    allFiles = null
+                }
+            }
+
+            // Final fallback: per-file for all files
+            if (!allFiles) {
+                await appendLog("All bundled generation attempts failed; trying per-file generation for all files")
+                try {
+                    allFiles = await generateFilesIndividually(job, manifest, appendLog, controller.signal)
+                    await writeFiles(allFiles, "ai")
                 } catch (perFileError) {
                     fallbackUsed = true
                     await updateProgress({ phase: "fallback", fallbackUsed: true, currentAction: "All generation methods failed; using deterministic fallback" })
@@ -535,6 +597,8 @@ const REQUIRED_CORE_FILES: BuildManifestFile[] = [
     { path: "src/styles.css", reason: "Tailwind entry and theme tokens" },
     { path: "src/lib/mock-data.ts", reason: "Local mock data for the preview" },
     { path: "src/components/ui/app-kit.tsx", reason: "Shared UI primitives" },
+    { path: "src/pages/LandingPage.tsx", reason: "Landing-first generated app route" },
+    { path: "src/pages/AppWorkspace.tsx", reason: "Usable product workspace route" },
 ]
 
 function mergeRequiredCoreFiles(files: BuildManifestFile[]): BuildManifestFile[] {
@@ -553,7 +617,7 @@ async function createBuildManifest(
     signal: AbortSignal,
     appendLog: (line: string) => Promise<void>,
 ): Promise<BuildManifest> {
-    const fallbackManifest = createDeterministicManifest(job)
+    const fallbackManifest = createDeterministicManifest()
 
     try {
         const { content: response, model: usedModel } = await generateBuildCompletionWithFallback({
@@ -583,12 +647,14 @@ async function createBuildManifest(
     }
 }
 
-function createDeterministicManifest(job: Stage3BuildJob): BuildManifest {
+function createDeterministicManifest(): BuildManifest {
     const files = Array.from(new Set([
         "src/App.tsx",
         "src/styles.css",
         "src/components/ui/app-kit.tsx",
         "src/lib/mock-data.ts",
+        "src/pages/LandingPage.tsx",
+        "src/pages/AppWorkspace.tsx",
     ])).slice(0, MAX_MANIFEST_FILES)
 
     return {
