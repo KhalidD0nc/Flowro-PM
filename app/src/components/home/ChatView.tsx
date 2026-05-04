@@ -24,6 +24,7 @@ import { ChatPanel } from "@/components/chat"
 import type { ChatMessage, SelectionContext } from "@/components/chat/types"
 import WorkspaceTabs, { type WorkspaceTabKey } from "@/components/workspace/WorkspaceTabs"
 import { BuilderWorkspace, EmptyTab, type PlanView } from "@/components/workspace/BuilderWorkspace"
+import GeneratedAppExplorer from "@/components/workspace/GeneratedAppExplorer"
 import { mergeBuildRun, isBuildRunning } from "@/components/workspace/BuildMissionControl"
 
 interface ChatViewProps {
@@ -99,7 +100,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
     const bounds = workspace.getBoundingClientRect()
     if (bounds.width <= 0) return
     setChatSplitPercent(clampChatSplit(((clientX - bounds.left) / bounds.width) * 100))
-  }, [])
+  }, [setChatSplitPercent])
 
   useEffect(() => {
     if (!clarificationQuestions?.length) {
@@ -376,6 +377,15 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
       if (!response.ok) throw new Error(data.error || "Failed to approve plan")
       setDraftPlan(data)
       setProject((prev) => prev ? { ...prev, latestPlan: data, stage: "plan_approved" } : prev)
+      setMobilePane("workspace")
+
+      if (!latestBuild) {
+        setBusyAction("start-build")
+        const buildResponse = await authPost(`/api/projects/${projectId}/build/start`, user, {})
+        const buildData = await buildResponse.json()
+        if (!buildResponse.ok) throw new Error(buildData.error || "Failed to start build")
+        setBuildRuns((current) => mergeBuildRun(current, buildData))
+      }
     } catch (error) {
       setWorkspaceError(error instanceof Error ? error.message : "Failed to approve plan")
     } finally {
@@ -441,7 +451,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
         <div className="rounded-[2rem] border border-[#e4ddd4] bg-white/90 p-10 text-center shadow-[0_40px_90px_-50px_rgba(22,31,49,0.35)]">
           <span className="material-symbols-outlined animate-spin text-4xl text-[#2f8fff]">progress_activity</span>
           <h1 className="mt-4 text-2xl font-semibold text-slate-900">Loading builder workspace</h1>
-          <p className="mt-2 text-sm text-slate-500">Syncing plan, contract, and build state.</p>
+          <p className="mt-2 text-sm text-slate-500">Syncing plan, build state, and preview.</p>
         </div>
       </div>
     )
@@ -458,19 +468,19 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
   }
 
   return (
-    <div className="relative flex h-full flex-1 flex-col overflow-hidden">
-      <div className="flex border-b border-[#e7dfd5] bg-white/80 p-2 dark:border-white/[0.06] dark:bg-[#141416]/80 lg:hidden">
-        <button onClick={() => setMobilePane("chat")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "chat" ? "bg-[#2f8fff] text-white" : "text-slate-500 dark:text-white/[0.5]"}`}>
+    <div className="flowro-builder-shell relative flex h-full flex-1 flex-col overflow-hidden text-slate-100">
+      <div className="flex bg-[#111111]/94 p-2 backdrop-blur-xl lg:hidden">
+        <button onClick={() => setMobilePane("chat")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "chat" ? "bg-[#2f8fff] text-white shadow-[0_10px_26px_-18px_rgba(47,143,255,0.95)]" : "text-slate-400"}`}>
           Chat
         </button>
-        <button onClick={() => setMobilePane("workspace")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "workspace" ? "bg-[#2f8fff] text-white" : "text-slate-500 dark:text-white/[0.5]"}`}>
+        <button onClick={() => setMobilePane("workspace")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "workspace" ? "bg-[#2f8fff] text-white shadow-[0_10px_26px_-18px_rgba(47,143,255,0.95)]" : "text-slate-400"}`}>
           Builder
         </button>
       </div>
 
       <div ref={desktopWorkspaceRef} className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
-          className={`h-full w-full shrink-0 border-r border-[#e7dfd5] bg-[#fcf8f3]/78 lg:flex lg:w-[var(--chat-pane-width)] dark:border-white/[0.06] dark:bg-[#141416]/78 ${mobilePane === "chat" ? "flex" : "hidden"}`}
+          className={`h-full w-full shrink-0 bg-[#111111]/82 lg:flex lg:w-[var(--chat-pane-width)] ${mobilePane === "chat" ? "flex" : "hidden"}`}
           style={{ "--chat-pane-width": `${chatSplitPercent}%` } as CSSProperties}
         >
           <ChatPanel
@@ -513,88 +523,40 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
           role="separator"
           aria-label="Resize chat and builder workspace"
           onPointerDown={handleChatResizePointerDown}
-          className="group relative hidden w-4 shrink-0 cursor-col-resize touch-none items-stretch justify-center bg-transparent lg:flex"
-        >
-          <div className="my-3 w-px rounded-full bg-[#d6deea] transition group-hover:bg-[#2f8fff]/70 dark:bg-white/[0.1] dark:group-hover:bg-[#5B8DEF]/50" />
-        </div>
+          className="hidden w-5 shrink-0 cursor-col-resize touch-none bg-transparent lg:block"
+        />
 
-        <div className={`min-h-0 flex-1 bg-background dark:bg-[#0C0C0E] ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
+        <div className={`min-h-0 flex-1 bg-transparent ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
           <WorkspaceTabs
-            previewAvailable={Boolean(latestBuild?.previewAvailable && latestBuild?.previewUrl)}
-            uiViewsCount={draftPlan ? 1 : 0}
             renderTab={(tab: WorkspaceTabKey) => {
-              if (tab === "preview" && latestBuild?.previewUrl) {
-                return (
-                  <iframe
-                    src={latestBuild.previewUrl}
-                    title="Generated app preview"
-                    className="h-full w-full border-0 bg-white dark:bg-[#0C0C0E]"
-                    sandbox="allow-scripts allow-same-origin allow-forms"
-                  />
-                )
-              }
-              if (tab === "ui") {
-                return (
-                  <div className="px-4 py-6 sm:px-6 lg:px-8">
-                    {!draftPlan ? (
-                      <EmptyTab icon="grid_view" title="No build contract yet" body="Generate and approve a project plan to see the build contract." />
-                    ) : (
-                      <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-2">
-                        <div className="rounded-[1.5rem] border border-[#d8e7fb] bg-[#f8fbff] p-5 dark:border-white/[0.06] dark:bg-[#1A1A1D]/50">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-white/[0.4]">Visual direction</p>
-                          <div className="mt-4 space-y-2">
-                            {draftPlan.plan.uiRequirements.map((item) => (
-                              <div key={item} className="rounded-[1rem] bg-white px-4 py-3 text-sm text-slate-700 dark:bg-[#0C0C0E] dark:text-white/[0.7]">{item}</div>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="rounded-[1.5rem] border border-[#ebe4db] bg-white p-5 dark:border-white/[0.06] dark:bg-[#1A1A1D]">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-white/[0.4]">Build contract</p>
-                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-[1rem] bg-[#faf8f4] p-4 dark:bg-[#0C0C0E]">
-                              <p className="text-2xl font-black text-slate-900 dark:text-white/[0.9]">{draftPlan.plan.routes.length}</p>
-                              <p className="text-xs uppercase tracking-[0.16em] text-slate-400 dark:text-white/[0.4]">Routes</p>
-                            </div>
-                            <div className="rounded-[1rem] bg-[#faf8f4] p-4 dark:bg-[#0C0C0E]">
-                              <p className="text-2xl font-black text-slate-900 dark:text-white/[0.9]">{draftPlan.plan.acceptanceChecks.length}</p>
-                              <p className="text-xs uppercase tracking-[0.16em] text-slate-400 dark:text-white/[0.4]">Checks</p>
-                            </div>
-                          </div>
-                          <div className="mt-4 space-y-2">
-                            {draftPlan.plan.acceptanceChecks.slice(0, 5).map((check) => (
-                              <div key={check} className="flex gap-2 rounded-[1rem] bg-emerald-50 p-3 text-sm text-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-300">
-                                <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                                <span>{check}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              }
               if (tab === "code") {
-                return <EmptyTab icon="code" title="Code view" body="Inline code browsing arrives in a future release." />
-              }
-              if (tab === "files") {
-                return <EmptyTab icon="folder_open" title="Files" body="File tree and downloads are coming soon." />
-              }
-              return (
-                <div className="px-4 py-6 sm:px-6 lg:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <BuilderWorkspace
-                    project={project}
-                    planView={draftPlan}
-                    buildRuns={buildRuns}
-                    busyAction={busyAction}
-                    error={workspaceError}
-                    onApprovePlan={handleApprovePlan}
-                    onRegeneratePlan={handleRegeneratePlan}
-                    onStartBuild={handleStartBuild}
-                    onCancelBuild={handleCancelBuild}
-                    onApplyBuildEdit={handleApplyBuildEdit}
+                return (
+                  <GeneratedAppExplorer
+                    projectId={projectId}
+                    user={user}
+                    fallbackPath={latestBuild?.targetWorkspacePath || `/Users/khalidr/Desktop/Flowro-Apps/${projectId}`}
                   />
-                </div>
+                )
+              }
+
+              if (tab === "files") {
+                return <EmptyTab icon="folder_open" title="Files" body="File management is coming soon." />
+              }
+
+              return (
+                <BuilderWorkspace
+                  project={project}
+                  planView={draftPlan}
+                  buildRuns={buildRuns}
+                  busyAction={busyAction}
+                  error={workspaceError}
+                  user={user}
+                  onApprovePlan={handleApprovePlan}
+                  onRegeneratePlan={handleRegeneratePlan}
+                  onStartBuild={handleStartBuild}
+                  onCancelBuild={handleCancelBuild}
+                  onApplyBuildEdit={handleApplyBuildEdit}
+                />
               )
             }}
           />

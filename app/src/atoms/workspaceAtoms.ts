@@ -12,7 +12,7 @@ export const chatSplitAtom = atomWithStorage<number>(
 // Active workspace tab
 export const workspaceTabAtom = atomWithStorage<WorkspaceTabKey>(
   "flowro_workspace_tab",
-  "plan"
+  "preview"
 )
 
 // Current build run state — not persisted (reset on mount)

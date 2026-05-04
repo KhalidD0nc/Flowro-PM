@@ -1,27 +1,267 @@
 "use client"
 
-import { useState } from "react"
+import Image from "next/image"
+import { useEffect, useState } from "react"
+import type { User } from "firebase/auth"
 import type { BuildRun } from "@/lib/project-plan/schema"
 import type { ProjectView } from "@/lib/types/views"
-import StageCard, { type StageStatus } from "@/components/workspace/StageCard"
-import { ActionButton, StatusPill, BuildMissionControl, isBuildRunning } from "@/components/workspace/BuildMissionControl"
+import { ActionButton, isBuildRunning } from "@/components/workspace/BuildMissionControl"
+import { authPost } from "@/lib/authFetch"
 
 export type PlanView = NonNullable<ProjectView["latestPlan"]>
+
+const SHIPPER_STEPS = [
+  "Setting up environment",
+  "Loading dependencies",
+  "Configuring workspace",
+  "Building project",
+]
 
 export function EmptyTab({ icon, title, body }: { icon: string; title: string; body: string }) {
   return (
     <div className="flex h-full items-center justify-center px-6 py-12">
       <div className="max-w-sm text-center">
-        <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-white shadow-[0_18px_36px_-26px_rgba(29,41,65,0.25)] dark:bg-[#1A1A1D]">
-          <span className="material-symbols-outlined text-[26px] text-[#2f8fff]">{icon}</span>
+        <div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-[#eceae4] bg-white shadow-[0_18px_34px_-30px_rgba(17,17,17,0.25)]">
+          <span className="material-symbols-outlined text-[26px] text-[#3d3d3d]">{icon}</span>
         </div>
-        <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-white/[0.9]">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-white/[0.5]">{body}</p>
-        <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-[#fef3c7] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-          Coming soon
-        </span>
+        <h3 className="mt-4 text-lg font-semibold text-[#111111]">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-[#6b7280]">{body}</p>
       </div>
     </div>
+  )
+}
+
+function PlanApprovalView({
+  project,
+  planView,
+  busyAction,
+  onApprovePlan,
+  onRegeneratePlan,
+}: {
+  project: ProjectView
+  planView: PlanView | null
+  busyAction: string | null
+  onApprovePlan: () => void
+  onRegeneratePlan: () => void
+}) {
+  const plan = planView?.plan ?? null
+
+  return (
+    <section className="mx-auto max-w-5xl rounded-[1.65rem] border border-[#eceae4] bg-white p-6 text-[#111111] shadow-[0_28px_70px_-56px_rgba(17,17,17,0.35)]">
+      <div className="flex flex-wrap items-start justify-between gap-5">
+        <div className="max-w-3xl">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6b7280]">Project plan</p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+            {plan?.metadata.productName || project.projectName}
+          </h1>
+          <p className="mt-3 text-sm leading-7 text-[#5f5f5d]">
+            Review the plan. Approval starts building automatically.
+          </p>
+        </div>
+        <span className="rounded-full bg-[#f4f4f1] px-3 py-1.5 text-xs font-medium text-[#5f5f5d]">
+          {plan ? "Ready" : "Waiting"}
+        </span>
+      </div>
+
+      {!plan ? (
+        <div className="mt-6 rounded-2xl border border-dashed border-[#dedbd3] bg-[#fafaf8] p-6 text-sm leading-7 text-[#6b7280]">
+          Flowro is still collecting context. Answer the setup questions in chat to generate the first plan.
+        </div>
+      ) : (
+        <div className="mt-6 space-y-5">
+          <div className="rounded-2xl bg-[#f7f7f4] p-5">
+            <p className="text-base font-semibold leading-7">{plan.appSummary}</p>
+            <p className="mt-3 text-sm leading-7 text-[#5f5f5d]">{plan.problem}</p>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="rounded-2xl bg-[#f7f7f4] p-5">
+              <h2 className="text-sm font-semibold">Screens</h2>
+              <div className="mt-4 space-y-3">
+                {plan.routes.map((route) => (
+                  <div key={route.path} className="rounded-2xl bg-white px-4 py-3">
+                    <p className="text-sm font-semibold">
+                      {route.name} <span className="font-normal text-[#6b7280]">{route.path}</span>
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-[#5f5f5d]">{route.purpose}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-2xl bg-[#f7f7f4] p-5">
+              <h2 className="text-sm font-semibold">Implementation notes</h2>
+              <div className="mt-4 space-y-2">
+                {plan.uiRequirements.slice(0, 4).map((item) => (
+                  <div key={item} className="rounded-2xl bg-white px-4 py-3 text-sm leading-6 text-[#3d3d3d]">{item}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <ActionButton onClick={onApprovePlan} disabled={busyAction !== null}>
+              <span className="material-symbols-outlined text-[18px]">task_alt</span>
+              Approve and build
+            </ActionButton>
+            <ActionButton onClick={onRegeneratePlan} disabled={busyAction !== null} tone="secondary">
+              <span className="material-symbols-outlined text-[18px]">refresh</span>
+              Regenerate plan
+            </ActionButton>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function getActiveBuildStep(build: BuildRun | null) {
+  if (!build) return 0
+  const phase = build.phase || "queued"
+  if (phase === "queued" || phase === "planning") return 0
+  if (phase === "installing") return 1
+  if (phase === "generating") return 2
+  return 3
+}
+
+function BuildingView({
+  build,
+  busyAction,
+  onCancelBuild,
+  onRetryBuild,
+}: {
+  build: BuildRun | null
+  busyAction: string | null
+  onCancelBuild: () => void
+  onRetryBuild: () => void
+}) {
+  const running = isBuildRunning(build)
+  const failed = build?.status === "failed" || build?.status === "canceled"
+  const activeStep = getActiveBuildStep(build)
+  const heroImage = activeStep <= 1 ? "/puzzle.png" : "/Laptop.png"
+
+  return (
+    <section className="flex min-h-[calc(100vh-5rem)] items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+      <div className="relative flex min-h-[72vh] w-full max-w-6xl items-center justify-center overflow-hidden rounded-[1.65rem] border border-[#e7e4dc] bg-white shadow-[0_30px_80px_-60px_rgba(17,17,17,0.35)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_100%,rgba(30,154,128,0.08),transparent_26rem)]" />
+        <div className="relative flex w-full max-w-xl flex-col items-center px-6 py-12 text-center">
+          <Image
+            src={heroImage}
+            alt=""
+            width={190}
+            height={150}
+            priority
+            className="h-36 w-auto object-contain opacity-80"
+          />
+          <h1 className="mt-10 text-2xl font-semibold tracking-tight text-[#111111]">
+            {failed ? "Build needs attention" : "Building Application"}
+          </h1>
+          <p className="mt-4 max-w-xl text-base leading-7 text-[#3d3d3d]">
+            {failed
+              ? "The local build stopped before the preview was ready."
+              : "Running build commands and compiling your app. This may take a moment..."}
+          </p>
+
+          {failed ? (
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <ActionButton onClick={onRetryBuild} disabled={busyAction !== null}>
+                <span className="material-symbols-outlined text-[18px]">refresh</span>
+                Retry
+              </ActionButton>
+            </div>
+          ) : (
+            <div className="mt-10 w-full max-w-sm space-y-5 text-left">
+              {SHIPPER_STEPS.map((step, index) => {
+                const active = index === activeStep
+                const complete = index < activeStep
+                return (
+                  <div
+                    key={step}
+                    className={`flex items-center gap-5 transition duration-300 ${
+                      active ? "opacity-100" : complete ? "opacity-55" : "opacity-25"
+                    }`}
+                  >
+                    <span
+                      className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${
+                        active
+                          ? "bg-[#f4f4f1] text-[#1e9a80] shadow-[0_14px_30px_-24px_rgba(30,154,128,0.8)]"
+                          : complete
+                            ? "bg-[#e9f6f2] text-[#1e9a80]"
+                            : "bg-[#f4f4f1] text-[#6b7280]"
+                      }`}
+                    >
+                      <span className={`material-symbols-outlined text-[19px] ${active && running ? "animate-pulse" : ""}`}>
+                        {complete ? "check_circle" : index <= 1 ? "deployed_code" : "code_blocks"}
+                      </span>
+                    </span>
+                    <span className="text-base font-medium text-[#3d3d3d]">{step}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {running ? (
+            <button
+              type="button"
+              onClick={onCancelBuild}
+              disabled={busyAction !== null}
+              className="mt-10 rounded-full px-4 py-2 text-sm font-medium text-[#6b7280] transition hover:bg-[#f4f4f1] hover:text-[#111111] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Stop build
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function PreviewOnly({ projectId, previewUrl, user }: { projectId: string; previewUrl: string; user: User }) {
+  const [ready, setReady] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let canceled = false
+    async function ensureRunning() {
+      try {
+        const res = await authPost(`/api/projects/${projectId}/build/relaunch`, user, {})
+        if (!res.ok) {
+          const data = await res.json()
+          if (!canceled) setError(data.error || "Failed to start preview server")
+          return
+        }
+        if (!canceled) setReady(true)
+      } catch {
+        if (!canceled) setError("Could not reach preview server")
+      }
+    }
+    void ensureRunning()
+    return () => { canceled = true }
+  }, [projectId, user])
+
+  if (error) {
+    return (
+      <div className="flex h-full min-h-screen items-center justify-center">
+        <p className="text-sm text-[#6b7280]">{error}</p>
+      </div>
+    )
+  }
+
+  if (!ready) {
+    return (
+      <div className="flex h-full min-h-screen items-center justify-center">
+        <p className="text-sm text-[#6b7280]">Starting preview…</p>
+      </div>
+    )
+  }
+
+  return (
+    <iframe
+      src={previewUrl}
+      title="Generated app preview"
+      className="h-full min-h-screen w-full border-0 bg-white"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+    />
   )
 }
 
@@ -31,266 +271,63 @@ export function BuilderWorkspace({
   buildRuns,
   busyAction,
   error,
+  user,
   onApprovePlan,
   onRegeneratePlan,
   onStartBuild,
   onCancelBuild,
-  onApplyBuildEdit,
 }: {
   project: ProjectView
   planView: PlanView | null
   buildRuns: BuildRun[]
   busyAction: string | null
   error: string | null
+  user: User
   onApprovePlan: () => void
   onRegeneratePlan: () => void
   onStartBuild: () => void
   onCancelBuild: () => void
   onApplyBuildEdit: (instruction: string) => void
 }) {
-  const [editInstruction, setEditInstruction] = useState("")
-  const plan = planView?.plan ?? null
   const approvedPlan = planView?.status === "approved"
   const latestBuild = buildRuns[0] ?? null
-  const planStatus: StageStatus = approvedPlan ? "complete" : plan ? "active" : "active"
-  const contractStatus: StageStatus = !approvedPlan ? "locked" : "complete"
-  const buildStatus: StageStatus = !approvedPlan ? "locked" : latestBuild?.status === "success" ? "complete" : latestBuild ? "active" : "active"
+
+  if (!approvedPlan) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 pb-24 pt-8 sm:px-6 lg:px-8">
+        {error ? (
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error}
+          </div>
+        ) : null}
+        <PlanApprovalView
+          project={project}
+          planView={planView}
+          busyAction={busyAction}
+          onApprovePlan={onApprovePlan}
+          onRegeneratePlan={onRegeneratePlan}
+        />
+      </div>
+    )
+  }
+
+  if (latestBuild?.previewAvailable && latestBuild.previewUrl) {
+    return <PreviewOnly projectId={project.id} previewUrl={latestBuild.previewUrl} user={user} />
+  }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-32">
-      <section className="rounded-[2rem] border border-[#e4ddd4] bg-[#111827] p-6 text-white shadow-[0_32px_80px_-42px_rgba(17,24,39,0.65)] dark:border-white/[0.06] dark:bg-[#141416]">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-blue-200/70 dark:text-[#5B8DEF]/70">Plan-to-app pipeline</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight dark:text-white/[0.9]">{plan?.metadata.productName || project.projectName}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 dark:text-white/[0.6]">
-              Approve the product plan to create a build contract, then start the local worker. UI direction, security rules, and acceptance checks move with the contract.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <StatusPill active={Boolean(plan)} label="Plan" />
-            <StatusPill active={approvedPlan} label="Approved" />
-            <StatusPill active={approvedPlan} label="Contract" />
-            <StatusPill active={Boolean(latestBuild)} label="Build" />
-          </div>
-        </div>
-      </section>
-
+    <>
       {error ? (
-        <div className="rounded-[1.5rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-900/10 dark:text-red-400">
+        <div className="mx-4 mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 sm:mx-6 lg:mx-8">
           {error}
         </div>
       ) : null}
-
-      <StageCard
-        step={1}
-        title="Project Plan"
-        description="Approve your project plan to unlock the internal build contract."
-        status={planStatus}
-        autoExpanded={!approvedPlan}
-        statusLabel={approvedPlan ? "Approved" : plan ? "Draft ready" : "Awaiting context"}
-      >
-        {!plan ? (
-          <div className="rounded-[1.5rem] border border-dashed border-[#d9d1c6] bg-[#faf8f4] p-6 text-sm leading-7 text-slate-600 dark:border-white/[0.06] dark:bg-[#1A1A1D] dark:text-white/[0.6]">
-            Flowro is still collecting the initial context. Answer the setup questions in chat to generate the first project plan.
-          </div>
-        ) : (
-          <div className="space-y-5">
-            <div className="grid gap-4 lg:grid-cols-3">
-              <div className="lg:col-span-2 rounded-[1.5rem] border border-[#ebe4db] bg-[#fcfaf7] p-5 dark:border-white/[0.06] dark:bg-[#1A1A1D]">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white/[0.9]">{plan.appSummary}</p>
-                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-white/[0.6]">{plan.problem}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-[#d8e7fb] bg-[#f8fbff] p-5 dark:border-[#5B8DEF]/15 dark:bg-[#5B8DEF]/5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-white/[0.4]">Template</p>
-                <p className="mt-2 text-base font-semibold text-slate-900 dark:text-white/[0.9]">{plan.templateId}</p>
-                <p className="mt-2 text-sm text-slate-500 dark:text-white/[0.5]">Template-first generation; the AI cannot invent the base stack.</p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-2">
-              <div className="rounded-[1.5rem] border border-[#ebe4db] bg-white p-5 dark:border-white/[0.06] dark:bg-[#141416]">
-                <h3 className="font-semibold text-slate-900 dark:text-white/[0.9]">Routes <span className="text-xs font-normal text-slate-400 dark:text-white/[0.4]">({plan.routes.length} planned)</span></h3>
-                <div className="mt-4 space-y-3">
-                  {plan.routes.map((route) => (
-                    <div key={route.path} className="rounded-[1rem] bg-[#faf8f4] p-4 dark:bg-[#1A1A1D]">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white/[0.9]">{route.name} <span className="text-slate-400 dark:text-white/[0.4]">{route.path}</span></p>
-                      <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-white/[0.6]">{route.purpose}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-[1.5rem] border border-[#ebe4db] bg-white p-5 dark:border-white/[0.06] dark:bg-[#141416]">
-                <h3 className="font-semibold text-slate-900 dark:text-white/[0.9]">Build Tasks</h3>
-                <div className="mt-4 space-y-3">
-                  {plan.buildTasks.map((task) => (
-                    <div key={task.id} className="rounded-[1rem] bg-[#faf8f4] p-4 dark:bg-[#1A1A1D]">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white/[0.9]">{task.id}: {task.title}</p>
-                      <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-white/[0.6]">{task.description}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <ActionButton onClick={onApprovePlan} disabled={approvedPlan || busyAction !== null}>
-                <span className="material-symbols-outlined text-[18px]">task_alt</span>
-                {approvedPlan ? "Plan Approved" : "Approve Plan"}
-              </ActionButton>
-              <ActionButton onClick={onRegeneratePlan} disabled={busyAction !== null} tone="secondary">
-                <span className="material-symbols-outlined text-[18px]">refresh</span>
-                Regenerate Plan
-              </ActionButton>
-              {planView?.legacyPrd ? (
-                <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
-                  Legacy PRD transformed into a project plan
-                </span>
-              ) : null}
-            </div>
-          </div>
-        )}
-      </StageCard>
-
-      <StageCard
-        step={2}
-        title="Build Contract"
-        description="Flowro converts the approved plan into design, security, and business-logic guardrails for the coding agent."
-        status={contractStatus}
-        autoExpanded={approvedPlan && !latestBuild}
-        statusLabel={contractStatus === "locked" ? "Locked" : "Ready"}
-      >
-        {!approvedPlan || !plan ? (
-          <div className="rounded-[1.5rem] border border-dashed border-[#d9d1c6] bg-[#faf8f4] p-6 text-sm text-slate-600 dark:border-white/[0.06] dark:bg-[#1A1A1D] dark:text-white/[0.6]">
-            Approve the project plan to generate the internal build contract.
-          </div>
-        ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            <div className="rounded-[1.5rem] border border-[#d8e7fb] bg-[#f8fbff] p-5 dark:border-[#5B8DEF]/15 dark:bg-[#5B8DEF]/5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-white/[0.4]">Design guardrails</p>
-              <div className="mt-4 space-y-2">
-                {plan.uiRequirements.slice(0, 5).map((item) => (
-                  <div key={item} className="rounded-[1rem] bg-white px-4 py-3 text-sm text-slate-700 dark:bg-[#0C0C0E] dark:text-white/[0.7]">{item}</div>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-[1.5rem] border border-[#ebe4db] bg-white p-5 dark:border-white/[0.06] dark:bg-[#141416]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-white/[0.4]">Agent guardrails</p>
-              <div className="mt-4 grid gap-3">
-                {["Use template components first", "Keep secrets out of client code", "Use local mock data unless integrations are approved", "Verify acceptance checks after build"].map((item) => (
-                  <div key={item} className="flex gap-3 rounded-[1rem] bg-[#faf8f4] p-4 text-sm text-slate-700 dark:bg-[#1A1A1D] dark:text-white/[0.7]">
-                    <span className="material-symbols-outlined mt-0.5 text-[18px] text-[#2f8fff] dark:text-[#5B8DEF]">verified</span>
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </StageCard>
-
-      <StageCard
-        step={3}
-        title="Local Build Worker"
-        description="Run a local build and preview the generated app."
-        status={buildStatus}
-        autoExpanded={Boolean(approvedPlan && (!latestBuild || isBuildRunning(latestBuild)))}
-        statusLabel={buildStatus === "locked" ? "Locked" : latestBuild?.status === "success" ? "Built" : latestBuild ? latestBuild.status : "Ready"}
-      >
-        {!approvedPlan ? (
-          <div className="rounded-[1.5rem] border border-dashed border-[#d9d1c6] bg-[#faf8f4] p-6 text-sm text-slate-600 dark:border-white/[0.06] dark:bg-[#1A1A1D] dark:text-white/[0.6]">
-            Approve the project plan before starting the build worker.
-          </div>
-        ) : (
-          <div className="space-y-5">
-            {!isBuildRunning(latestBuild) && latestBuild?.status !== "failed" && latestBuild?.status !== "canceled" ? (
-              <ActionButton onClick={onStartBuild} disabled={busyAction !== null}>
-                <span className="material-symbols-outlined text-[18px]">terminal</span>
-                Start Build
-              </ActionButton>
-            ) : null}
-
-            {latestBuild ? (
-              <div className="space-y-4">
-                <BuildMissionControl
-                  build={latestBuild}
-                  busyAction={busyAction}
-                  onCancelBuild={onCancelBuild}
-                  onRetryBuild={onStartBuild}
-                />
-
-                {latestBuild.previewAvailable && latestBuild.previewUrl && (
-                  <div className="space-y-4">
-                    <form
-                      onSubmit={(event) => {
-                        event.preventDefault()
-                        const trimmed = editInstruction.trim()
-                        if (!trimmed) return
-                        onApplyBuildEdit(trimmed)
-                        setEditInstruction("")
-                      }}
-                      className="rounded-[1.5rem] border border-[#d8e7fb] bg-[#f8fbff] p-4 dark:border-[#5B8DEF]/15 dark:bg-[#5B8DEF]/5"
-                    >
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                        <div className="min-w-0 flex-1">
-                          <label htmlFor="targeted-build-edit" className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-white/[0.4]">
-                            Targeted preview edit
-                          </label>
-                          <input
-                            id="targeted-build-edit"
-                            value={editInstruction}
-                            onChange={(event) => setEditInstruction(event.target.value)}
-                            disabled={busyAction !== null || isBuildRunning(latestBuild)}
-                            placeholder="Example: change the dashboard title to Team Command Center"
-                            className="mt-2 w-full rounded-2xl border border-[#d7e4f8] bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#2f8fff] focus:ring-4 focus:ring-[#2f8fff]/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[0.06] dark:bg-[#0C0C0E] dark:text-white/[0.9] dark:placeholder:text-white/[0.4] dark:focus:border-[#5B8DEF] dark:focus:ring-[#5B8DEF]/10"
-                          />
-                        </div>
-                        <ActionButton disabled={busyAction !== null || isBuildRunning(latestBuild) || !editInstruction.trim()} onClick={() => {
-                          const trimmed = editInstruction.trim()
-                          if (!trimmed) return
-                          onApplyBuildEdit(trimmed)
-                          setEditInstruction("")
-                        }}>
-                          <span className="material-symbols-outlined text-[18px]">edit_note</span>
-                          Apply edit
-                        </ActionButton>
-                      </div>
-                      <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-white/[0.5]">
-                        P0 edits modify one existing generated file at a time. New pages, dependencies, and config changes are blocked.
-                      </p>
-                    </form>
-
-                    <div className="overflow-hidden rounded-[1.5rem] border border-[#d8e7fb] bg-white dark:border-white/[0.06] dark:bg-[#141416]">
-                      <div className="flex items-center justify-between border-b border-[#e4ddd4] bg-[#faf8f4] px-5 py-3 dark:border-white/[0.06] dark:bg-[#1A1A1D]">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-white/[0.4]">Live Preview</p>
-                        <a
-                          href={latestBuild.previewUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-bold uppercase tracking-[0.16em] text-[#2f8fff] hover:underline dark:text-[#5B8DEF]"
-                        >
-                          Open tab
-                        </a>
-                        <span className="inline-flex h-2 w-2 rounded-full bg-green-500" />
-                      </div>
-                      <iframe
-                        src={latestBuild.previewUrl}
-                        title="Generated app preview"
-                        className="h-[500px] w-full border-0"
-                        sandbox="allow-scripts allow-same-origin allow-forms"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-[#d9d1c6] bg-[#faf8f4] p-6 text-sm text-slate-600 dark:border-white/[0.06] dark:bg-[#1A1A1D] dark:text-white/[0.6]">
-                No build run yet. The first run creates generated app files from the approved build contract.
-              </div>
-            )}
-          </div>
-        )}
-      </StageCard>
-    </div>
+      <BuildingView
+        build={latestBuild}
+        busyAction={busyAction}
+        onCancelBuild={onCancelBuild}
+        onRetryBuild={onStartBuild}
+      />
+    </>
   )
 }
