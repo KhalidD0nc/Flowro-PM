@@ -8,7 +8,7 @@ import {
     setProjectStage,
 } from "@/lib/firebase/collections"
 import { timestampToISO } from "@/lib/firebase/schema"
-import { buildStage3Prompt, type Stage3BuildJob } from "@/lib/build-worker/agentPrompt"
+import { buildPrompt, type BuildJob } from "@/lib/build-worker/agentPrompt"
 import { executeBuildRun } from "@/lib/build-worker/executor"
 import { getBuildStartPlanError } from "@/lib/build-worker/startGuard"
 import { createBuildContract, getTemplateManifest } from "@/lib/project-plan/schema"
@@ -56,7 +56,7 @@ export async function POST(
 
         mkdirSync(targetWorkspacePath, { recursive: true })
 
-        const promptSnapshot = buildStage3Prompt({
+        const promptSnapshot = buildPrompt({
             projectId,
             projectPlan: buildPlan,
             buildContract,
@@ -99,9 +99,14 @@ export async function POST(
         })
 
         // Infer design archetype from project description for quick-win theming
-        const planText = JSON.stringify(buildPlan).toLowerCase()
-        let designArchetype: Stage3BuildJob["designArchetype"] = "saas"
-        if (planText.includes("portfolio") || planText.includes("blog") || planText.includes("creative") || planText.includes("editorial")) {
+        const planRaw = JSON.stringify(buildPlan)
+        const planText = planRaw.toLowerCase()
+        let designArchetype: BuildJob["designArchetype"] = "saas"
+        const hasArabicChars = /[؀-ۿ]/.test(planRaw)
+        const hasArabicKeyword = planText.includes("arabic") || planText.includes("in arabic") || planText.includes("make it arabic") || planRaw.includes("عربي") || planRaw.includes("بالعربي") || planRaw.includes("باللغة العربية")
+        if (hasArabicChars || hasArabicKeyword) {
+            designArchetype = "arabic"
+        } else if (planText.includes("portfolio") || planText.includes("blog") || planText.includes("creative") || planText.includes("editorial")) {
             designArchetype = "editorial"
         } else if (planText.includes("dark") || planText.includes("night") || planText.includes("crypto") || planText.includes("gaming")) {
             designArchetype = "darkmode"
@@ -112,7 +117,7 @@ export async function POST(
         }
 
         // Fire build execution in the background so the HTTP response returns immediately
-        const job: Stage3BuildJob = {
+        const job: BuildJob = {
             projectId,
             projectPlan: buildPlan,
             buildContract,

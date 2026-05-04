@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { readdir, stat } from "fs/promises"
+import { readFile, readdir, stat } from "fs/promises"
 import { homedir } from "os"
 import path from "path"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "@/app/api/blueprints/auth"
@@ -9,6 +9,22 @@ const GENERATED_APPS_BASE = process.env.FLOWRO_GENERATED_APPS_PATH || path.join(
 const IGNORED_NAMES = new Set([".git", ".next", ".turbo", "dist", "node_modules"])
 const MAX_DEPTH = 5
 const MAX_ENTRIES = 700
+const MAX_FILE_BYTES = 250_000
+const READABLE_EXTENSIONS = new Set([
+  ".css",
+  ".html",
+  ".js",
+  ".json",
+  ".jsx",
+  ".md",
+  ".mjs",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".vue",
+  ".yml",
+  ".yaml",
+])
 
 type FileEntry = {
   name: string
@@ -25,6 +41,23 @@ async function verifyOwnership(projectId: string, userId: string): Promise<void>
 
 function getWorkspacePath(projectId: string) {
   return path.join(GENERATED_APPS_BASE, projectId)
+}
+
+function getSafeFilePath(rootPath: string, requestedPath: string) {
+  const normalized = path.normalize(requestedPath).replace(/^(\.\.(\/|\\|$))+/, "")
+  const absolutePath = path.resolve(rootPath, normalized)
+  const relativePath = path.relative(rootPath, absolutePath)
+
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+    throw new Error("Invalid file path")
+  }
+
+  const segments = relativePath.split(path.sep)
+  if (segments.some((segment) => IGNORED_NAMES.has(segment))) {
+    throw new Error("File is not readable")
+  }
+
+  return { absolutePath, relativePath }
 }
 
 async function listEntries(rootPath: string, currentPath: string, depth: number, counter: { count: number }): Promise<FileEntry[]> {
@@ -82,6 +115,34 @@ export async function GET(
     const workspaceStats = await stat(workspacePath)
     if (!workspaceStats.isDirectory()) {
       return NextResponse.json({ error: "Generated app folder is not available yet" }, { status: 404 })
+    }
+
+    const requestedFile = request.nextUrl.searchParams.get("path")
+    if (requestedFile) {
+      const { absolutePath, relativePath } = getSafeFilePath(workspacePath, requestedFile)
+      const fileStats = await stat(absolutePath)
+      if (!fileStats.isFile()) {
+        return NextResponse.json({ error: "Requested path is not a file" }, { status: 400 })
+      }
+      if (fileStats.size > MAX_FILE_BYTES) {
+        return NextResponse.json({ error: "File is too large to preview" }, { status: 413 })
+      }
+
+      const extension = path.extname(absolutePath).toLowerCase()
+      if (extension && !READABLE_EXTENSIONS.has(extension)) {
+        return NextResponse.json({ error: "File type is not supported for preview" }, { status: 415 })
+      }
+
+      const content = await readFile(absolutePath, "utf8")
+      return NextResponse.json({
+        workspacePath,
+        file: {
+          name: path.basename(absolutePath),
+          path: relativePath,
+          content,
+          size: fileStats.size,
+        },
+      })
     }
 
     const entries = await listEntries(workspacePath, workspacePath, 0, { count: 0 })

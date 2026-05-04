@@ -9,7 +9,7 @@ import {
     buildRepairPrompt,
     type BuildManifest,
     type BuildManifestFile,
-    type Stage3BuildJob,
+    type BuildJob,
 } from "./agentPrompt"
 import { generateBuildCompletionWithFallback, generateBuildCompletionWithModel } from "./openrouter-build"
 import { buildFallbackFiles } from "./fallback"
@@ -148,7 +148,7 @@ export function parseBundledFiles(response: string, editablePaths: string[]): Re
 export async function executeBuildRun(
     projectId: string,
     runId: string,
-    job: Stage3BuildJob
+    job: BuildJob
 ): Promise<void> {
     const logs: string[] = []
     const steps: string[] = []
@@ -397,7 +397,7 @@ export async function executeBuildRun(
             const currentApp = await fsp.readFile(appTsxPath, "utf-8")
             if (
                 currentApp.includes("Generated app ready") ||
-                currentApp.includes("Stage 3 worker will replace")
+                currentApp.includes("Stage 2 worker will replace")
             ) {
                 await appendLog("Detected placeholder App.tsx after generation; overwriting from deterministic fallback")
                 const fb = buildFallbackFiles(job)
@@ -613,7 +613,7 @@ function mergeRequiredCoreFiles(files: BuildManifestFile[]): BuildManifestFile[]
 }
 
 async function createBuildManifest(
-    job: Stage3BuildJob,
+    job: BuildJob,
     signal: AbortSignal,
     appendLog: (line: string) => Promise<void>,
 ): Promise<BuildManifest> {
@@ -668,7 +668,7 @@ function createDeterministicManifest(): BuildManifest {
  * Used as a fallback when bundled generation fails.
  */
 async function generateFilesIndividually(
-    job: Stage3BuildJob,
+    job: BuildJob,
     manifest: BuildManifest,
     appendLog: (line: string) => Promise<void>,
     signal: AbortSignal,

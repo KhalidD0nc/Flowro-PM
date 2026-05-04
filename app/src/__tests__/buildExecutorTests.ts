@@ -12,7 +12,7 @@ import { buildWorkspaceManifest } from "../lib/build-worker/manifest"
 import { executeEditSearch, selectTargetFiles, type EditSearchPlan } from "../lib/build-worker/editSearch"
 import { filterFilesToTargetSet } from "../lib/build-worker/editExecutor"
 import { createBuildContract, getTemplateManifest } from "../lib/project-plan/schema"
-import type { Stage3BuildJob } from "../lib/build-worker/agentPrompt"
+import type { BuildJob } from "../lib/build-worker/agentPrompt"
 import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
@@ -38,7 +38,7 @@ const projectPlan = {
     risks: [],
 }
 
-const baseJob: Stage3BuildJob = {
+const baseJob: BuildJob = {
     projectId: "project-1",
     projectPlan,
     buildContract: createBuildContract("project-1", projectPlan, templateManifest),

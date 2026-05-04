@@ -136,13 +136,12 @@ function StreamingMessage({ rawContent, isStreaming }: { rawContent: string; isS
   });
 
   return (
-    <div className="flex max-w-2xl flex-col gap-2 animate-slide-in-left">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Flowro AI</span>
-      <div className="ai-message-bubble rounded-[1.15rem] p-4">
-        <p className="whitespace-pre-wrap text-sm leading-7 text-slate-200">
+    <div className="flex max-w-[44rem] flex-col gap-2 animate-slide-in-left">
+      <div className="lovable-message">
+        <p dir="auto" className="flowro-bidi-text whitespace-pre-wrap text-[15px] leading-7 text-[#d6d6d3]">
           {displayedText ? <span className="streaming-text">{displayedText}</span> : null}
           {(isTyping || (isStreaming && !displayedText)) ? (
-            <span className="typing-cursor ml-0.5 inline-block h-[1.1em] w-0.5 bg-[#2f8fff] align-middle" />
+            <span className="typing-cursor ml-0.5 inline-block h-[1.1em] w-0.5 bg-[#9a9a96] align-middle" />
           ) : null}
         </p>
       </div>
@@ -163,10 +162,19 @@ export default function MessageList({
   onQuickAction,
 }: MessageListProps) {
   const currentPrdHash = currentPrd ? hashPrdConfig(currentPrd) : null;
+  const firstTimestamp = messages[0]?.timestamp;
+  const dateLabel = firstTimestamp
+    ? new Date(firstTimestamp).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : null;
 
   return (
-    <main className="flex-1 overflow-y-auto bg-transparent px-4 py-5 md:px-6 lg:px-7 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div className="mx-auto flex max-w-3xl flex-col gap-5 pb-8">
+    <main className="flex-1 overflow-y-auto bg-[#191919] px-5 py-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mx-auto flex max-w-[46rem] flex-col gap-5 pb-8">
+        {dateLabel ? (
+          <div className="flex justify-center py-8">
+            <span className="text-sm font-medium text-[#a5a5a2]">{dateLabel}</span>
+          </div>
+        ) : null}
         {messages.map((msg, index) => {
           const isUser = msg.role === "user";
           const displayInfo = isUser
@@ -175,30 +183,29 @@ export default function MessageList({
 
           if (isUser) {
             return (
-              <div key={index} className="flex flex-col items-end gap-2">
-                <div className="max-w-xl rounded-[1.15rem] rounded-tr-sm border border-[#2f8fff]/25 bg-[#172238] p-4 text-left text-sm text-slate-100 shadow-[0_20px_44px_-34px_rgba(47,143,255,0.7)]">
+              <div key={index} className="flex animate-slide-in-right flex-col items-end gap-2">
+                <div className="w-fit max-w-[calc(100vw-3rem)] rounded-[1.15rem] rounded-tr-md bg-[#2a2a29] px-5 py-3 text-start text-[15px] text-[#d8d8d5] shadow-[0_18px_34px_-30px_rgba(0,0,0,0.9)] sm:max-w-[42rem]">
                   {msg.proposedChanges ? (
-                    <div className="mb-3 flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs">
-                      <div className="flex size-7 items-center justify-center rounded-lg bg-[#2f8fff]/15 text-[#78b7ff]">
+                    <div className="mb-3 flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs">
+                      <div className="flex size-7 items-center justify-center rounded-lg bg-white/[0.06] text-[#d8d8d5]">
                         <span className="material-symbols-outlined text-[14px]">auto_fix</span>
                       </div>
                       <div>
-                        <p className="font-semibold uppercase tracking-[0.14em] text-slate-500">AI enhancement</p>
-                        <p className="mt-0.5 text-slate-300">Applied to {msg.proposedChanges.sections[0]}</p>
+                        <p className="font-semibold uppercase tracking-[0.14em] text-[#888884]">AI enhancement</p>
+                        <p className="mt-0.5 text-[#d8d8d5]">Applied to {msg.proposedChanges.sections[0]}</p>
                       </div>
                     </div>
                   ) : null}
-                  <p className="whitespace-pre-wrap leading-7">{displayInfo.text}</p>
+                  <p dir="auto" className="flowro-bidi-text whitespace-pre-wrap break-words leading-7">{displayInfo.text}</p>
                 </div>
               </div>
             );
           }
 
           return (
-            <div key={index} className="flex max-w-2xl flex-col gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Flowro AI</span>
-              <div className="ai-message-bubble rounded-[1.15rem] p-4">
-                <p className="mb-2 whitespace-pre-wrap text-sm leading-7 text-slate-200">{displayInfo.text}</p>
+            <div key={index} className="flex max-w-[44rem] flex-col gap-2">
+              <div className="lovable-message">
+                <p dir="auto" className="flowro-bidi-text mb-2 whitespace-pre-wrap text-[15px] leading-7 text-[#d6d6d3]">{displayInfo.text}</p>
                 {displayInfo.intent === "proposal" && displayInfo.proposedChanges ? (() => {
                   const proposalState = getProposalDraftState(displayInfo.proposedChanges, currentPrd ?? null);
                   const nextPrdHash = hashPrdConfig(displayInfo.proposedChanges.nextPrdConfig);
@@ -210,14 +217,14 @@ export default function MessageList({
                         : "Ready to apply";
 
                   return (
-                    <div className="mt-4 rounded-xl border border-white/[0.08] bg-[#0b0d12] p-3">
-                    <div className="mb-2 flex items-center gap-2 text-sm text-slate-400">
+                    <div className="mt-4 rounded-[1.1rem] border border-white/[0.08] bg-[#20201f] p-4">
+                    <div className="mb-2 flex items-center gap-2 text-sm text-[#b8b8b5]">
                       <span className="material-symbols-outlined text-[14px]">edit_note</span>
                       Proposed changes
                     </div>
-                    <p className="text-sm font-medium text-slate-100">{displayInfo.proposedChanges.summary}</p>
+                    <p className="text-sm font-medium text-[#eeeeeb]">{displayInfo.proposedChanges.summary}</p>
                     {displayInfo.proposedChanges.sections.length > 0 ? (
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-[#8f8f8b]">
                         Sections: {displayInfo.proposedChanges.sections.join(", ")}
                       </p>
                     ) : null}
@@ -228,20 +235,20 @@ export default function MessageList({
                             ? "bg-emerald-400/10 text-emerald-300"
                             : proposalState === "stale"
                               ? "bg-amber-400/10 text-amber-300"
-                              : "bg-[#2f8fff]/10 text-[#78b7ff]"
+                              : "bg-[#4169ff]/15 text-[#9fb0ff]"
                         }`}
                       >
                         {stateLabel}
                       </span>
                       {currentPrdHash && proposalState !== "ready" ? (
-                        <span className="text-slate-500">
+                        <span className="text-[#8f8f8b]">
                           {proposalState === "applied"
                             ? "The draft already matches this proposal."
                             : `Current draft no longer matches base ${displayInfo.proposedChanges.basePrdHash}.`}
                         </span>
                       ) : null}
                       {proposalState === "ready" ? (
-                        <span className="text-slate-500">Candidate draft {nextPrdHash} is ready for review.</span>
+                        <span className="text-[#8f8f8b]">Candidate draft {nextPrdHash} is ready for review.</span>
                       ) : null}
                     </div>
                   </div>
@@ -251,7 +258,7 @@ export default function MessageList({
                 {displayInfo.intent === "initial" ? (
                   <button
                     onClick={onOpenBlueprint}
-                    className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#2f8fff]/25 bg-[#2f8fff]/10 px-3 py-2 text-sm font-medium text-[#78b7ff] transition hover:border-[#2f8fff]/45 hover:bg-[#2f8fff]/15"
+                    className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-[0.7rem] border border-white/[0.08] bg-[#2f2f2d] px-3 py-2 text-sm font-medium text-[#e1e1df] transition hover:border-white/[0.12] hover:bg-[#383836]"
                   >
                     <span className="material-symbols-outlined text-[16px]">open_in_new</span>
                     Open Project Plan
@@ -274,7 +281,7 @@ export default function MessageList({
                       disabled={disabled}
                       className={`mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${
                         disabled
-                          ? "cursor-not-allowed border-white/[0.08] bg-white/[0.04] text-slate-500"
+                          ? "cursor-not-allowed border-white/[0.08] bg-white/[0.04] text-[#8f8f8b]"
                           : "border-emerald-400/25 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/15"
                       }`}
                     >
@@ -297,8 +304,7 @@ export default function MessageList({
         {isStreaming && streamedContent ? <StreamingMessage rawContent={streamedContent} isStreaming={isStreaming} /> : null}
 
         {isGenerating ? (
-          <div className="flex max-w-2xl flex-col gap-2 animate-slide-in-left">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Flowro AI</span>
+          <div className="flex max-w-[44rem] flex-col gap-2 animate-slide-in-left">
           <StepCardList thinkingPhase={thinkingPhase} />
           </div>
         ) : null}
@@ -318,18 +324,18 @@ export function WelcomeScreen({ onQuickAction }: { onQuickAction: (message: stri
   ];
 
   return (
-    <main className="flex flex-1 items-center justify-center overflow-y-auto px-5 py-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <main className="flex flex-1 items-center justify-center overflow-y-auto bg-[#191919] px-5 py-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="mx-auto flex max-w-xl flex-col items-center gap-5 text-center">
-        <div className="flex size-18 items-center justify-center rounded-[1.5rem] border border-white/[0.08] bg-white/[0.05] shadow-[0_24px_42px_-30px_rgba(47,143,255,0.35)]">
+        <div className="flex size-18 items-center justify-center rounded-[1.5rem] border border-white/[0.08] bg-[#222221] shadow-[0_24px_42px_-30px_rgba(0,0,0,0.85)]">
           <Image src="/logo.png" alt="Flowro" width={40} height={40} className="h-10 w-10 object-contain" />
         </div>
 
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Start here</p>
-          <h2 className="mt-3 font-[family-name:var(--font-display)] text-3xl tracking-tight text-slate-100">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8f8f8b]">Start here</p>
+          <h2 className="mt-3 font-[family-name:var(--font-display)] text-3xl tracking-tight text-[#f1f1ee]">
             Shape the product with Flowro
           </h2>
-          <p className="mt-3 text-sm leading-7 text-slate-500">
+          <p className="mt-3 text-sm leading-7 text-[#a8a8a5]">
             Use the chat to turn a rough idea into an approved project plan, UI direction, and build-ready task list.
           </p>
         </div>
@@ -339,9 +345,9 @@ export function WelcomeScreen({ onQuickAction }: { onQuickAction: (message: stri
             <button
               key={action.text}
               onClick={() => onQuickAction(action.query)}
-              className="group flex items-center justify-center gap-2 rounded-[1rem] border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm font-medium text-slate-300 shadow-[0_18px_32px_-30px_rgba(0,0,0,0.75)] transition hover:border-[#2f8fff]/35 hover:bg-[#2f8fff]/10 hover:text-white"
+              className="group flex min-h-11 items-center justify-center gap-2 rounded-[0.8rem] border border-white/[0.08] bg-[#252524] px-4 py-3 text-sm font-medium text-[#d6d6d3] shadow-[0_18px_32px_-30px_rgba(0,0,0,0.75)] transition hover:border-white/[0.14] hover:bg-[#30302e] hover:text-white"
             >
-              <span className="material-symbols-outlined text-[18px] text-slate-500 transition group-hover:text-[#78b7ff]">
+              <span className="material-symbols-outlined text-[18px] text-[#8f8f8b] transition group-hover:text-[#eeeeeb]">
                 {action.icon}
               </span>
               {action.text}

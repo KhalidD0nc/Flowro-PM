@@ -111,7 +111,8 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
             onBlur={() => setIsFocused(false)}
             onKeyDown={handleKeyDown}
             disabled={isSubmitting}
-            className="min-h-[72px] max-h-[200px] w-full resize-none border-0 bg-transparent px-5 py-4 text-lg leading-relaxed text-slate-900 placeholder:text-slate-400 focus:ring-0 focus:outline-none disabled:opacity-50"
+            dir="auto"
+            className="flowro-bidi-text min-h-[72px] max-h-[200px] w-full resize-none border-0 bg-transparent px-5 py-4 text-lg leading-relaxed text-slate-900 placeholder:text-slate-400 focus:ring-0 focus:outline-none disabled:opacity-50"
             placeholder={placeholder}
             rows={2}
           />

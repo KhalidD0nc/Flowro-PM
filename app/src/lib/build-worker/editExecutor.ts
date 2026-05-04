@@ -2,7 +2,7 @@ import { promises as fsp } from "fs"
 import path from "path"
 import { getBuildRun, setProjectStage, updateBuildRun } from "@/lib/firebase/collections"
 import type { BuildPhase, BuildRun } from "@/lib/project-plan/schema"
-import type { Stage3BuildJob } from "./agentPrompt"
+import type { BuildJob } from "./agentPrompt"
 import { parseBundledFiles, extractJsonFromResponse, isEditablePath } from "./executor"
 import { readRepairContextFiles, runCommand, startDevServer, isServerReady, writeWorkspaceFile, type CommandResult } from "./fs"
 import { buildWorkspaceManifest } from "./manifest"
@@ -52,7 +52,7 @@ export function filterFilesToTargetSet(
 export async function executeEditRun(
     projectId: string,
     runId: string,
-    job: Stage3BuildJob,
+    job: BuildJob,
     instruction: string,
 ): Promise<void> {
     const logs: string[] = []

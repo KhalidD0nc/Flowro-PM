@@ -15,7 +15,7 @@ import { timestampToISO } from "@/lib/firebase/schema"
 import { executeEditRun } from "@/lib/build-worker/editExecutor"
 import { getBuildStartPlanError } from "@/lib/build-worker/startGuard"
 import { createBuildContract, getTemplateManifest } from "@/lib/project-plan/schema"
-import { buildStage3Prompt } from "@/lib/build-worker/agentPrompt"
+import { buildPrompt, type BuildJob } from "@/lib/build-worker/agentPrompt"
 
 const BUILD_MODEL = process.env.OPENROUTER_MODEL_BUILD || "moonshotai/kimi-k2.6"
 const GENERATED_APPS_BASE = process.env.FLOWRO_GENERATED_APPS_PATH || path.join(homedir(), "Desktop", "Flowro-Apps")
@@ -68,7 +68,26 @@ export async function POST(
         const targetWorkspacePath = getTargetWorkspacePath(projectId)
         mkdirSync(targetWorkspacePath, { recursive: true })
 
-        const promptSnapshot = buildStage3Prompt({
+        // Detect Arabic from the edit instruction or the existing plan
+        const planRaw = JSON.stringify(buildPlan)
+        const planText = planRaw.toLowerCase()
+        const instructionLower = instruction.toLowerCase()
+        let designArchetype: BuildJob["designArchetype"] = "saas"
+        const hasArabicChars = /[؀-ۿ]/.test(planRaw) || /[؀-ۿ]/.test(instruction)
+        const hasArabicKeyword = instructionLower.includes("arabic") || instructionLower.includes("in arabic") || instructionLower.includes("make it arabic") || instruction.includes("عربي") || instruction.includes("بالعربي") || planText.includes("arabic") || planRaw.includes("عربي")
+        if (hasArabicChars || hasArabicKeyword) {
+            designArchetype = "arabic"
+        } else if (planText.includes("portfolio") || planText.includes("blog") || planText.includes("creative") || planText.includes("editorial")) {
+            designArchetype = "editorial"
+        } else if (planText.includes("dark") || planText.includes("night") || planText.includes("crypto") || planText.includes("gaming")) {
+            designArchetype = "darkmode"
+        } else if (planText.includes("playful") || planText.includes("fun") || planText.includes("kids") || planText.includes("community")) {
+            designArchetype = "playful"
+        } else if (planText.includes("minimal") || planText.includes("swiss") || planText.includes("luxury")) {
+            designArchetype = "minimal"
+        }
+
+        const promptSnapshot = buildPrompt({
             projectId,
             projectPlan: buildPlan,
             buildContract,
@@ -76,6 +95,7 @@ export async function POST(
             targetWorkspacePath,
             editablePaths: templateManifest.editablePaths,
             commands: templateManifest.scripts,
+            designArchetype,
         })
 
         await setProjectStage(projectId, "coding")
@@ -117,6 +137,7 @@ export async function POST(
             targetWorkspacePath,
             editablePaths: templateManifest.editablePaths,
             commands: templateManifest.scripts,
+            designArchetype,
         }
 
         Promise.resolve().then(() =>

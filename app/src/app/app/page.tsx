@@ -144,12 +144,13 @@ function AppHomeContent() {
 
   return (
     <div className="premium-bg flex h-screen w-full flex-row overflow-hidden font-sans text-slate-900 selection:bg-blue-200 selection:text-slate-900">
-      {/* Sidebar Navigation - Always visible */}
-      <Sidebar
-        onProjectSelect={handleProjectSelect}
-        onNewChat={handleNewChat}
-        activeProjectId={activeSession?.projectId || null}
-      />
+      {!activeSession ? (
+        <Sidebar
+          onProjectSelect={handleProjectSelect}
+          onNewChat={handleNewChat}
+          activeProjectId={null}
+        />
+      ) : null}
 
       {/* Main Content Area with seamless transitions */}
       <div className="relative flex-1 flex flex-col overflow-hidden bg-transparent">
@@ -167,6 +168,7 @@ function AppHomeContent() {
             initialMessage={activeSession.initialMessage}
             user={user}
             onBack={handleBackToCommandCenter}
+            onProjectSelect={handleProjectSelect}
             isExisting={activeSession.isExisting}
           />
         ) : (

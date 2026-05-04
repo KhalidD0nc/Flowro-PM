@@ -1,10 +1,10 @@
-import type { Stage3BuildJob } from "./agentPrompt"
+import type { BuildJob } from "./agentPrompt"
 
 function js(value: string): string {
     return JSON.stringify(value)
 }
 
-export function buildFallbackFiles(job: Stage3BuildJob): Record<string, string> {
+export function buildFallbackFiles(job: BuildJob): Record<string, string> {
     const plan = job.projectPlan
     const contract = job.buildContract
     const productName = plan.metadata.productName

@@ -41,32 +41,32 @@ export default function StepCard({
   const duration = formatDuration(durationMs);
 
   const statusStyles: Record<StepStatus, string> = {
-    pending: "border-white/[0.06] bg-white/[0.025] text-slate-500",
-    active: "border-[#2f8fff]/30 bg-[#2f8fff]/10 text-slate-100 shadow-[0_14px_34px_-28px_rgba(47,143,255,0.9)]",
-    done: "border-emerald-400/18 bg-emerald-400/[0.05] text-slate-300",
-    failed: "border-red-400/25 bg-red-400/10 text-red-300",
+    pending: "border-white/[0.08] bg-[#20201f] text-[#8f8f8f]",
+    active: "border-[#3454ff]/80 bg-[#20201f] text-[#f1f1f1] shadow-[0_0_0_1px_rgba(52,84,255,0.55),0_20px_48px_-38px_rgba(52,84,255,0.85)]",
+    done: "border-white/[0.08] bg-[#20201f] text-[#d8d8d8]",
+    failed: "border-red-400/35 bg-[#241b1b] text-red-200",
   };
 
   const iconStyles: Record<StepStatus, string> = {
-    pending: "bg-white/[0.04] text-slate-500",
-    active: "bg-[#2f8fff]/15 text-[#8fc5ff]",
-    done: "bg-emerald-400/10 text-emerald-300",
-    failed: "bg-red-400/10 text-red-300",
+    pending: "border-[#6a6a6a] bg-transparent text-transparent",
+    active: "border-[#7f7f7f] bg-transparent text-transparent",
+    done: "border-[#7f7f7f] bg-transparent text-[#d8d8d8]",
+    failed: "border-red-300 bg-red-400/10 text-red-200",
   };
 
   return (
-    <div className={`rounded-xl border transition ${statusStyles[status]}`}>
+    <div className={`overflow-hidden rounded-[1.1rem] border transition ${statusStyles[status]}`}>
       <button
         type="button"
         onClick={() => hasBody && setExpanded((v) => !v)}
         disabled={!hasBody}
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-left disabled:cursor-default"
+        className="flex w-full items-center gap-3 px-4 py-3 text-left disabled:cursor-default"
       >
         <span
-          className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${iconStyles[status]}`}
+          className={`flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${iconStyles[status]}`}
         >
           <span
-            className={`material-symbols-outlined text-[16px] ${
+            className={`material-symbols-outlined text-[13px] ${
               status === "active" ? "animate-pulse" : ""
             }`}
           >
@@ -74,17 +74,18 @@ export default function StepCard({
           </span>
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{title}</p>
+          <p className="truncate text-[15px] font-medium leading-5">{title}</p>
           {subtitle ? (
-            <p className="mt-0.5 truncate text-xs text-slate-500">{subtitle}</p>
+            <p className="mt-1 truncate text-xs text-[#8f8f8f]">{subtitle}</p>
           ) : null}
         </div>
         {duration ? (
-          <span className="shrink-0 text-[11px] font-medium text-slate-500">{duration}</span>
+          <span className="shrink-0 text-[11px] font-medium text-[#8f8f8f]">{duration}</span>
         ) : null}
+        <span className="material-symbols-outlined shrink-0 text-[18px] text-[#8f8f8f]">bookmark</span>
         {hasBody ? (
           <span
-            className={`material-symbols-outlined shrink-0 text-[18px] text-slate-500 transition ${
+            className={`material-symbols-outlined shrink-0 text-[18px] text-[#8f8f8f] transition ${
               expanded ? "rotate-180" : ""
             }`}
           >
@@ -94,14 +95,14 @@ export default function StepCard({
       </button>
 
       {expanded && hasBody ? (
-        <div className="border-t border-white/[0.06] px-3 py-3">
+        <div className="border-t border-white/[0.08] px-3 py-3">
           {details && preview ? (
-            <div className="mb-3 inline-flex rounded-full border border-white/[0.08] bg-white/[0.03] p-0.5 text-xs">
+            <div className="mb-3 grid grid-cols-2 gap-2 text-sm">
               <button
                 type="button"
                 onClick={() => setTab("details")}
-                className={`rounded-full px-3 py-1 font-medium transition ${
-                  tab === "details" ? "bg-[#2f8fff]/15 text-[#8fc5ff]" : "text-slate-500"
+                className={`min-h-11 rounded-[0.7rem] border px-3 font-medium transition ${
+                  tab === "details" ? "border-white/[0.1] bg-[#252524] text-[#e1e1df]" : "border-white/[0.08] bg-[#30302e] text-[#bcbcb9]"
                 }`}
               >
                 Details
@@ -109,15 +110,15 @@ export default function StepCard({
               <button
                 type="button"
                 onClick={() => setTab("preview")}
-                className={`rounded-full px-3 py-1 font-medium transition ${
-                  tab === "preview" ? "bg-[#2f8fff]/15 text-[#8fc5ff]" : "text-slate-500"
+                className={`min-h-11 rounded-[0.7rem] border px-3 font-medium transition ${
+                  tab === "preview" ? "border-white/[0.1] bg-[#252524] text-[#e1e1df]" : "border-white/[0.08] bg-[#30302e] text-[#bcbcb9]"
                 }`}
               >
                 Preview
               </button>
             </div>
           ) : null}
-          <div className="text-sm leading-6 text-slate-400">
+          <div className="text-sm leading-6 text-[#b8b8b5]">
             {tab === "preview" && preview ? preview : details}
           </div>
         </div>

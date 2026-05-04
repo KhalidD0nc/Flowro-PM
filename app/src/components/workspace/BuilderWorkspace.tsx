@@ -7,6 +7,7 @@ import type { BuildRun } from "@/lib/project-plan/schema"
 import type { ProjectView } from "@/lib/types/views"
 import { ActionButton, isBuildRunning } from "@/components/workspace/BuildMissionControl"
 import { authPost } from "@/lib/authFetch"
+import { normalizePreviewPath } from "@/lib/previewRoutes"
 
 export type PlanView = NonNullable<ProjectView["latestPlan"]>
 
@@ -19,13 +20,13 @@ const SHIPPER_STEPS = [
 
 export function EmptyTab({ icon, title, body }: { icon: string; title: string; body: string }) {
   return (
-    <div className="flex h-full items-center justify-center px-6 py-12">
+    <div className="flex h-full min-h-[calc(100vh-6rem)] items-center justify-center overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[#1a1a1a] px-6 py-12">
       <div className="max-w-sm text-center">
-        <div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-[#eceae4] bg-white shadow-[0_18px_34px_-30px_rgba(17,17,17,0.25)]">
-          <span className="material-symbols-outlined text-[26px] text-[#3d3d3d]">{icon}</span>
+        <div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-white/[0.08] bg-[#242424] shadow-[0_18px_34px_-30px_rgba(0,0,0,0.85)]">
+          <span className="material-symbols-outlined text-[26px] text-[#d8d8d5]">{icon}</span>
         </div>
-        <h3 className="mt-4 text-lg font-semibold text-[#111111]">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-[#6b7280]">{body}</p>
+        <h3 className="mt-4 text-lg font-semibold text-[#f0f0ed]">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-[#a8a8a5]">{body}</p>
       </div>
     </div>
   )
@@ -47,7 +48,7 @@ function PlanApprovalView({
   const plan = planView?.plan ?? null
 
   return (
-    <section className="mx-auto max-w-5xl rounded-[1.65rem] border border-[#eceae4] bg-white p-6 text-[#111111] shadow-[0_28px_70px_-56px_rgba(17,17,17,0.35)]">
+    <section className="mx-auto max-w-5xl rounded-[0.9rem] border border-[#eceae4] bg-white p-6 text-[#111111] shadow-[0_28px_70px_-56px_rgba(0,0,0,0.8)]">
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="max-w-3xl">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6b7280]">Project plan</p>
@@ -140,8 +141,8 @@ function BuildingView({
   const heroImage = activeStep <= 1 ? "/puzzle.png" : "/Laptop.png"
 
   return (
-    <section className="flex min-h-[calc(100vh-5rem)] items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
-      <div className="relative flex min-h-[72vh] w-full max-w-6xl items-center justify-center overflow-hidden rounded-[1.65rem] border border-[#e7e4dc] bg-white shadow-[0_30px_80px_-60px_rgba(17,17,17,0.35)]">
+    <section className="flex min-h-[calc(100vh-6rem)] items-center justify-center overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[#1a1a1a] p-3">
+      <div className="relative flex min-h-[72vh] w-full max-w-6xl items-center justify-center overflow-hidden rounded-[0.9rem] border border-[#e7e4dc] bg-white shadow-[0_30px_80px_-60px_rgba(0,0,0,0.85)]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_100%,rgba(30,154,128,0.08),transparent_26rem)]" />
         <div className="relative flex w-full max-w-xl flex-col items-center px-6 py-12 text-center">
           <Image
@@ -216,7 +217,30 @@ function BuildingView({
   )
 }
 
-function PreviewOnly({ projectId, previewUrl, user }: { projectId: string; previewUrl: string; user: User }) {
+function getPreviewSrc(previewUrl: string, selectedPath: string) {
+  const normalizedPath = normalizePreviewPath(selectedPath)
+
+  try {
+    const url = new URL(previewUrl)
+    url.pathname = normalizedPath
+    return url.toString()
+  } catch {
+    const normalizedBase = previewUrl.replace(/\/$/, "")
+    return `${normalizedBase}${normalizedPath}`
+  }
+}
+
+function PreviewOnly({
+  projectId,
+  previewUrl,
+  selectedPath,
+  user,
+}: {
+  projectId: string
+  previewUrl: string
+  selectedPath: string
+  user: User
+}) {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -241,27 +265,29 @@ function PreviewOnly({ projectId, previewUrl, user }: { projectId: string; previ
 
   if (error) {
     return (
-      <div className="flex h-full min-h-screen items-center justify-center">
-        <p className="text-sm text-[#6b7280]">{error}</p>
+      <div className="flex h-full min-h-[calc(100vh-6rem)] items-center justify-center rounded-[1rem] border border-white/[0.08] bg-[#1a1a1a]">
+        <p className="text-sm text-[#a8a8a5]">{error}</p>
       </div>
     )
   }
 
   if (!ready) {
     return (
-      <div className="flex h-full min-h-screen items-center justify-center">
-        <p className="text-sm text-[#6b7280]">Starting preview…</p>
+      <div className="flex h-full min-h-[calc(100vh-6rem)] items-center justify-center rounded-[1rem] border border-white/[0.08] bg-[#1a1a1a]">
+        <p className="text-sm text-[#a8a8a5]">Starting preview...</p>
       </div>
     )
   }
 
   return (
-    <iframe
-      src={previewUrl}
-      title="Generated app preview"
-      className="h-full min-h-screen w-full border-0 bg-white"
-      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-    />
+    <div className="h-full min-h-[calc(100vh-6rem)] overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[#1a1a1a] p-3 shadow-[0_26px_70px_-52px_rgba(0,0,0,0.95)]">
+      <iframe
+        src={getPreviewSrc(previewUrl, selectedPath)}
+        title="Generated app preview"
+        className="h-full min-h-[calc(100vh-7.5rem)] w-full rounded-[0.75rem] border-0 bg-white"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+      />
+    </div>
   )
 }
 
@@ -272,6 +298,7 @@ export function BuilderWorkspace({
   busyAction,
   error,
   user,
+  selectedPreviewPath = "/",
   onApprovePlan,
   onRegeneratePlan,
   onStartBuild,
@@ -283,6 +310,7 @@ export function BuilderWorkspace({
   busyAction: string | null
   error: string | null
   user: User
+  selectedPreviewPath?: string
   onApprovePlan: () => void
   onRegeneratePlan: () => void
   onStartBuild: () => void
@@ -294,31 +322,33 @@ export function BuilderWorkspace({
 
   if (!approvedPlan) {
     return (
-      <div className="mx-auto max-w-6xl px-4 pb-24 pt-8 sm:px-6 lg:px-8">
+      <div className="min-h-[calc(100vh-6rem)] overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[#1a1a1a] p-3 shadow-[0_26px_70px_-52px_rgba(0,0,0,0.95)]">
         {error ? (
-          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          <div className="mb-3 rounded-2xl border border-red-300/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">
             {error}
           </div>
         ) : null}
-        <PlanApprovalView
-          project={project}
-          planView={planView}
-          busyAction={busyAction}
-          onApprovePlan={onApprovePlan}
-          onRegeneratePlan={onRegeneratePlan}
-        />
+        <div className="min-h-[calc(100vh-7.5rem)] rounded-[0.85rem] bg-[#f7f7f4] px-4 pb-24 pt-8 sm:px-6 lg:px-8">
+          <PlanApprovalView
+            project={project}
+            planView={planView}
+            busyAction={busyAction}
+            onApprovePlan={onApprovePlan}
+            onRegeneratePlan={onRegeneratePlan}
+          />
+        </div>
       </div>
     )
   }
 
   if (latestBuild?.previewAvailable && latestBuild.previewUrl) {
-    return <PreviewOnly projectId={project.id} previewUrl={latestBuild.previewUrl} user={user} />
+    return <PreviewOnly projectId={project.id} previewUrl={latestBuild.previewUrl} selectedPath={selectedPreviewPath} user={user} />
   }
 
   return (
     <>
       {error ? (
-        <div className="mx-4 mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 sm:mx-6 lg:mx-8">
+        <div className="mb-3 rounded-2xl border border-red-300/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">
           {error}
         </div>
       ) : null}

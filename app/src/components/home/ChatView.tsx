@@ -1,9 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { useAtom } from "jotai"
-import { chatSplitAtom } from "@/atoms/workspaceAtoms"
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { User } from "firebase/auth"
 import { authGet, authPost } from "@/lib/authFetch"
 import type { BuildRun } from "@/lib/project-plan/schema"
@@ -19,7 +16,6 @@ import {
   updateClarificationCustomText,
   updateClarificationSelection,
 } from "@/lib/clarificationFlow"
-import { classifyEditIntent } from "@/lib/editIntentAnalyzer"
 import { ChatPanel } from "@/components/chat"
 import type { ChatMessage, SelectionContext } from "@/components/chat/types"
 import WorkspaceTabs, { type WorkspaceTabKey } from "@/components/workspace/WorkspaceTabs"
@@ -32,14 +28,8 @@ interface ChatViewProps {
   initialMessage: string
   user: User
   onBack: () => void
+  onProjectSelect?: (projectId: string) => void
   isExisting?: boolean
-}
-
-const MIN_CHAT_SPLIT_PERCENT = 26
-const MAX_CHAT_SPLIT_PERCENT = 48
-
-function clampChatSplit(percent: number) {
-  return Math.min(MAX_CHAT_SPLIT_PERCENT, Math.max(MIN_CHAT_SPLIT_PERCENT, percent))
 }
 
 function createTemporaryMessageId() {
@@ -57,9 +47,7 @@ function deriveSeedMessage(project: ProjectView, initialMessage: string): string
   return latestUserMessage?.content.trim() || project.description?.trim() || project.projectName.trim()
 }
 
-export default function ChatView({ projectId, initialMessage, user, onBack: _onBack }: ChatViewProps) {
-  void _onBack
-
+export default function ChatView({ projectId, initialMessage, user, onBack, onProjectSelect }: ChatViewProps) {
   const [project, setProject] = useState<ProjectView | null>(null)
   const [draftPlan, setDraftPlan] = useState<PlanView | null>(null)
   const [buildRuns, setBuildRuns] = useState<BuildRun[]>([])
@@ -67,6 +55,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
   const [busyAction, setBusyAction] = useState<string | null>(null)
   const [message, setMessage] = useState("")
+  const [composerActionMode, setComposerActionMode] = useState<"build" | "plan">("build")
   const [chatRequestState, setChatRequestState] = useState<"idle" | "submitting" | "error">("idle")
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamedContent, setStreamedContent] = useState("")
@@ -77,11 +66,9 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
   const [lastFailedSubmission, setLastFailedSubmission] = useState<string | null>(null)
   const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, ClarificationAnswerState>>({})
   const [mobilePane, setMobilePane] = useState<"chat" | "workspace">("chat")
-  const [chatSplitPercent, setChatSplitPercent] = useAtom(chatSplitAtom)
-  const [isDraggingChatSplit, setIsDraggingChatSplit] = useState(false)
+  const [selectedPreviewPath, setSelectedPreviewPath] = useState("/")
   const hasInitialized = useRef(false)
   const hasBootstrappedSeed = useRef(false)
-  const desktopWorkspaceRef = useRef<HTMLDivElement>(null)
 
   const latestClarification = project && !draftPlan ? getLatestClarificationResponse(project.chatHistory) ?? null : null
   const clarificationQuestions = !draftPlan ? latestClarification?.questions ?? null : null
@@ -94,14 +81,6 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
   const latestBuildId = latestBuild?.id
   const shouldPollBuild = isBuildRunning(latestBuild)
 
-  const updateChatSplitFromClientX = useCallback((clientX: number) => {
-    const workspace = desktopWorkspaceRef.current
-    if (!workspace) return
-    const bounds = workspace.getBoundingClientRect()
-    if (bounds.width <= 0) return
-    setChatSplitPercent(clampChatSplit(((clientX - bounds.left) / bounds.width) * 100))
-  }, [setChatSplitPercent])
-
   useEffect(() => {
     if (!clarificationQuestions?.length) {
       setClarificationAnswers({})
@@ -109,22 +88,6 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
     }
     setClarificationAnswers((current) => normalizeClarificationAnswers(clarificationQuestions, current))
   }, [clarificationQuestions])
-
-  useEffect(() => {
-    if (!isDraggingChatSplit) return
-    const handlePointerMove = (event: PointerEvent) => updateChatSplitFromClientX(event.clientX)
-    const handlePointerUp = () => setIsDraggingChatSplit(false)
-    document.body.style.cursor = "col-resize"
-    document.body.style.userSelect = "none"
-    window.addEventListener("pointermove", handlePointerMove)
-    window.addEventListener("pointerup", handlePointerUp)
-    return () => {
-      document.body.style.cursor = ""
-      document.body.style.userSelect = ""
-      window.removeEventListener("pointermove", handlePointerMove)
-      window.removeEventListener("pointerup", handlePointerUp)
-    }
-  }, [isDraggingChatSplit, updateChatSplitFromClientX])
 
   useEffect(() => {
     if (hasInitialized.current) return
@@ -201,13 +164,6 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
       window.clearInterval(interval)
     }
   }, [latestBuildId, shouldPollBuild, projectId, user])
-
-  function handleChatResizePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.pointerType === "mouse" && event.button !== 0) return
-    event.preventDefault()
-    setIsDraggingChatSplit(true)
-    updateChatSplitFromClientX(event.clientX)
-  }
 
   function handleClarificationToggle(question: ClarificationQuestion, optionId: string) {
     setClarificationAnswers((current) => ({
@@ -330,32 +286,29 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
     if (!messageToSend) return
     if (isPrePlanConversation) setClarificationAnswers({})
 
-    // After a successful build preview, classify intent to route targeted edits directly to the build worker
+    // After a successful build preview, Build mode routes changes directly to the build worker.
     const hasPreview = Boolean(latestBuild?.previewAvailable && latestBuild?.previewUrl)
-    if (hasPreview && !customMessage && !isBuildRunning(latestBuild)) {
-      const intent = classifyEditIntent(messageToSend)
-      if (intent === "targeted_edit") {
-        setMessage("")
-        setProject((prev) =>
-          prev
-            ? {
-                ...prev,
-                chatHistory: [
-                  ...prev.chatHistory,
-                  {
-                    id: createTemporaryMessageId(),
-                    role: "user" as const,
-                    content: messageToSend,
-                    intent: "discussion" as const,
-                    timestamp: new Date().toISOString(),
-                  },
-                ],
-              }
-            : prev
-        )
-        await handleApplyBuildEdit(messageToSend)
-        return
-      }
+    if (hasPreview && !customMessage && !isBuildRunning(latestBuild) && composerActionMode === "build") {
+      setMessage("")
+      setProject((prev) =>
+        prev
+          ? {
+              ...prev,
+              chatHistory: [
+                ...prev.chatHistory,
+                {
+                  id: createTemporaryMessageId(),
+                  role: "user" as const,
+                  content: messageToSend,
+                  intent: "discussion" as const,
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            }
+          : prev
+      )
+      await handleApplyBuildEdit(messageToSend)
+      return
     }
 
     await submitGenerate(messageToSend)
@@ -468,23 +421,23 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
   }
 
   return (
-    <div className="flowro-builder-shell relative flex h-full flex-1 flex-col overflow-hidden text-slate-100">
-      <div className="flex bg-[#111111]/94 p-2 backdrop-blur-xl lg:hidden">
-        <button onClick={() => setMobilePane("chat")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "chat" ? "bg-[#2f8fff] text-white shadow-[0_10px_26px_-18px_rgba(47,143,255,0.95)]" : "text-slate-400"}`}>
+    <div className="relative flex h-full flex-1 flex-col overflow-hidden bg-[#111111] text-slate-100">
+      <div className="flex border-b border-white/[0.07] bg-[#181818] p-2 backdrop-blur-xl lg:hidden">
+        <button onClick={() => setMobilePane("chat")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "chat" ? "bg-[#2f2f2d] text-white shadow-[0_10px_26px_-18px_rgba(0,0,0,0.95)]" : "text-[#8f8f8b]"}`}>
           Chat
         </button>
-        <button onClick={() => setMobilePane("workspace")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "workspace" ? "bg-[#2f8fff] text-white shadow-[0_10px_26px_-18px_rgba(47,143,255,0.95)]" : "text-slate-400"}`}>
+        <button onClick={() => setMobilePane("workspace")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "workspace" ? "bg-[#2f2f2d] text-white shadow-[0_10px_26px_-18px_rgba(0,0,0,0.95)]" : "text-[#8f8f8b]"}`}>
           Builder
         </button>
       </div>
 
-      <div ref={desktopWorkspaceRef} className="relative flex min-h-0 flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
-          className={`h-full w-full shrink-0 bg-[#111111]/82 lg:flex lg:w-[var(--chat-pane-width)] ${mobilePane === "chat" ? "flex" : "hidden"}`}
-          style={{ "--chat-pane-width": `${chatSplitPercent}%` } as CSSProperties}
+          className={`h-full w-full shrink-0 border-r border-white/[0.07] bg-[#191919] lg:flex lg:w-[39%] ${mobilePane === "chat" ? "flex" : "hidden"}`}
         >
           <ChatPanel
             project={project}
+            user={user}
             currentPrd={null}
             isGenerating={isChatSubmitting}
             isStreaming={isStreaming}
@@ -496,7 +449,11 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
             selectionContext={selectionContext}
             onMessageChange={setMessage}
             onSendMessage={() => { void handleSendMessage() }}
+            actionMode={composerActionMode}
+            onActionModeChange={setComposerActionMode}
             onOpenBlueprint={() => setMobilePane("workspace")}
+            onProjectSelect={onProjectSelect}
+            onGoHome={onBack}
             onApplyProposedChanges={() => undefined}
             onClearContext={() => setSelectionContext(null)}
             onQuickAction={(nextMessage) => { void handleSendMessage(nextMessage) }}
@@ -521,13 +478,15 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
 
         <div
           role="separator"
-          aria-label="Resize chat and builder workspace"
-          onPointerDown={handleChatResizePointerDown}
-          className="hidden w-5 shrink-0 cursor-col-resize touch-none bg-transparent lg:block"
+          aria-label="Chat and builder divider"
+          className="hidden w-px shrink-0 bg-white/[0.07] lg:block"
         />
 
-        <div className={`min-h-0 flex-1 bg-transparent ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
+        <div className={`min-h-0 flex-1 bg-[#111111] ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
           <WorkspaceTabs
+            previewRoutes={draftPlan?.plan.routes}
+            selectedPreviewPath={selectedPreviewPath}
+            onPreviewPathChange={setSelectedPreviewPath}
             renderTab={(tab: WorkspaceTabKey) => {
               if (tab === "code") {
                 return (
@@ -551,6 +510,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack: _onB
                   busyAction={busyAction}
                   error={workspaceError}
                   user={user}
+                  selectedPreviewPath={selectedPreviewPath}
                   onApprovePlan={handleApprovePlan}
                   onRegeneratePlan={handleRegeneratePlan}
                   onStartBuild={handleStartBuild}

@@ -6,7 +6,7 @@ import type { BuildRun } from "@/lib/project-plan/schema"
 // Persisted split percentage for the chat/workspace pane divider
 export const chatSplitAtom = atomWithStorage<number>(
   "flowro_builder_chat_split",
-  34
+  39
 )
 
 // Active workspace tab

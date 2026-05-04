@@ -1,10 +1,10 @@
 import {
     buildBuildManifestPrompt,
     buildBundledFileGenerationPrompt,
-    buildStage3Prompt,
+    buildPrompt,
     hasUnresolvedPlaceholders,
     type BuildManifest,
-    type Stage3BuildJob,
+    type BuildJob,
 } from "../lib/build-worker/agentPrompt"
 import { createBuildContract, getTemplateManifest } from "../lib/project-plan/schema"
 
@@ -55,7 +55,7 @@ const validPlan = {
 const templateManifest = getTemplateManifest("vite-react-app")
 const buildContract = createBuildContract("project-1", validPlan, templateManifest)
 
-const baseJob: Stage3BuildJob = {
+const baseJob: BuildJob = {
     projectId: "project-1",
     projectPlan: validPlan,
     buildContract,
@@ -76,29 +76,29 @@ const manifest: BuildManifest = {
 export function runAgentPromptTests(): Array<{ name: string; passed: boolean }> {
     return [
         {
-            name: "buildStage3Prompt replaces every placeholder",
-            passed: !hasUnresolvedPlaceholders(buildStage3Prompt(baseJob)),
+            name: "buildPrompt replaces every placeholder",
+            passed: !hasUnresolvedPlaceholders(buildPrompt(baseJob)),
         },
         {
-            name: "buildStage3Prompt includes the approved ProjectPlan JSON",
-            passed: buildStage3Prompt(baseJob).includes('"productName": "Task Orbit"'),
+            name: "buildPrompt includes the approved ProjectPlan JSON",
+            passed: buildPrompt(baseJob).includes('"productName": "Task Orbit"'),
         },
         {
-            name: "buildStage3Prompt includes the BuildContract JSON",
-            passed: buildStage3Prompt(baseJob).includes('"componentRules"') &&
-                buildStage3Prompt(baseJob).includes('"productName": "Task Orbit"'),
+            name: "buildPrompt includes the BuildContract JSON",
+            passed: buildPrompt(baseJob).includes('"componentRules"') &&
+                buildPrompt(baseJob).includes('"productName": "Task Orbit"'),
         },
         {
-            name: "buildStage3Prompt has no legacy design artifact fields",
-            passed: !new RegExp(["screenId", "htmlSnapshot", "Design" + "Artifact"].join("|"), "i").test(buildStage3Prompt(baseJob)),
+            name: "buildPrompt has no legacy design artifact fields",
+            passed: !new RegExp(["screenId", "htmlSnapshot", "Design" + "Artifact"].join("|"), "i").test(buildPrompt(baseJob)),
         },
         {
-            name: "buildStage3Prompt includes the target workspace path",
-            passed: buildStage3Prompt(baseJob).includes(baseJob.targetWorkspacePath),
+            name: "buildPrompt includes the target workspace path",
+            passed: buildPrompt(baseJob).includes(baseJob.targetWorkspacePath),
         },
         {
-            name: "buildStage3Prompt does not include any '{{' or '}}' after replacement",
-            passed: !buildStage3Prompt(baseJob).includes("{{") && !buildStage3Prompt(baseJob).includes("}}"),
+            name: "buildPrompt does not include any '{{' or '}}' after replacement",
+            passed: !buildPrompt(baseJob).includes("{{") && !buildPrompt(baseJob).includes("}}"),
         },
         {
             name: "template manifest selection rejects invented template IDs",
@@ -126,9 +126,9 @@ export function runAgentPromptTests(): Array<{ name: string; passed: boolean }> 
         },
         {
             name: "stage 3 prompts require landing route and app workspace",
-            passed: buildStage3Prompt(baseJob).includes('Route "/" is a polished product landing page') &&
-                buildStage3Prompt(baseJob).includes('route "/app" is the usable product workspace') &&
-                buildStage3Prompt(baseJob).includes('landing CTA must navigate to "/app"') &&
+            passed: buildPrompt(baseJob).includes('Route "/" is a polished product landing page') &&
+                buildPrompt(baseJob).includes('route "/app" is the usable product workspace') &&
+                buildPrompt(baseJob).includes('landing CTA must navigate to "/app"') &&
                 buildBundledFileGenerationPrompt(manifest, baseJob).includes('Route "/" MUST render a landing page') &&
                 buildBundledFileGenerationPrompt(manifest, baseJob).includes('Route "/app" MUST render the product workspace') &&
                 buildBundledFileGenerationPrompt(manifest, baseJob).includes("BrowserRouter"),

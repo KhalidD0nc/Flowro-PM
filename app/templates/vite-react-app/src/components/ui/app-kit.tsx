@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Link, type LinkProps } from "react-router-dom";
+import { Link, useNavigate, type LinkProps } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
@@ -774,3 +774,231 @@ export const staggerItem = {
   hidden: { opacity: 0, y: 12 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
 };
+
+/* ═══════════════════════════════════════════════════════════════
+   SCROLL REVEAL
+   ═══════════════════════════════════════════════════════════════ */
+
+/** Reveal — scroll-triggered entrance animation via IntersectionObserver */
+export interface RevealProps {
+  className?: string;
+  delay?: number;
+  direction?: "up" | "down" | "left" | "right" | "none";
+  duration?: number;
+  threshold?: number;
+  children?: React.ReactNode;
+}
+export const Reveal = React.forwardRef<HTMLDivElement, RevealProps>(
+  ({ className, delay = 0, direction = "up", duration = 0.55, threshold = 0.1, children }, ref) => {
+    const internalRef = React.useRef<HTMLDivElement>(null);
+    const resolvedRef = (ref as React.RefObject<HTMLDivElement>) ?? internalRef;
+    const [visible, setVisible] = React.useState(false);
+    const prefersReduced = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    React.useEffect(() => {
+      const node = resolvedRef.current;
+      if (!node) return;
+      if (prefersReduced) { setVisible(true); return; }
+      const observer = new IntersectionObserver(
+        ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
+        { threshold }
+      );
+      observer.observe(node);
+      return () => observer.disconnect();
+    }, [threshold, prefersReduced]);
+
+    const dirMap = { up: { y: 24 }, down: { y: -24 }, left: { x: 24 }, right: { x: -24 }, none: {} };
+    return (
+      <motion.div
+        ref={resolvedRef}
+        initial={{ opacity: 0, ...dirMap[direction] }}
+        animate={visible ? { opacity: 1, x: 0, y: 0 } : {}}
+        transition={{ duration, delay, ease: [0.22, 1, 0.36, 1] }}
+        className={className}
+      >
+        {children}
+      </motion.div>
+    );
+  }
+);
+Reveal.displayName = "Reveal";
+
+/* ═══════════════════════════════════════════════════════════════
+   LANDING SHELL (marketing page layout)
+   ═══════════════════════════════════════════════════════════════ */
+
+/** LandingShell — full-width marketing layout with scroll-aware transparent header */
+export interface LandingShellProps {
+  /** Brand name shown in the header */
+  brandName: string;
+  /** Nav links shown in the header */
+  navLinks?: { label: string; to: string }[];
+  /** Primary CTA button in the header */
+  ctaLabel?: string;
+  /** Route to navigate to when CTA is clicked */
+  ctaTo?: string;
+  /** Footer content slot */
+  footer?: React.ReactNode;
+  children?: React.ReactNode;
+  className?: string;
+}
+export function LandingShell({
+  brandName,
+  navLinks = [],
+  ctaLabel = "Get started",
+  ctaTo = "/app",
+  footer,
+  children,
+  className,
+}: LandingShellProps) {
+  const [scrolled, setScrolled] = React.useState(false);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    function onScroll() { setScrolled(window.scrollY > 20); }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Lock body scroll when mobile menu open
+  React.useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
+
+  return (
+    <div className={cn("min-h-screen bg-[hsl(var(--surface))]", className)}>
+      {/* ── Header ── */}
+      <header
+        className={cn(
+          "fixed inset-x-0 top-0 z-40 flex items-center justify-between px-6 h-16 transition-all duration-500",
+          scrolled
+            ? "bg-[hsl(var(--surface-elevated))]/90 backdrop-blur-md border-b border-[hsl(var(--line))] shadow-card"
+            : "bg-transparent"
+        )}
+      >
+        {/* Brand */}
+        <Link to="/" className="text-base font-bold tracking-tight text-[hsl(var(--ink))] hover:opacity-80 transition-opacity">
+          {brandName}
+        </Link>
+
+        {/* Desktop nav */}
+        <nav className="hidden md:flex items-center gap-6">
+          {navLinks.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className="link-underline text-sm font-medium text-[hsl(var(--ink-secondary))] hover:text-[hsl(var(--ink))] transition-colors"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Desktop CTA */}
+        <div className="hidden md:flex items-center gap-3">
+          <Button size="sm" onClick={() => navigate(ctaTo)}>{ctaLabel}</Button>
+        </div>
+
+        {/* Mobile hamburger */}
+        <button
+          className="md:hidden flex flex-col gap-1.5 p-2 rounded-lg hover:bg-[hsl(var(--accent-soft))] transition-colors"
+          onClick={() => setMobileOpen(!mobileOpen)}
+          aria-label="Toggle menu"
+        >
+          <span className={cn("block h-0.5 w-5 bg-[hsl(var(--ink))] transition-all duration-300", mobileOpen && "rotate-45 translate-y-2")} />
+          <span className={cn("block h-0.5 w-5 bg-[hsl(var(--ink))] transition-all duration-300", mobileOpen && "opacity-0")} />
+          <span className={cn("block h-0.5 w-5 bg-[hsl(var(--ink))] transition-all duration-300", mobileOpen && "-rotate-45 -translate-y-2")} />
+        </button>
+      </header>
+
+      {/* Mobile menu overlay */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-30 bg-[hsl(var(--surface-elevated))] flex flex-col pt-20 px-6 pb-8"
+          >
+            <nav className="flex flex-col gap-6 mt-4">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  onClick={() => setMobileOpen(false)}
+                  className="text-2xl font-semibold text-[hsl(var(--ink))]"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+            <div className="mt-auto">
+              <Button className="w-full" onClick={() => { setMobileOpen(false); navigate(ctaTo); }}>
+                {ctaLabel}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Page content */}
+      <main className="pt-16">{children}</main>
+
+      {/* Footer */}
+      {footer && (
+        <footer className="border-t border-[hsl(var(--line))] bg-[hsl(var(--surface-elevated))]">
+          {footer}
+        </footer>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SECTION HEADER (editorial section intro)
+   ═══════════════════════════════════════════════════════════════ */
+
+/** SectionHeader — eyebrow + heading + subtitle section intro pattern */
+export interface SectionHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+  eyebrow?: string;
+  heading: string;
+  subtitle?: string;
+  align?: "left" | "center";
+  serif?: boolean;
+}
+export const SectionHeader = React.forwardRef<HTMLDivElement, SectionHeaderProps>(
+  ({ className, eyebrow, heading, subtitle, align = "center", serif = false, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn(
+        "max-w-2xl",
+        align === "center" && "mx-auto text-center",
+        className
+      )}
+      {...props}
+    >
+      {eyebrow && (
+        <>
+          <span className="eyebrow">{eyebrow}</span>
+          <span className="gold-rule" />
+        </>
+      )}
+      <h2
+        className={cn(
+          "mt-3 text-3xl font-bold tracking-tight text-[hsl(var(--ink))] lg:text-4xl",
+          serif && "font-serif"
+        )}
+      >
+        {heading}
+      </h2>
+      {subtitle && (
+        <p className="mt-4 text-base leading-relaxed text-[hsl(var(--ink-muted))] lg:text-lg">
+          {subtitle}
+        </p>
+      )}
+    </div>
+  )
+);
+SectionHeader.displayName = "SectionHeader";

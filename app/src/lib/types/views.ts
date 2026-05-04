@@ -11,6 +11,7 @@
 
 import type { ClarificationQuestion, ClarificationResponse, PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
 import type { BuildRun, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
+import type { User } from "firebase/auth"
 
 // =============================================================================
 // Intent Types
@@ -183,6 +184,8 @@ export interface ChatInputProps {
     message: string
     onMessageChange: (message: string) => void
     onSend: (e: React.FormEvent) => void
+    actionMode?: "build" | "plan"
+    onActionModeChange?: (mode: "build" | "plan") => void
     isGenerating: boolean
     selectionContext: SelectionContext | null
     onClearContext: () => void
@@ -219,6 +222,7 @@ export interface MessageListProps {
  */
 export interface ChatPanelProps {
     project: ProjectView
+    user?: User
     currentPrd?: PRDConfig | null
     isGenerating: boolean
     isStreaming: boolean
@@ -230,7 +234,11 @@ export interface ChatPanelProps {
     selectionContext: SelectionContext | null
     onMessageChange: (message: string) => void
     onSendMessage: (e: React.FormEvent) => void
+    actionMode?: "build" | "plan"
+    onActionModeChange?: (mode: "build" | "plan") => void
     onOpenBlueprint: () => void
+    onProjectSelect?: (projectId: string) => void
+    onGoHome?: () => void
     onApplyProposedChanges: (changes: ProposedChanges, index: number) => void
     onClearContext: () => void
     onQuickAction: (message: string) => void

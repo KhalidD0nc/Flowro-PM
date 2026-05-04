@@ -1,6 +1,6 @@
 import type { BuildContract, ProjectPlan, TemplateManifest } from "@/lib/project-plan/schema"
 
-export type Stage3BuildJob = {
+export type BuildJob = {
     projectId: string
     projectPlan: ProjectPlan
     buildContract: BuildContract
@@ -8,11 +8,11 @@ export type Stage3BuildJob = {
     targetWorkspacePath: string
     editablePaths: string[]
     commands: TemplateManifest["scripts"]
-    designArchetype?: "editorial" | "saas" | "darkmode" | "playful" | "minimal"
+    designArchetype?: "editorial" | "saas" | "darkmode" | "playful" | "minimal" | "arabic"
     designSystem?: Record<string, unknown>
 }
 
-const PROMPT_TEMPLATE = `You are Flowro Stage 3 Coding Agent.
+const PROMPT_TEMPLATE = `You are Flowro Stage 2 Build Agent.
 
 Your job is to turn an approved ProjectPlan and internal BuildContract into a working local web application using the selected template.
 
@@ -48,7 +48,8 @@ import {
   Input, Badge, AppShell, PageHeader, Panel, MetricCard, DataTable,
   StatusBadge, Avatar, ProgressBar, Timeline, EmptyState, Skeleton,
   Toast, Modal, ConfirmDialog, Textarea, Select, Label, Tabs, Dropdown,
-  AppLink, FadeIn, StaggerContainer, staggerItem
+  AppLink, FadeIn, StaggerContainer, staggerItem,
+  Reveal, LandingShell, SectionHeader
 } from "@/components/ui/app-kit";
 
 Also available:
@@ -74,6 +75,7 @@ If a design archetype is specified above, the app MUST reflect that visual perso
 - Darkmode → deep zinc surfaces, neon/violet accents, high-tech monospace touches
 - Playful → vibrant purple/violet palette, rounded corners (rounded-3xl), friendly Nunito-like feel
 - Minimal → grayscale, Swiss spacing, thin borders, no decorative gradients
+- Arabic → Thmanyah Sans/Serif Display fonts, RTL layout (dir="rtl" lang="ar"), warm neutral palette, generous leading (leading-relaxed), culturally appropriate whitespace
 
 Skill guardrails:
 - Frontend/design: build a landing-first generated app. Route "/" is a polished product landing page; route "/app" is the usable product workspace. The landing CTA must navigate to "/app".
@@ -82,6 +84,14 @@ Skill guardrails:
 - Motion: use Framer Motion for page entrance animations (FadeIn, StaggerContainer), modal transitions (AnimatePresence), and tab switching. Add subtle hover transitions (0.15s ease). Include prefers-reduced-motion handling.
 - Styling: use semantic CSS variables and Tailwind custom classes consistently. Avoid generic purple gradients, default Inter-only styling, and card-heavy layouts.
 - Component hierarchy: ALWAYS prefer app-kit components over custom implementations. If you need a button, use <Button>. If you need a card, use <Panel> or <Card>. If you need a table, use <DataTable>.
+- CRITICAL layout rules:
+  * The "/" landing page MUST use <LandingShell> (not <AppShell>). LandingShell provides the transparent-to-solid scroll-aware header for marketing pages.
+  * The "/app" workspace MUST use <AppShell> (sidebar + topbar layout for product UI).
+  * App.tsx MUST wrap <Routes> with <AnimatePresence mode="wait"> using useLocation().pathname as the key, for page transitions.
+  * App.tsx MUST include a <Route path="*" element={<NotFound />} /> catch-all.
+  * Hero layouts MUST be asymmetric (split or offset grid) — NOT a centered single column of text.
+  * Use <Reveal> for any content section that is below the initial viewport (scroll-triggered animation). Use <FadeIn> only for above-fold content that should animate on mount.
+  * Section headings on the landing page MUST use <SectionHeader eyebrow="..." heading="..." subtitle="..." /> for consistent typographic hierarchy.
 - Security: keep secrets server-only, do not create fake auth guarantees, and avoid unapproved network services.
 - Business logic: prioritize approved routes, primary actions, data models, and acceptance checks over decorative polish.
 - Review: before returning success, check for compile issues, missing imports, inaccessible routes, and obvious placeholder text.
@@ -208,7 +218,7 @@ Task:
 Implement the approved app in the target workspace. Generate Vite-compatible React files for a fast local preview.
 `
 
-export function buildStage3Prompt(job: Stage3BuildJob): string {
+export function buildPrompt(job: BuildJob): string {
     const projectPlanJson = JSON.stringify(job.projectPlan, null, 2)
     const buildContractJson = JSON.stringify(job.buildContract, null, 2)
     const templateManifestJson = JSON.stringify(job.templateManifest, null, 2)
@@ -226,7 +236,7 @@ export function buildStage3Prompt(job: Stage3BuildJob): string {
         .replace("{{COMMANDS_JSON}}", commandsJson)
 }
 
-const MANIFEST_PROMPT_TEMPLATE = `You are Flowro Stage 3 Build Planner.
+const MANIFEST_PROMPT_TEMPLATE = `You are Flowro Stage 2 Build Planner.
 
 Return a compact JSON manifest for the minimum files needed to implement this approved app quickly.
 
@@ -234,12 +244,14 @@ Rules:
 - Return JSON only. No markdown.
 - Include 6-10 files maximum.
 - Only include files under these editable paths: {{EDITABLE_PATHS}}.
-- MANDATORY core files (always include all six): src/App.tsx, src/styles.css, src/lib/mock-data.ts, src/components/ui/app-kit.tsx, src/pages/LandingPage.tsx, src/pages/AppWorkspace.tsx. The template ships a placeholder App.tsx that MUST be overwritten — never omit src/App.tsx.
+- MANDATORY core files (always include all seven): src/App.tsx, src/styles.css, src/lib/mock-data.ts, src/components/ui/app-kit.tsx, src/pages/LandingPage.tsx, src/pages/AppWorkspace.tsx, src/pages/NotFound.tsx. The template ships a placeholder App.tsx that MUST be overwritten — never omit src/App.tsx.
+- src/pages/NotFound.tsx MUST always be in the manifest. It is required for the App.tsx catch-all route.
+- Every route listed in ProjectPlan.routes MUST have a corresponding src/pages/*.tsx file in the manifest. Do not omit any route.
 - DO NOT include src/components/ui/button.tsx, src/components/ui/card.tsx, src/components/ui/input.tsx, src/components/ui/badge.tsx, or src/lib/utils.ts — these are pre-installed in the template and must not be overwritten.
-- Add page files (src/pages/*.tsx) for each primary ProjectPlan route, plus shared component files when needed.
+- Add shared component files when a page imports a local component not already in the manifest.
 - If a page file (e.g. src/App.tsx) imports a local component (e.g. ./components/Dashboard), that component file MUST also be included in the manifest. Every relative import must have a matching file entry.
 - Do not include package.json, next.config.ts, tailwind.config.ts, or files outside editable paths.
-- App.tsx must wire BrowserRouter with "/" for LandingPage and "/app" for AppWorkspace. Additional app routes can live under /app/* when needed.
+- App.tsx must wire BrowserRouter with "/" for LandingPage, "/app" for AppWorkspace, and "/*" for NotFound. Additional app routes can live under /app/* when needed. App.tsx MUST use AnimatePresence from framer-motion to wrap the Routes for page transitions.
 - If the design archetype is {{DESIGN_ARCHETYPE}}, note that in the summary so the coding agent knows which visual direction to follow.
 
 Output format:
@@ -257,7 +269,7 @@ BuildContract:
 {{BUILD_CONTRACT_JSON}}
 `
 
-export function buildBuildManifestPrompt(job: Stage3BuildJob): string {
+export function buildBuildManifestPrompt(job: BuildJob): string {
     return MANIFEST_PROMPT_TEMPLATE
         .replace("{{DESIGN_ARCHETYPE}}", job.designArchetype ?? "saas")
         .replace("{{EDITABLE_PATHS}}", job.editablePaths.join(", "))
@@ -275,7 +287,7 @@ export type BuildManifest = {
     files: BuildManifestFile[]
 }
 
-const BUNDLED_FILE_GENERATION_PROMPT_TEMPLATE = `You are Flowro Stage 3 Coding Agent.
+const BUNDLED_FILE_GENERATION_PROMPT_TEMPLATE = `You are Flowro Stage 2 Build Agent.
 
 Generate complete file contents for every file in the manifest.
 
@@ -300,16 +312,21 @@ RULES:
 - Keep dependencies limited to the selected template dependencies.
 - Use Tailwind CSS classes and plain React.
 - Reuse src/components/ui/app-kit.tsx for common UI primitives. Do NOT re-implement Button, Card, Input, Badge, Modal, etc.
-- Use BrowserRouter from react-router-dom. Route "/" MUST render a landing page. Route "/app" MUST render the product workspace. The landing page CTA MUST link or navigate to "/app".
-- Keep the landing page visually polished and product-led. Keep the /app workspace dense, practical, and accountable to the ProjectPlan.
+- CRITICAL LAYOUT: Route "/" landing page MUST use <LandingShell> (marketing layout with scroll-aware header). NEVER use <AppShell> on the landing page. Route "/app" workspace MUST use <AppShell>.
+- CRITICAL ROUTING: App.tsx MUST use AnimatePresence mode="wait" wrapping Routes with useLocation().pathname as the animation key. Include a <Route path="*" element={<NotFound />} /> catch-all.
+- CRITICAL ANIMATIONS: Use <Reveal> for below-fold sections (scroll-triggered). Use <FadeIn> only for above-fold elements. Use <StaggerContainer> + staggerItem for lists of cards or features.
+- CRITICAL TYPOGRAPHY: Landing page section headings MUST use <SectionHeader eyebrow="..." heading="..." subtitle="..." />. Hero heading MUST use font-serif for editorial archetype.
+- CRITICAL ARABIC: When archetype is "arabic", styles.css MUST declare @font-face blocks loading Thmanyah fonts from /fonts/thmanyahsans-{Regular,Medium,Bold,Black,Light}.woff2 and /fonts/thmanyahserifdisplay-{Regular,Medium,Bold}.woff2. Set --font-sans: "Thmanyah Sans" and --font-serif: "Thmanyah Serif Display" in :root. App.tsx MUST call document.documentElement.setAttribute('dir','rtl') and document.documentElement.setAttribute('lang','ar') inside a useEffect on mount. Use text-start and logical CSS properties; reverse flex rows where applicable (flex-row-reverse on LTR-assumed layouts).
+- CRITICAL HERO: The landing page hero MUST be an asymmetric split layout (text left, visual right, e.g. grid lg:grid-cols-[55fr_45fr]). NOT a centered single column.
 - Use lucide-react icons instead of emoji icons.
+- CRITICAL COPYRIGHT: Any copyright notice, footer year, or date reference MUST use 2026. Never write 2024 or 2025.
 - Include visible focus states, 44px touch targets, responsive mobile layouts, and prefers-reduced-motion CSS for generated motion.
 - Type reusable list/table components generically (e.g., T extends object).
 - Make the app compile and render in Vite. Do not import from next/* or use Next.js App Router APIs.
 - Keep src/main.tsx unchanged unless it is explicitly in the manifest.
 - CRITICAL: Every relative import (starting with ./ or ../) MUST point to another file in this exact response. Do not assume any file exists unless it is generated here.
 - CRITICAL: Every file must be COMPLETE. No ellipsis (...), no truncation, no "rest of file" comments.
-- You have 14000 tokens. Use them to generate complete, working files.
+- You have a generous output budget. Generate complete, polished files — do not abbreviate or truncate.
 
 DESIGN ARCHETYPE: {{DESIGN_ARCHETYPE}}
 If a design archetype is specified above, apply its visual personality to ALL components:
@@ -318,6 +335,7 @@ If a design archetype is specified above, apply its visual personality to ALL co
 - Darkmode: deep zinc surfaces, neon/violet accents, monospace touches
 - Playful: vibrant purple/violet, rounded-3xl, friendly energetic
 - Minimal: grayscale, Swiss spacing, thin borders, no decorative gradients
+- Arabic: Thmanyah Sans/Serif Display fonts via @font-face, RTL layout (dir="rtl" lang="ar"), warm neutral palette, generous leading
 
 Design System (follow these exact values):
 {{DESIGN_SYSTEM_JSON}}
@@ -329,46 +347,137 @@ Use the design tokens system:
 
 FEW-SHOT EXAMPLES — follow these patterns for quality:
 
-Example 1: Landing Page Hero (Editorial style)
+Example 1: Landing Page with asymmetric hero + scroll reveals + LandingShell
 <<<FILE:src/pages/LandingPage.tsx>>>
-import { FadeIn, Button } from "@/components/ui/app-kit";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { LandingShell, FadeIn, Reveal, SectionHeader, StaggerContainer, staggerItem, Button, Panel } from "@/components/ui/app-kit";
+import { ArrowRight, CheckCircle, Zap, Shield, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+
+const features = [
+  { icon: <Zap className="h-5 w-5" />, title: "Lightning fast", description: "Built for speed with instant feedback and real-time updates." },
+  { icon: <Shield className="h-5 w-5" />, title: "Secure by default", description: "Enterprise-grade security without the enterprise complexity." },
+  { icon: <BarChart3 className="h-5 w-5" />, title: "Powerful analytics", description: "Deep insights into your workflow with actionable metrics." },
+];
+
+const benefits = ["No setup required", "Works with your existing tools", "Cancel anytime"];
 
 export default function LandingPage() {
   const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-[hsl(var(--surface))]">
-      <section className="relative px-6 pt-24 pb-20 lg:pt-32 lg:pb-28">
-        <FadeIn>
-          <div className="mx-auto max-w-3xl text-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--line))] bg-[hsl(var(--surface-elevated))] px-4 py-1.5 text-sm text-[hsl(var(--ink-secondary))]">
-              <Sparkles className="h-4 w-4" />
-              New: AI-powered workspace
-            </div>
-            <h1 className="mt-8 font-serif text-5xl font-bold tracking-tight text-[hsl(var(--ink))] lg:text-7xl">
-              Build better,<br />ship faster
-            </h1>
-            <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-[hsl(var(--ink-muted))]">
-              The all-in-one platform for creative teams to plan, build, and launch products together.
-            </p>
-            <div className="mt-10 flex items-center justify-center gap-4">
-              <Button size="lg" onClick={() => navigate("/app")}>
-                Get started <ArrowRight className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="lg">Watch demo</Button>
-            </div>
+    <LandingShell
+      brandName="Acme"
+      navLinks={[{ label: "Features", to: "#features" }, { label: "Pricing", to: "#pricing" }]}
+      ctaLabel="Start free"
+      ctaTo="/app"
+      footer={
+        <div className="mx-auto max-w-6xl px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-[hsl(var(--ink-muted))]">© 2025 Acme. All rights reserved.</p>
+          <div className="flex gap-6">
+            {["Privacy", "Terms", "Contact"].map((l) => (
+              <a key={l} href="#" className="link-underline text-sm text-[hsl(var(--ink-muted))] hover:text-[hsl(var(--ink))] transition-colors">{l}</a>
+            ))}
           </div>
-        </FadeIn>
+        </div>
+      }
+    >
+      {/* ── Hero: asymmetric 55/45 split ── */}
+      <section className="mx-auto max-w-6xl px-6 pt-16 pb-24 lg:pt-24 lg:pb-32">
+        <div className="grid gap-12 lg:grid-cols-[55fr_45fr] lg:items-center">
+          {/* Left: text */}
+          <FadeIn direction="up" duration={0.6}>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--line))] bg-[hsl(var(--surface-elevated))] px-3.5 py-1.5 text-xs font-medium text-[hsl(var(--ink-secondary))]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--success))]" />
+              Now in public beta
+            </div>
+            <h1 className="mt-6 font-serif text-5xl font-bold leading-[1.1] tracking-tight text-[hsl(var(--ink))] lg:text-6xl">
+              The smarter way to<br />
+              <span className="text-[hsl(var(--cta))]">run your business</span>
+            </h1>
+            <p className="mt-6 max-w-lg text-lg leading-relaxed text-[hsl(var(--ink-muted))]">
+              Everything your team needs to move faster, stay aligned, and deliver results — without the busywork.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <Button size="lg" onClick={() => navigate("/app")}>
+                Get started free <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="lg">See how it works</Button>
+            </div>
+            <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
+              {benefits.map((b) => (
+                <li key={b} className="flex items-center gap-1.5 text-sm text-[hsl(var(--ink-muted))]">
+                  <CheckCircle className="h-3.5 w-3.5 text-[hsl(var(--success))]" /> {b}
+                </li>
+              ))}
+            </ul>
+          </FadeIn>
+
+          {/* Right: visual motif */}
+          <FadeIn direction="left" delay={0.2} duration={0.6}>
+            <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-[hsl(var(--line))] shadow-elevated">
+              <img
+                src="https://images.unsplash.com/photo-1531973576160-7125cd663d86?w=800&auto=format&fit=crop"
+                alt="Product preview"
+                className="h-full w-full object-cover animate-slow-zoom"
+                loading="eager"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+            </div>
+          </FadeIn>
+        </div>
       </section>
-    </div>
+
+      {/* ── Features ── */}
+      <section id="features" className="bg-[hsl(var(--surface-elevated))] py-24 lg:py-32">
+        <div className="mx-auto max-w-6xl px-6">
+          <Reveal>
+            <SectionHeader
+              eyebrow="Features"
+              heading="Everything you need, nothing you don't"
+              subtitle="Built for teams that value clarity and speed. Every feature earns its place."
+              align="center"
+            />
+          </Reveal>
+          <StaggerContainer className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((f) => (
+              <motion.div key={f.title} variants={staggerItem}>
+                <Panel className="h-full p-6 hover:shadow-card-hover transition-shadow">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--accent-soft))] text-[hsl(var(--cta))]">
+                    {f.icon}
+                  </div>
+                  <h3 className="mt-4 text-base font-semibold text-[hsl(var(--ink))]">{f.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-[hsl(var(--ink-muted))]">{f.description}</p>
+                </Panel>
+              </motion.div>
+            ))}
+          </StaggerContainer>
+        </div>
+      </section>
+
+      {/* ── CTA Banner ── */}
+      <Reveal>
+        <section className="mx-auto max-w-6xl px-6 py-24 lg:py-32">
+          <div className="rounded-3xl bg-[hsl(var(--cta))] px-8 py-14 text-center lg:px-16">
+            <h2 className="font-serif text-4xl font-bold text-white lg:text-5xl">Ready to get started?</h2>
+            <p className="mx-auto mt-4 max-w-md text-lg text-white/80">Join thousands of teams already working smarter.</p>
+            <Button
+              className="mt-8 bg-white text-[hsl(var(--cta))] hover:bg-white/90"
+              size="lg"
+              onClick={() => navigate("/app")}
+            >
+              Start for free <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </section>
+      </Reveal>
+    </LandingShell>
   );
 }
 <<<END_FILE>>>
 
 Example 2: Dashboard with Metrics and DataTable
 <<<FILE:src/pages/AppWorkspace.tsx>>>
-import { AppShell, PageHeader, MetricCard, DataTable, Panel, FadeIn } from "@/components/ui/app-kit";
+import { AppShell, PageHeader, MetricCard, DataTable, Panel, FadeIn, StatusBadge } from "@/components/ui/app-kit";
 import { Users, FolderOpen, DollarSign, Clock } from "lucide-react";
 import { mockClients } from "@/lib/mock-data";
 
@@ -432,6 +541,71 @@ export function CreateClientModal({ open, onClose, onCreate }: { open: boolean; 
 }
 <<<END_FILE>>>
 
+Example 4: App.tsx with AnimatePresence route transitions + NotFound catch-all
+<<<FILE:src/App.tsx>>>
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import LandingPage from "./pages/LandingPage";
+import AppWorkspace from "./pages/AppWorkspace";
+import NotFound from "./pages/NotFound";
+
+const pageVariants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
+  exit: { opacity: 0, y: -8, transition: { duration: 0.2, ease: "easeIn" } },
+};
+
+function AnimatedRoutes() {
+  const location = useLocation();
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div key={location.pathname} variants={pageVariants} initial="initial" animate="animate" exit="exit">
+        <Routes location={location}>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/app" element={<AppWorkspace />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AnimatedRoutes />
+    </BrowserRouter>
+  );
+}
+<<<END_FILE>>>
+
+Example 5: NotFound page
+<<<FILE:src/pages/NotFound.tsx>>>
+import { FadeIn, Button } from "@/components/ui/app-kit";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+export default function NotFound() {
+  const navigate = useNavigate();
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[hsl(var(--surface))] px-6">
+      <FadeIn>
+        <div className="text-center">
+          <p className="eyebrow">404 — Not found</p>
+          <h1 className="mt-4 font-serif text-6xl font-bold text-[hsl(var(--ink))]">Oops.</h1>
+          <p className="mx-auto mt-4 max-w-sm text-base text-[hsl(var(--ink-muted))]">
+            The page you're looking for doesn't exist or has been moved.
+          </p>
+          <Button className="mt-8" onClick={() => navigate("/")}>
+            <ArrowLeft className="h-4 w-4" /> Back to home
+          </Button>
+        </div>
+      </FadeIn>
+    </div>
+  );
+}
+<<<END_FILE>>>
+
 Manifest:
 {{MANIFEST_JSON}}
 
@@ -448,7 +622,7 @@ Generate the files now.
 
 export function buildBundledFileGenerationPrompt(
     manifest: BuildManifest,
-    job: Stage3BuildJob,
+    job: BuildJob,
 ): string {
     return BUNDLED_FILE_GENERATION_PROMPT_TEMPLATE
         .replace("{{DESIGN_ARCHETYPE}}", job.designArchetype ?? "saas")
@@ -459,7 +633,7 @@ export function buildBundledFileGenerationPrompt(
         .replace("{{STACK}}", job.templateManifest.stack.join(", "))
 }
 
-const FILE_GENERATION_PROMPT_TEMPLATE = `You are Flowro Stage 3 Coding Agent.
+const FILE_GENERATION_PROMPT_TEMPLATE = `You are Flowro Stage 2 Build Agent.
 
 Generate the complete file content for the requested file based on the approved ProjectPlan and BuildContract.
 
@@ -477,7 +651,7 @@ Rules:
 - Include motion with Framer Motion where appropriate (FadeIn, StaggerContainer, motion.div).
 
 Design archetype: {{DESIGN_ARCHETYPE}}
-Apply the archetype's visual personality consistently.
+Apply the archetype's visual personality consistently. For "arabic" archetype: use Thmanyah Sans font, RTL layout, and set dir="rtl" lang="ar" via useEffect if this is App.tsx.
 
 File to generate: {{FILE_PATH}}
 
@@ -494,7 +668,7 @@ Generate the file content now:
 
 export function buildFileGenerationPrompt(
     filePath: string,
-    job: Stage3BuildJob,
+    job: BuildJob,
 ): string {
     const projectPlanJson = JSON.stringify(job.projectPlan, null, 2)
     const buildContractJson = JSON.stringify(job.buildContract, null, 2)
@@ -544,7 +718,7 @@ export function buildFormatRetryPrompt(originalResponse: string): string {
     return FORMAT_RETRY_PROMPT_TEMPLATE.replace("{{ORIGINAL_RESPONSE}}", truncated)
 }
 
-const REPAIR_PROMPT_TEMPLATE = `You are Flowro Stage 3 Coding Agent.
+const REPAIR_PROMPT_TEMPLATE = `You are Flowro Stage 2 Build Agent.
 
 The build failed with the following error. Fix the code and return updated files.
 

@@ -1,7 +1,7 @@
 import type { BuildContract, ProjectPlan } from "@/lib/project-plan/schema"
 import { generateBuildCompletionWithFallback } from "./openrouter-build"
 
-export type DesignArchetype = "editorial" | "saas" | "darkmode" | "playful" | "minimal"
+export type DesignArchetype = "editorial" | "saas" | "darkmode" | "playful" | "minimal" | "arabic"
 
 export interface DesignSystemSpec {
     archetype: DesignArchetype
@@ -197,6 +197,7 @@ Archetype-specific guidance:
 - darkmode: deep zinc surfaces, violet/neon accents, monospace code touches
 - playful: vibrant purple/violet, rounded corners (1rem+), friendly Nunito feel
 - minimal: grayscale, thin borders, Swiss spacing, no decorative gradients
+- arabic: Thmanyah Sans/Serif Display fonts, RTL layout, warm neutral tones, generous Arabic leading (1.8+)
 
 Rules:
 - ALL color values MUST be valid HSL() or hex color strings.
@@ -510,6 +511,40 @@ export function getDeterministicDesignSystem(archetype: DesignArchetype): Design
             shadows: { card: "none", elevated: "none", glow: "none" },
             borderRadius: { card: "0.25rem", button: "0.125rem", input: "0.125rem", pill: "9999px" },
             moodKeywords: ["minimal", "swiss", "restrained", "elegant"],
+        },
+        arabic: {
+            personality: "Thmanyah-typed, RTL-native, warm neutral palette with generous Arabic leading.",
+            colorPalette: {
+                primary: "hsl(16 75% 42%)",
+                primaryText: "#faf8f5",
+                secondary: "hsl(30 12% 90%)",
+                background: "hsl(40 20% 97%)",
+                surface: "hsl(40 20% 99%)",
+                surfaceElevated: "hsl(40 20% 100%)",
+                ink: "hsl(24 10% 10%)",
+                inkSecondary: "hsl(24 8% 32%)",
+                inkMuted: "hsl(24 6% 52%)",
+                line: "hsl(30 12% 88%)",
+                lineFaint: "hsl(30 12% 94%)",
+                accent: "hsl(30 35% 92%)",
+                accentText: "hsl(24 65% 32%)",
+                success: "hsl(145 50% 35%)",
+                warning: "hsl(38 80% 48%)",
+                danger: "hsl(0 55% 50%)",
+            },
+            typography: {
+                headingFont: '"Thmanyah Serif Display", Georgia, serif',
+                bodyFont: '"Thmanyah Sans", Arial, sans-serif',
+                monoFont: "ui-monospace, monospace",
+                headingWeight: 700,
+                bodyWeight: 400,
+                headingLineHeight: 1.3,
+                bodyLineHeight: 1.8,
+                scale: { hero: "3.5rem", h1: "2.25rem", h2: "1.75rem", h3: "1.25rem", body: "1rem", small: "0.875rem", label: "0.75rem" },
+            },
+            spacing: { unit: 4, density: "spacious", sectionGap: "5rem", cardPadding: "1.75rem", pagePadding: "1.75rem" },
+            borderRadius: { card: "0.75rem", button: "0.5rem", input: "0.375rem", pill: "9999px" },
+            moodKeywords: ["arabic", "rtl", "thmanyah", "warm", "cultural"],
         },
     }
 
