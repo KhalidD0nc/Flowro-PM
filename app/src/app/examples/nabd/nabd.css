@@ -1,0 +1,223 @@
+/* ── Thmanyah Font Faces ── */
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('/fonts/thmanyahsans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('/fonts/thmanyahsans-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('/fonts/thmanyahsans-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('/fonts/thmanyahsans-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('/fonts/thmanyahsans-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('/fonts/thmanyahserifdisplay-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('/fonts/thmanyahserifdisplay-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('/fonts/thmanyahserifdisplay-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Scoped design tokens — only apply inside .nabd-root ── */
+/* This prevents bleeding into or being overridden by the main app's @theme */
+.nabd-root {
+  /* Color palette */
+  --color-background:      hsl(35 25% 97%);
+  --color-surface-base:    hsl(0 0% 100%);
+  --color-surface-elevated:hsl(0 0% 100%);
+  --color-ink:             hsl(20 30% 15%);
+  --color-ink-secondary:   hsl(25 20% 40%);
+  --color-ink-muted:       hsl(25 15% 60%);
+  --color-line:            hsl(30 20% 88%);
+  --color-line-faint:      hsl(30 20% 94%);
+  --color-accent:          hsl(16 85% 95%);
+  --color-accent-text:     hsl(16 75% 40%);
+  --color-success:         hsl(150 60% 38%);
+  --color-warning:         hsl(40 90% 50%);
+  --color-danger:          hsl(0 75% 55%);
+  --color-cta:             hsl(16 75% 48%);
+  --color-secondary:       hsl(30 30% 92%);
+
+  /* Shadows */
+  --shadow-card:       0 2px 8px rgba(45, 35, 25, 0.05);
+  --shadow-card-hover: 0 10px 24px rgba(45, 35, 25, 0.08);
+  --shadow-elevated:   0 16px 32px -8px rgba(45, 35, 25, 0.1);
+  --shadow-glow:       0 0 20px rgba(219, 78, 36, 0.15);
+
+  /* Radii */
+  --radius-card:   1.25rem;
+  --radius-button: 0.75rem;
+  --radius-input:  0.75rem;
+  --radius-pill:   9999px;
+
+  /* Fonts */
+  --font-nabd-sans:  'Thmanyah Sans', Cairo, sans-serif;
+  --font-nabd-serif: 'Thmanyah Serif Display', Tajawal, serif;
+
+  /* Apply base styles */
+  background-color: var(--color-background);
+  color: var(--color-ink);
+  font-family: var(--font-nabd-sans);
+}
+
+/* ── Tailwind utility overrides scoped to nabd-root ── */
+
+/* Background colors */
+.nabd-root .bg-background        { background-color: var(--color-background) !important; }
+.nabd-root .bg-surface-base      { background-color: var(--color-surface-base) !important; }
+.nabd-root .bg-surface-elevated  { background-color: var(--color-surface-elevated) !important; }
+.nabd-root .bg-accent            { background-color: var(--color-accent) !important; }
+.nabd-root .bg-cta               { background-color: var(--color-cta) !important; }
+.nabd-root .bg-secondary         { background-color: var(--color-secondary) !important; }
+.nabd-root .bg-line-faint        { background-color: var(--color-line-faint) !important; }
+.nabd-root .bg-line              { background-color: var(--color-line) !important; }
+.nabd-root .bg-success           { background-color: var(--color-success) !important; }
+.nabd-root .bg-warning           { background-color: var(--color-warning) !important; }
+.nabd-root .bg-danger            { background-color: var(--color-danger) !important; }
+
+/* Opacity variants */
+.nabd-root .bg-success\/5        { background-color: hsl(150 60% 38% / 0.05) !important; }
+.nabd-root .bg-success\/10       { background-color: hsl(150 60% 38% / 0.1) !important; }
+.nabd-root .bg-success\/20       { background-color: hsl(150 60% 38% / 0.2) !important; }
+.nabd-root .bg-warning\/5        { background-color: hsl(40 90% 50% / 0.05) !important; }
+.nabd-root .bg-warning\/10       { background-color: hsl(40 90% 50% / 0.1) !important; }
+.nabd-root .bg-danger\/10        { background-color: hsl(0 75% 55% / 0.1) !important; }
+.nabd-root .bg-cta\/10           { background-color: hsl(16 75% 48% / 0.1) !important; }
+.nabd-root .bg-secondary\/50     { background-color: hsl(30 30% 92% / 0.5) !important; }
+.nabd-root .bg-accent\/20        { background-color: hsl(16 85% 95% / 0.2) !important; }
+.nabd-root .bg-surface-elevated\/50  { background-color: hsl(0 0% 100% / 0.5) !important; }
+.nabd-root .bg-surface-elevated\/30  { background-color: hsl(0 0% 100% / 0.3) !important; }
+.nabd-root .bg-secondary\/30     { background-color: hsl(30 30% 92% / 0.3) !important; }
+.nabd-root .bg-surface-base\/80  { background-color: hsl(0 0% 100% / 0.8) !important; }
+
+/* Text colors */
+.nabd-root .text-ink             { color: var(--color-ink) !important; }
+.nabd-root .text-ink-secondary   { color: var(--color-ink-secondary) !important; }
+.nabd-root .text-ink-muted       { color: var(--color-ink-muted) !important; }
+.nabd-root .text-cta             { color: var(--color-cta) !important; }
+.nabd-root .text-accent-text     { color: var(--color-accent-text) !important; }
+.nabd-root .text-success         { color: var(--color-success) !important; }
+.nabd-root .text-warning         { color: var(--color-warning) !important; }
+.nabd-root .text-danger          { color: var(--color-danger) !important; }
+.nabd-root .text-line            { color: var(--color-line) !important; }
+
+/* Border colors */
+.nabd-root .border-line          { border-color: var(--color-line) !important; }
+.nabd-root .border-line-faint    { border-color: var(--color-line-faint) !important; }
+.nabd-root .border-success       { border-color: var(--color-success) !important; }
+.nabd-root .border-warning       { border-color: var(--color-warning) !important; }
+.nabd-root .border-danger        { border-color: var(--color-danger) !important; }
+.nabd-root .border-cta           { border-color: var(--color-cta) !important; }
+.nabd-root .border-s-success     { border-inline-start-color: var(--color-success) !important; }
+.nabd-root .border-s-warning     { border-inline-start-color: var(--color-warning) !important; }
+.nabd-root .border-success\/20   { border-color: hsl(150 60% 38% / 0.2) !important; }
+
+/* Shadow utilities */
+.nabd-root .shadow-card          { box-shadow: var(--shadow-card) !important; }
+.nabd-root .shadow-card-hover    { box-shadow: var(--shadow-card-hover) !important; }
+.nabd-root .shadow-elevated      { box-shadow: var(--shadow-elevated) !important; }
+.nabd-root .shadow-glow          { box-shadow: var(--shadow-glow) !important; }
+
+/* Radius utilities */
+.nabd-root .rounded-card         { border-radius: var(--radius-card) !important; }
+.nabd-root .rounded-button       { border-radius: var(--radius-button) !important; }
+.nabd-root .rounded-input        { border-radius: var(--radius-input) !important; }
+
+/* Font families */
+.nabd-root .font-sans            { font-family: var(--font-nabd-sans) !important; }
+.nabd-root .font-serif           { font-family: var(--font-nabd-serif) !important; }
+
+/* Focus ring color */
+.nabd-root .focus\:ring-cta:focus {
+  --tw-ring-color: var(--color-cta) !important;
+}
+
+/* ── Nabd-specific utility classes ── */
+
+.nabd-root .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-line);
+  background-color: var(--color-surface-elevated);
+  padding: 0.375rem 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-ink-secondary);
+}
+
+.nabd-root .link-underline {
+  position: relative;
+  text-decoration: none;
+}
+.nabd-root .link-underline::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  transform: scaleX(0);
+  height: 1px;
+  bottom: -2px;
+  left: 0;
+  background-color: currentColor;
+  transform-origin: bottom right;
+  transition: transform 0.25s ease-out;
+}
+.nabd-root .link-underline:hover::after {
+  transform: scaleX(1);
+  transform-origin: bottom left;
+}
+[dir="rtl"] .nabd-root .link-underline::after {
+  transform-origin: bottom left;
+}
+[dir="rtl"] .nabd-root .link-underline:hover::after {
+  transform-origin: bottom right;
+}
+
+/* ── Animations ── */
+@keyframes nabd-fade-in-up {
+  0%   { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes nabd-slow-zoom {
+  0%   { transform: scale(1); }
+  100% { transform: scale(1.05); }
+}

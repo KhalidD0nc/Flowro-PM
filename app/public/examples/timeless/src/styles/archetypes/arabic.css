@@ -1,0 +1,179 @@
+/* ═══════════════════════════════════════════════════════════════
+   ARCHETYPE: Arabic
+   Thmanyah typeface, RTL layout, warm neutral palette.
+   Best for: Arabic-language apps, RTL experiences, MENA-market products.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Thmanyah Sans ── */
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("/fonts/thmanyahsans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("/fonts/thmanyahsans-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("/fonts/thmanyahsans-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("/fonts/thmanyahsans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("/fonts/thmanyahsans-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Thmanyah Serif Display ── */
+@font-face {
+  font-family: "Thmanyah Serif Display";
+  src: url("/fonts/thmanyahserifdisplay-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Serif Display";
+  src: url("/fonts/thmanyahserifdisplay-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Serif Display";
+  src: url("/fonts/thmanyahserifdisplay-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Serif Display";
+  src: url("/fonts/thmanyahserifdisplay-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Serif Display";
+  src: url("/fonts/thmanyahserifdisplay-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Thmanyah Serif Text ── */
+@font-face {
+  font-family: "Thmanyah Serif Text";
+  src: url("/fonts/thmanyahseriftext-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Serif Text";
+  src: url("/fonts/thmanyahseriftext-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Serif Text";
+  src: url("/fonts/thmanyahseriftext-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Serif Text";
+  src: url("/fonts/thmanyahseriftext-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Serif Text";
+  src: url("/fonts/thmanyahseriftext-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --font-sans: "Thmanyah Sans", Arial, "Helvetica Neue", sans-serif;
+    --font-serif: "Thmanyah Serif Display", Georgia, serif;
+    --font-serif-text: "Thmanyah Serif Text", Georgia, serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+    --shadow-color: 30 8% 20%;
+
+    --surface: 40 20% 97%;
+    --surface-elevated: 40 20% 99%;
+    --surface-overlay: 40 20% 100%;
+
+    --ink: 24 10% 10%;
+    --ink-secondary: 24 8% 32%;
+    --ink-muted: 24 6% 52%;
+
+    --line: 30 12% 88%;
+    --line-faint: 30 12% 94%;
+    --line-loud: 30 12% 78%;
+
+    --cta: 16 75% 42%;
+    --cta-hover: 16 75% 35%;
+    --cta-text: 40 20% 98%;
+
+    --accent: 30 35% 92%;
+    --accent-soft: 30 35% 96%;
+    --accent-text: 24 65% 32%;
+
+    --success: 145 50% 35%;
+    --success-soft: 145 40% 94%;
+    --success-text: 145 50% 25%;
+
+    --warning: 38 80% 48%;
+    --warning-soft: 38 60% 94%;
+    --warning-text: 38 80% 35%;
+
+    --danger: 0 55% 50%;
+    --danger-soft: 0 40% 94%;
+    --danger-text: 0 55% 40%;
+
+    /* Legacy tokens */
+    --background: 40 20% 97%;
+    --foreground: 24 10% 10%;
+    --card: 40 20% 99%;
+    --card-foreground: 24 10% 10%;
+    --popover: 40 20% 99%;
+    --popover-foreground: 24 10% 10%;
+    --primary: 16 75% 42%;
+    --primary-foreground: 40 20% 98%;
+    --secondary: 30 12% 90%;
+    --secondary-foreground: 24 10% 10%;
+    --muted: 30 12% 94%;
+    --muted-foreground: 24 6% 52%;
+    --destructive: 0 55% 50%;
+    --destructive-foreground: 40 20% 98%;
+    --border: 30 12% 88%;
+    --input: 30 12% 88%;
+    --ring: 16 75% 42%;
+    --radius: 0.75rem;
+  }
+}

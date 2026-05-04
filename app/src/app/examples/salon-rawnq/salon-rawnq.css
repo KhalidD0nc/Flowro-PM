@@ -1,0 +1,128 @@
+/* ── Thmanyah fonts already in /public/fonts/ ── */
+
+/* ──────────────────────────────────────────────────────────
+   Scoped tokens on .salon-root ONLY — prevents collision
+   with globals.css @theme inline block.
+   See: Docs/Tailwind-v4-Scoped-Theme-Pattern.md
+   ────────────────────────────────────────────────────────── */
+.salon-root {
+  --salon-primary:          hsl(35 45% 45%);
+  --salon-secondary:        hsl(35 30% 90%);
+  --salon-background:       hsl(40 20% 98%);
+  --salon-surface:          hsl(0 0% 100%);
+  --salon-surface-elevated: hsl(0 0% 100%);
+  --salon-ink:              hsl(30 20% 15%);
+  --salon-ink-secondary:    hsl(30 15% 40%);
+  --salon-ink-muted:        hsl(30 15% 60%);
+  --salon-line:             hsl(35 20% 90%);
+  --salon-line-faint:       hsl(35 20% 95%);
+  --salon-accent:           hsl(40 60% 94%);
+  --salon-accent-text:      hsl(40 70% 35%);
+  --salon-success:          hsl(150 60% 35%);
+  --salon-warning:          hsl(40 90% 45%);
+  --salon-danger:           hsl(0 75% 55%);
+
+  /* Typography */
+  --font-salon-sans:  'Thmanyah Sans', Cairo, system-ui, sans-serif;
+  --font-salon-serif: 'Thmanyah Serif Display', Tajawal, system-ui, sans-serif;
+
+  background-color: var(--salon-background);
+  color: var(--salon-ink);
+  font-family: var(--font-salon-sans);
+}
+
+/* Font overrides */
+.salon-root .font-sans  { font-family: var(--font-salon-sans) !important; }
+.salon-root .font-serif { font-family: var(--font-salon-serif) !important; }
+
+/* ── Tailwind class overrides scoped to .salon-root ── */
+
+/* Background */
+.salon-root .bg-background        { background-color: var(--salon-background) !important; }
+.salon-root .bg-surface           { background-color: var(--salon-surface) !important; }
+.salon-root .bg-surface-elevated  { background-color: var(--salon-surface-elevated) !important; }
+.salon-root .bg-primary           { background-color: var(--salon-primary) !important; }
+.salon-root .bg-cta               { background-color: var(--salon-primary) !important; }
+.salon-root .bg-accent            { background-color: var(--salon-accent) !important; }
+.salon-root .bg-secondary         { background-color: var(--salon-secondary) !important; }
+.salon-root .bg-success           { background-color: var(--salon-success) !important; }
+.salon-root .bg-warning           { background-color: var(--salon-warning) !important; }
+.salon-root .bg-danger            { background-color: var(--salon-danger) !important; }
+.salon-root .bg-line              { background-color: var(--salon-line) !important; }
+
+/* Opacity variants */
+.salon-root .bg-primary\/5        { background-color: hsl(35 45% 45% / 0.05) !important; }
+.salon-root .bg-primary\/10       { background-color: hsl(35 45% 45% / 0.1) !important; }
+.salon-root .bg-primary\/20       { background-color: hsl(35 45% 45% / 0.2) !important; }
+.salon-root .bg-surface-elevated\/50 { background-color: hsl(0 0% 100% / 0.5) !important; }
+.salon-root .bg-success\/10       { background-color: hsl(150 60% 35% / 0.1) !important; }
+.salon-root .bg-warning\/10       { background-color: hsl(40 90% 45% / 0.1) !important; }
+.salon-root .bg-danger\/10        { background-color: hsl(0 75% 55% / 0.1) !important; }
+.salon-root .bg-surface\/90       { background-color: hsl(0 0% 100% / 0.9) !important; }
+.salon-root .bg-background\/80    { background-color: hsl(40 20% 98% / 0.8) !important; }
+
+/* Text */
+.salon-root .text-primary         { color: var(--salon-primary) !important; }
+.salon-root .text-ink             { color: var(--salon-ink) !important; }
+.salon-root .text-ink-secondary   { color: var(--salon-ink-secondary) !important; }
+.salon-root .text-ink-muted       { color: var(--salon-ink-muted) !important; }
+.salon-root .text-success         { color: var(--salon-success) !important; }
+.salon-root .text-warning         { color: var(--salon-warning) !important; }
+.salon-root .text-danger          { color: var(--salon-danger) !important; }
+.salon-root .text-accent-text     { color: var(--salon-accent-text) !important; }
+
+/* Border */
+.salon-root .border-line          { border-color: var(--salon-line) !important; }
+.salon-root .border-line\/50      { border-color: hsl(35 20% 90% / 0.5) !important; }
+.salon-root .border-primary       { border-color: var(--salon-primary) !important; }
+.salon-root .border-primary\/50   { border-color: hsl(35 45% 45% / 0.5) !important; }
+.salon-root .border-success       { border-color: var(--salon-success) !important; }
+
+/* Ring/focus */
+.salon-root .focus-visible\:ring-primary:focus-visible { --tw-ring-color: var(--salon-primary) !important; }
+.salon-root .focus\:border-primary:focus               { border-color: var(--salon-primary) !important; }
+.salon-root .focus\:ring-primary:focus                 { --tw-ring-color: var(--salon-primary) !important; }
+.salon-root .hover\:border-primary\/50:hover           { border-color: hsl(35 45% 45% / 0.5) !important; }
+
+/* Shadows */
+.salon-root .shadow-card       { box-shadow: 0 4px 20px -2px rgba(45,35,25,0.05) !important; }
+.salon-root .shadow-card-hover { box-shadow: 0 10px 30px -5px rgba(45,35,25,0.08) !important; }
+.salon-root .shadow-elevated   { box-shadow: 0 20px 40px -10px rgba(45,35,25,0.1) !important; }
+.salon-root .shadow-glow       { box-shadow: 0 0 25px rgba(180,130,90,0.2) !important; }
+
+/* Animations */
+@keyframes salon-slow-zoom {
+  from { transform: scale(1); }
+  to   { transform: scale(1.1); }
+}
+.salon-root .animate-slow-zoom {
+  animation: salon-slow-zoom 20s ease-out forwards !important;
+}
+.salon-root .animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+}
+
+/* Divide color */
+.salon-root .divide-line > * + * { border-color: var(--salon-line) !important; }
+
+/* ── Utility classes ── */
+.salon-root .link-underline { position: relative; }
+.salon-root .link-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0; right: 0;
+  height: 1px;
+  background-color: currentColor;
+  opacity: 0.3;
+  transition: opacity 0.2s;
+}
+.salon-root .link-underline:hover::after { opacity: 1; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .salon-root * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
