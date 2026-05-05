@@ -7,7 +7,7 @@ import {
 import { buildFallbackFiles } from "../lib/build-worker/fallback"
 import { readRepairContextFiles } from "../lib/build-worker/fs"
 import { buildCompletionDefaults } from "../lib/build-worker/openrouter-build"
-import { detectPackagesFromFiles, normalizeGeneratedFilesForVite, normalizeGeneratedPath } from "../lib/build-worker/vite"
+import { detectPackagesFromFiles, normalizeGeneratedFilesForVite, normalizeGeneratedPath, sanitizeGeneratedContent } from "../lib/build-worker/vite"
 import { buildWorkspaceManifest } from "../lib/build-worker/manifest"
 import { executeEditSearch, selectTargetFiles, type EditSearchPlan } from "../lib/build-worker/editSearch"
 import { filterFilesToTargetSet } from "../lib/build-worker/editExecutor"
@@ -154,6 +154,17 @@ export async function runBuildExecutorTests(): Promise<Array<{ name: string; pas
                 return !result.files["package.json"] &&
                     Boolean(result.files["src/App.tsx"]) &&
                     result.skippedFiles.includes("package.json")
+            })(),
+        },
+        {
+            name: "sanitizeGeneratedContent expands custom @apply aliases for Tailwind v4",
+            passed: (() => {
+                const result = sanitizeGeneratedContent(
+                    "src/styles.css",
+                    ".text-label { @apply text-[0.75rem] uppercase; }\n.eyebrow { @apply text-label text-slate-500; }",
+                )
+                return result.includes("@apply text-[0.75rem] leading-[1.6] font-medium tracking-wide uppercase text-slate-500;") &&
+                    !result.includes("@apply text-label")
             })(),
         },
         {

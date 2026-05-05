@@ -168,6 +168,7 @@ export async function POST(request: NextRequest) {
                 role: "assistant",
                 content: result.intent === "clarification" ? result.rawContent : result.message,
                 intent: result.intent,
+                modelUsed: result.modelUsed,
                 timestamp: Timestamp.now(),
             })
 
@@ -202,6 +203,7 @@ export async function POST(request: NextRequest) {
             ...(result.stage ? { stage: result.stage } : {}),
             ...(result.projectPlan ? { projectPlan: result.projectPlan } : {}),
             ...(result.productName ? { productName: result.productName } : {}),
+            ...(result.modelUsed ? { modelUsed: result.modelUsed } : {}),
         })
     } catch (error) {
         logError("generate_failed", {

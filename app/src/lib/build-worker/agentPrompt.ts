@@ -1,4 +1,19 @@
-import type { BuildContract, ProjectPlan, TemplateManifest } from "@/lib/project-plan/schema"
+import type { BuildContract, ProjectPlan, TemplateManifest, DatabasePlan } from "@/lib/project-plan/schema"
+import type { CanonicalTable } from "./schemaAgent"
+
+export interface SupabaseContext {
+  projectRef: string
+  projectUrl: string
+  browserKey: string
+  browserKeyType: "publishable" | "anon"
+  anonKey: string
+  supabaseProjectId: string
+  canonicalTables: CanonicalTable[]
+  migrationPath: string
+  schemaSQL: string
+  rlsPoliciesSQL: string
+  typescriptTypes: string
+}
 
 export type BuildJob = {
     projectId: string
@@ -10,6 +25,8 @@ export type BuildJob = {
     commands: TemplateManifest["scripts"]
     designArchetype?: "editorial" | "saas" | "darkmode" | "playful" | "minimal" | "arabic"
     designSystem?: Record<string, unknown>
+    supabaseConfig?: DatabasePlan
+    supabaseContext?: SupabaseContext | null
 }
 
 const PROMPT_TEMPLATE = `You are Flowro Stage 2 Build Agent.
@@ -83,6 +100,7 @@ Skill guardrails:
 - App quality: /app uses dense but readable product UI with restrained navigation, realistic mock data, empty/loading/error states where relevant, and no oversized marketing hero inside the workspace.
 - Motion: use Framer Motion for page entrance animations (FadeIn, StaggerContainer), modal transitions (AnimatePresence), and tab switching. Add subtle hover transitions (0.15s ease). Include prefers-reduced-motion handling.
 - Styling: use semantic CSS variables and Tailwind custom classes consistently. Avoid generic purple gradients, default Inter-only styling, and card-heavy layouts.
+- Tailwind v4 CSS rule: do not use @apply with custom classes that you define in CSS (for example, define .text-label with properties, but never write @apply text-label). @apply may only reference real Tailwind utility classes.
 - Component hierarchy: ALWAYS prefer app-kit components over custom implementations. If you need a button, use <Button>. If you need a card, use <Panel> or <Card>. If you need a table, use <DataTable>.
 - CRITICAL layout rules:
   * The "/" landing page MUST use <LandingShell> (not <AppShell>). LandingShell provides the transparent-to-solid scroll-aware header for marketing pages.
@@ -226,7 +244,7 @@ export function buildPrompt(job: BuildJob): string {
     const commandsJson = JSON.stringify(job.commands, null, 2)
     const archetype = job.designArchetype ?? "saas"
 
-    return PROMPT_TEMPLATE
+    let prompt = PROMPT_TEMPLATE
         .replace("{{DESIGN_ARCHETYPE}}", archetype)
         .replace("{{PROJECT_PLAN_JSON}}", projectPlanJson)
         .replace("{{BUILD_CONTRACT_JSON}}", buildContractJson)
@@ -234,6 +252,43 @@ export function buildPrompt(job: BuildJob): string {
         .replace("{{TARGET_WORKSPACE_PATH}}", job.targetWorkspacePath)
         .replace("{{EDITABLE_PATHS}}", editablePaths)
         .replace("{{COMMANDS_JSON}}", commandsJson)
+
+    if (job.supabaseConfig?.provider === "supabase_postgres") {
+        prompt += `\n\n${buildSupabaseInstructions(job)}`
+    }
+
+    return prompt
+}
+
+function getCanonicalTableLines(job: BuildJob): string {
+    const tables = job.supabaseContext?.canonicalTables ?? []
+    if (tables.length === 0) return "- No canonical Supabase tables were generated."
+
+    return tables.map((table) => {
+        const columns = table.columns.map((column) => `${column.fieldName} -> ${column.columnName} ${column.pgType}`).join(", ")
+        return `- ${table.modelName} -> ${table.tableName}${columns ? ` (${columns})` : ""}`
+    }).join("\n")
+}
+
+function buildSupabaseInstructions(job: BuildJob): string {
+    const browserKeyLabel = job.supabaseContext?.browserKeyType === "publishable"
+        ? "VITE_SUPABASE_PUBLISHABLE_KEY"
+        : "VITE_SUPABASE_ANON_KEY"
+
+    return `SUPABASE INTEGRATION (active):
+- Use the single Supabase client from src/lib/supabase.ts: import { supabase } from "@/lib/supabase";
+- Never call createClient() outside src/lib/supabase.ts.
+- Browser env vars are VITE_SUPABASE_URL and ${browserKeyLabel}. src/lib/supabase.ts also supports the legacy VITE_SUPABASE_ANON_KEY fallback.
+- Use helpers from "@/lib/supabase-helpers" for getCurrentUserId(), requireSupabase(), insertUserOwnedRow(), and updateUserOwnedRow().
+- Canonical table map from the generated migration:
+${getCanonicalTableLines(job)}
+- Use only the canonical snake_case table names above in supabase.from("<table>").
+- For auth: import { signInWithEmail, signUpWithEmail, signOut, onAuthStateChange } from "@/lib/auth".
+- Pre-written auth pages exist: LoginPage, SignupPage, PasswordResetPage at src/pages/*. Do not regenerate them.
+- Use <ProtectedRoute> from src/components/ProtectedRoute.tsx to guard authenticated app routes.
+- RLS strategy: ${job.supabaseConfig?.rlsStrategy}. Auth mode: ${job.supabaseConfig?.authMode}.
+- When auth is enabled, created records must include user_id. Prefer insertUserOwnedRow() for inserts.
+- If Supabase is not configured at runtime, show a visible setup error state instead of silently rendering empty data.`
 }
 
 const MANIFEST_PROMPT_TEMPLATE = `You are Flowro Stage 2 Build Planner.
@@ -248,6 +303,7 @@ Rules:
 - src/pages/NotFound.tsx MUST always be in the manifest. It is required for the App.tsx catch-all route.
 - Every route listed in ProjectPlan.routes MUST have a corresponding src/pages/*.tsx file in the manifest. Do not omit any route.
 - DO NOT include src/components/ui/button.tsx, src/components/ui/card.tsx, src/components/ui/input.tsx, src/components/ui/badge.tsx, or src/lib/utils.ts — these are pre-installed in the template and must not be overwritten.
+- When Supabase auth is enabled (email_only), DO NOT generate LoginPage.tsx, SignupPage.tsx, PasswordResetPage.tsx, ProtectedRoute.tsx, src/lib/supabase.ts, or src/lib/auth.ts — these files are pre-written and already exist in the workspace. Import them as needed; do not regenerate them.
 - Add shared component files when a page imports a local component not already in the manifest.
 - If a page file (e.g. src/App.tsx) imports a local component (e.g. ./components/Dashboard), that component file MUST also be included in the manifest. Every relative import must have a matching file entry.
 - Do not include package.json, next.config.ts, tailwind.config.ts, or files outside editable paths.
@@ -270,11 +326,25 @@ BuildContract:
 `
 
 export function buildBuildManifestPrompt(job: BuildJob): string {
-    return MANIFEST_PROMPT_TEMPLATE
+    const mandatoryFiles = job.supabaseConfig?.provider === "supabase_postgres"
+        ? "MANDATORY core files: src/App.tsx, src/styles.css, src/components/ui/app-kit.tsx, src/pages/LandingPage.tsx, src/pages/AppWorkspace.tsx, src/pages/NotFound.tsx. Supabase helper files already exist in the template; import them but do not include mock-data.ts."
+        : "MANDATORY core files (always include all seven): src/App.tsx, src/styles.css, src/lib/mock-data.ts, src/components/ui/app-kit.tsx, src/pages/LandingPage.tsx, src/pages/AppWorkspace.tsx, src/pages/NotFound.tsx. The template ships a placeholder App.tsx that MUST be overwritten — never omit src/App.tsx."
+
+    let prompt = MANIFEST_PROMPT_TEMPLATE
         .replace("{{DESIGN_ARCHETYPE}}", job.designArchetype ?? "saas")
         .replace("{{EDITABLE_PATHS}}", job.editablePaths.join(", "))
         .replace("{{PROJECT_PLAN_JSON}}", JSON.stringify(job.projectPlan, null, 2))
         .replace("{{BUILD_CONTRACT_JSON}}", JSON.stringify(job.buildContract, null, 2))
+        .replace(
+            "MANDATORY core files (always include all seven): src/App.tsx, src/styles.css, src/lib/mock-data.ts, src/components/ui/app-kit.tsx, src/pages/LandingPage.tsx, src/pages/AppWorkspace.tsx, src/pages/NotFound.tsx. The template ships a placeholder App.tsx that MUST be overwritten — never omit src/App.tsx.",
+            mandatoryFiles,
+        )
+
+    if (job.supabaseConfig?.provider === "supabase_postgres") {
+        prompt += `\n\n${buildSupabaseInstructions(job)}`
+    }
+
+    return prompt
 }
 
 export type BuildManifestFile = {
@@ -311,6 +381,7 @@ RULES:
 - Use Vite-compatible TypeScript React components.
 - Keep dependencies limited to the selected template dependencies.
 - Use Tailwind CSS classes and plain React.
+- Tailwind v4 CSS rule: do not use @apply with custom classes that you define in CSS (for example, define .text-label with properties, but never write @apply text-label). @apply may only reference real Tailwind utility classes.
 - Reuse src/components/ui/app-kit.tsx for common UI primitives. Do NOT re-implement Button, Card, Input, Badge, Modal, etc.
 - CRITICAL LAYOUT: Route "/" landing page MUST use <LandingShell> (marketing layout with scroll-aware header). NEVER use <AppShell> on the landing page. Route "/app" workspace MUST use <AppShell>.
 - CRITICAL ROUTING: App.tsx MUST use AnimatePresence mode="wait" wrapping Routes with useLocation().pathname as the animation key. Include a <Route path="*" element={<NotFound />} /> catch-all.
@@ -624,13 +695,23 @@ export function buildBundledFileGenerationPrompt(
     manifest: BuildManifest,
     job: BuildJob,
 ): string {
-    return BUNDLED_FILE_GENERATION_PROMPT_TEMPLATE
+    let prompt = BUNDLED_FILE_GENERATION_PROMPT_TEMPLATE
         .replace("{{DESIGN_ARCHETYPE}}", job.designArchetype ?? "saas")
         .replace("{{DESIGN_SYSTEM_JSON}}", job.designSystem ? JSON.stringify(job.designSystem, null, 2) : "Use template default design tokens.")
         .replace("{{MANIFEST_JSON}}", JSON.stringify(manifest, null, 2))
         .replace("{{PROJECT_PLAN_JSON}}", JSON.stringify(job.projectPlan, null, 2))
         .replace("{{BUILD_CONTRACT_JSON}}", JSON.stringify(job.buildContract, null, 2))
         .replace("{{STACK}}", job.templateManifest.stack.join(", "))
+
+    if (job.supabaseConfig?.provider === "supabase_postgres") {
+        prompt = prompt.replace(
+            "- Generate files in this order: styles.css → mock-data.ts → app-kit.tsx → App.tsx → other components/pages.",
+            `- Generate files in this order: styles.css → app-kit.tsx → App.tsx → other components/pages.
+${buildSupabaseInstructions(job)}`,
+        )
+    }
+
+    return prompt
 }
 
 const FILE_GENERATION_PROMPT_TEMPLATE = `You are Flowro Stage 2 Build Agent.
@@ -642,6 +723,7 @@ Rules:
 - The file must be complete, valid, and ready to save.
 - Use TypeScript and React for components.
 - Use Tailwind CSS for styling.
+- Tailwind v4 CSS rule: do not use @apply with custom classes that you define in CSS. Expand custom classes into real Tailwind utilities or plain CSS properties.
 - Follow the existing project conventions.
 - Reuse src/components/ui/app-kit.tsx for common UI primitives. Do NOT re-implement Button, Card, Input, Badge, Modal, Table, etc.
 - Use semantic design tokens: --surface, --surface-elevated, --ink, --ink-muted, --line, --cta, --accent, --success, --warning, --danger
@@ -674,13 +756,19 @@ export function buildFileGenerationPrompt(
     const buildContractJson = JSON.stringify(job.buildContract, null, 2)
     const stack = job.templateManifest.stack.join(", ")
 
-    return FILE_GENERATION_PROMPT_TEMPLATE
+    let prompt = FILE_GENERATION_PROMPT_TEMPLATE
         .replace("{{DESIGN_ARCHETYPE}}", job.designArchetype ?? "saas")
         .replace("{{DESIGN_SYSTEM_JSON}}", job.designSystem ? JSON.stringify(job.designSystem, null, 2) : "Use template default design tokens.")
         .replace("{{FILE_PATH}}", filePath)
         .replace("{{PROJECT_PLAN_JSON}}", projectPlanJson)
         .replace("{{BUILD_CONTRACT_JSON}}", buildContractJson)
         .replace("{{STACK}}", stack)
+
+    if (job.supabaseConfig?.provider === "supabase_postgres") {
+        prompt += `\n\n${buildSupabaseInstructions(job)}\n`
+    }
+
+    return prompt
 }
 
 const FORMAT_RETRY_PROMPT_TEMPLATE = `Your previous response could not be parsed. The file markers were not found.
@@ -734,6 +822,7 @@ Rules:
 - Format: { "files": [{ "path": "relative/path", "content": "full file content" }] }
 - For TypeScript model array errors, prefer generic component props over casting model data to Record<string, unknown>[].
 - If the error is "Cannot find module" for a local relative path (e.g. ./components/X), you MUST create the missing file and include it in the files array. Do not simply remove the import.
+- Tailwind v4 CSS rule: do not use @apply with custom classes that are defined in CSS. Expand those classes into real Tailwind utilities or plain CSS properties.
 - Do not add explanations outside the JSON.
 - When fixing, prefer using app-kit.tsx components over custom implementations.
 - Use semantic design tokens: --surface, --surface-elevated, --ink, --ink-muted, --line, --cta, --accent, --success, --warning, --danger

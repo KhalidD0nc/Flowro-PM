@@ -53,7 +53,7 @@ export interface TargetSelection {
 }
 
 const SIMPLE_EDIT_TYPES = new Set<EditType>(["UPDATE_COMPONENT", "UPDATE_STYLE", "FIX_ISSUE", "REMOVE_ELEMENT", "REFACTOR", "UPDATE_TOKENS"])
-const MULTI_FILE_EDIT_TYPES = new Set<EditType>(["ADD_FEATURE", "ADD_PAGE", "REDESIGN", "ANIMATE"])
+const MULTI_FILE_EDIT_TYPES = new Set<EditType>(["ADD_PAGE", "REDESIGN", "ANIMATE"])
 
 export function createDeterministicSearchPlan(instruction: string, manifest: WorkspaceManifest): EditSearchPlan {
     const lowerInstruction = instruction.toLowerCase()
@@ -130,7 +130,15 @@ export function selectTargetFiles(
         }
     }
 
-    // Multi-file edits: allow ADD_FEATURE, ADD_PAGE, REDESIGN, ANIMATE to touch multiple files
+    if (searchPlan.editType === "ADD_FEATURE") {
+        return {
+            ok: false,
+            targetFiles: [],
+            reason: "P0 targeted edits only support changes to existing focused surfaces; new feature requests require a full rebuild.",
+        }
+    }
+
+    // Multi-file edits: allow page, redesign, and animation edits to touch multiple files.
     if (MULTI_FILE_EDIT_TYPES.has(searchPlan.editType)) {
         const editableResults = searchResults.filter(
             (result) => Boolean(manifest.files[result.filePath]) && !isProtectedWorkspaceFile(result.filePath)

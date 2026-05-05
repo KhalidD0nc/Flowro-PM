@@ -97,7 +97,7 @@ export function runProjectPlanTests(): Array<{ name: string; passed: boolean }> 
         {
             name: "build start guard rejects missing or draft plans",
             passed: getBuildStartPlanError(null)?.status === 409 &&
-                getBuildStartPlanError({ status: "draft" })?.error.includes("Approve the project plan"),
+                (getBuildStartPlanError({ status: "draft" })?.error?.includes("Approve the project plan") ?? false),
         },
         {
             name: "build start guard allows approved plans",

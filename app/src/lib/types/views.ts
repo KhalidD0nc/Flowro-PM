@@ -43,6 +43,7 @@ export interface MessageView {
     timestamp: string
     intent?: Intent
     proposedChanges?: ProposedChanges
+    modelUsed?: string
 }
 
 // Backward-compatible alias
@@ -130,6 +131,7 @@ export interface GenerateResult {
     questions?: ClarificationResponse["questions"]
     remainingRequired?: ClarificationResponse["remainingRequired"]
     stage?: ClarificationResponse["stage"]
+    modelUsed?: string
 }
 
 export interface EnhanceResult {

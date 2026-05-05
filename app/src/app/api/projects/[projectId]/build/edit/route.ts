@@ -59,9 +59,12 @@ export async function POST(
             return NextResponse.json({ error: planError.error }, { status: planError.status })
         }
 
-        const templateManifest = getTemplateManifest("vite-react-app")
+        const plan = planDoc!.plan
+        const hasDatabase = plan.database?.provider === "supabase_postgres"
+        const templateId = hasDatabase ? "vite-react-supabase-app" : "vite-react-app"
+        const templateManifest = getTemplateManifest(templateId)
         const buildPlan = {
-            ...planDoc!.plan,
+            ...plan,
             templateId: templateManifest.id,
         }
         const buildContract = createBuildContract(projectId, buildPlan, templateManifest)
@@ -96,6 +99,7 @@ export async function POST(
             editablePaths: templateManifest.editablePaths,
             commands: templateManifest.scripts,
             designArchetype,
+            supabaseConfig: plan.database,
         })
 
         await setProjectStage(projectId, "coding")
@@ -138,6 +142,7 @@ export async function POST(
             editablePaths: templateManifest.editablePaths,
             commands: templateManifest.scripts,
             designArchetype,
+            supabaseConfig: plan.database,
         }
 
         Promise.resolve().then(() =>

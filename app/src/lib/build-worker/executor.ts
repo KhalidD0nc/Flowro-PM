@@ -1,5 +1,6 @@
 import { promises as fsp } from "fs"
 import path from "path"
+import { fileURLToPath } from "url"
 import { copyTemplate, getPreviewPort, isServerReady, readRepairContextFiles, runCommand, startDevServer, writeWorkspaceFile, type CommandResult } from "./fs"
 import {
     buildBuildManifestPrompt,
@@ -18,14 +19,26 @@ import { buildMissingImportStubs, detectPackagesFromFiles, normalizeGeneratedFil
 import { registerActiveBuild, unregisterActiveBuild } from "./cancel"
 import { getBuildRun, setProjectStage, updateBuildRun } from "@/lib/firebase/collections"
 import type { BuildPhase, BuildRun } from "@/lib/project-plan/schema"
+import { provisionSupabase, SupabaseProvisioningError } from "./supabaseProvisioner"
+import type { SupabaseContext } from "./agentPrompt"
 
 const BUILD_MODEL = process.env.OPENROUTER_MODEL_BUILD || "moonshotai/kimi-k2.6"
+const REPAIR_MODEL = process.env.OPENROUTER_MODEL_REPAIR || "openai/gpt-5.5"
 const MAX_MANIFEST_FILES = 10
 const MAX_REPAIR_ATTEMPTS = 2
 const MAX_FORMAT_RETRIES = 2
 const INSTALL_TIMEOUT_MS = 180000
 const BUILD_TIMEOUT_MS = 180000
 const PREVIEW_READY_TIMEOUT_MS = 30000
+const SUPABASE_TEMPLATE_OWNED_FILES = new Set([
+    "src/components/ProtectedRoute.tsx",
+    "src/pages/LoginPage.tsx",
+    "src/pages/SignupPage.tsx",
+    "src/pages/PasswordResetPage.tsx",
+    "src/lib/auth.ts",
+    "src/lib/supabase.ts",
+    "src/lib/supabase-helpers.ts",
+])
 
 class BuildCanceledError extends Error {
     constructor() {
@@ -48,12 +61,14 @@ export function deriveBuildProgress(input: BuildProgressInput): number {
     const phaseWeights: Record<BuildPhase, number> = {
         queued: 4,
         planning: 12,
-        generating: 35,
-        installing: 58,
-        building: 74,
-        repairing: 84,
-        fallback: 82,
-        preview: 94,
+        provisioning: 20,
+        schema_gen: 27,
+        generating: 42,
+        installing: 62,
+        building: 76,
+        repairing: 86,
+        fallback: 84,
+        preview: 95,
         completed: 100,
         failed: 100,
         canceled: 100,
@@ -158,6 +173,7 @@ export async function executeBuildRun(
     const startedAt = new Date(startedAtMs).toISOString()
     const controller = registerActiveBuild(runId)
     let fallbackUsed = false
+    const isSupabaseBuild = job.supabaseConfig?.provider === "supabase_postgres"
 
     function elapsedMs() {
         return Date.now() - startedAtMs
@@ -212,10 +228,28 @@ export async function executeBuildRun(
         }
 
         const merged: Record<string, string> = { ...normalized.files }
+        if (source === "ai" && job.supabaseConfig?.authMode === "email_only") {
+            for (const filePath of Object.keys(merged)) {
+                if (SUPABASE_TEMPLATE_OWNED_FILES.has(filePath)) {
+                    delete merged[filePath]
+                    await appendLog(`Skipped AI overwrite of Supabase template file: ${filePath}`)
+                }
+            }
+        }
 
         // Auto-stub any relative import that does not resolve to a generated file.
         // This keeps tsc/Vite green when the model forgets to emit a referenced module.
         const stubs = buildMissingImportStubs(merged)
+        for (const stubPath of Object.keys(stubs)) {
+            try {
+                await fsp.access(path.join(job.targetWorkspacePath, stubPath))
+                delete stubs[stubPath]
+                await appendLog(`Skipped auto-stub for existing template file: ${stubPath}`)
+            } catch {
+                // Missing on disk; keep the generated stub.
+            }
+        }
+
         const stubPaths = Object.keys(stubs)
         if (stubPaths.length > 0) {
             await appendLog(`Auto-stubbing ${stubPaths.length} missing import(s): ${stubPaths.join(", ")}`)
@@ -267,6 +301,63 @@ export async function executeBuildRun(
         await copyTemplate(job.templateManifest.id, job.targetWorkspacePath)
         await appendLog("Template copied successfully")
         await checkCanceled()
+
+        // ── Supabase provisioning ──
+        let supabaseContext: SupabaseContext | null = null
+        if (isSupabaseBuild) {
+            await updateProgress({ phase: "provisioning", currentAction: "Provisioning Supabase project..." })
+            await appendStep("Provisioning Supabase project")
+            try {
+                supabaseContext = await provisionSupabase(job, appendLog)
+                job.supabaseContext = supabaseContext
+                await updateProgress({
+                    supabaseProvision: {
+                        projectId: supabaseContext.projectRef,
+                        projectRef: supabaseContext.projectRef,
+                        projectUrl: supabaseContext.projectUrl,
+                        browserKey: supabaseContext.browserKey,
+                        browserKeyType: supabaseContext.browserKeyType,
+                        anonKey: supabaseContext.anonKey,
+                        canonicalTables: supabaseContext.canonicalTables,
+                        migrationPath: supabaseContext.migrationPath,
+                        schemaSQL: supabaseContext.schemaSQL,
+                        rlsPoliciesSQL: supabaseContext.rlsPoliciesSQL,
+                        status: "provisioned",
+                    },
+                })
+            } catch (error) {
+                const code = error instanceof SupabaseProvisioningError ? error.code : "supabase_provision_failed"
+                const message = error instanceof Error ? error.message : String(error)
+                await appendLog(`${code}: ${message}`)
+                await updateProgress({
+                    currentAction: code,
+                    supabaseProvision: {
+                        status: "failed",
+                        error: message,
+                    },
+                })
+                throw error
+            }
+            await checkCanceled()
+        }
+
+        // ── Write deterministic auth templates before manifest planning ──
+        if (job.supabaseConfig?.authMode === "email_only") {
+            await appendStep("Writing auth templates")
+            const authTemplateDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "authTemplates")
+            const authFiles = [
+                { src: "LoginPage.tsx", dest: "src/pages/LoginPage.tsx" },
+                { src: "SignupPage.tsx", dest: "src/pages/SignupPage.tsx" },
+                { src: "PasswordResetPage.tsx", dest: "src/pages/PasswordResetPage.tsx" },
+                { src: "ProtectedRoute.tsx", dest: "src/components/ProtectedRoute.tsx" },
+            ]
+            for (const { src, dest } of authFiles) {
+                const content = await fsp.readFile(path.join(authTemplateDir, src), "utf-8")
+                await writeWorkspaceFile(job.targetWorkspacePath, dest, content)
+                await appendLog(`Pre-wrote auth template: ${dest}`)
+            }
+            await checkCanceled()
+        }
 
         await updateProgress({ phase: "planning", currentAction: "Generating design system" })
         await appendStep("Generating design system")
@@ -379,6 +470,9 @@ export async function executeBuildRun(
                     allFiles = await generateFilesIndividually(job, manifest, appendLog, controller.signal)
                     await writeFiles(allFiles, "ai")
                 } catch (perFileError) {
+                    if (isSupabaseBuild) {
+                        throw new Error(`Supabase app generation failed and mock fallback is disabled: ${perFileError instanceof Error ? perFileError.message : String(perFileError)}`)
+                    }
                     fallbackUsed = true
                     await updateProgress({ phase: "fallback", fallbackUsed: true, currentAction: "All generation methods failed; using deterministic fallback" })
                     await appendLog(`Per-file generation failed: ${perFileError instanceof Error ? perFileError.message : String(perFileError)}`)
@@ -399,10 +493,17 @@ export async function executeBuildRun(
                 currentApp.includes("Generated app ready") ||
                 currentApp.includes("Stage 2 worker will replace")
             ) {
+                if (isSupabaseBuild) {
+                    throw new Error("Supabase build left the placeholder App.tsx in place; mock fallback is disabled.")
+                }
                 await appendLog("Detected placeholder App.tsx after generation; overwriting from deterministic fallback")
                 const fb = buildFallbackFiles(job)
                 const overrides: Record<string, string> = {}
-                for (const key of ["src/App.tsx", "src/components/ui/app-kit.tsx", "src/lib/mock-data.ts", "src/styles.css"]) {
+                const fallbackKeys = ["src/App.tsx", "src/components/ui/app-kit.tsx", "src/styles.css"]
+                if (job.supabaseConfig?.provider !== "supabase_postgres") {
+                    fallbackKeys.push("src/lib/mock-data.ts")
+                }
+                for (const key of fallbackKeys) {
                     if (fb[key]) overrides[key] = fb[key]
                 }
                 await writeFiles(overrides, "fallback")
@@ -410,6 +511,9 @@ export async function executeBuildRun(
                 await updateProgress({ fallbackUsed: true })
             }
         } catch {
+            if (isSupabaseBuild) {
+                throw new Error("Supabase build did not produce App.tsx; mock fallback is disabled.")
+            }
             // App.tsx missing entirely — write fallback core files
             await appendLog("App.tsx missing after generation; writing deterministic fallback core files")
             await writeFiles(buildFallbackFiles(job), "fallback")
@@ -495,7 +599,7 @@ export async function executeBuildRun(
                         maxRetries: 0,
                         signal: controller.signal,
                     },
-                    BUILD_MODEL
+                    REPAIR_MODEL
                 )
                 const repairPlan = extractJsonFromResponse(repairResponse) as { files?: Array<{ path: string; content: string }> }
                 const repairFiles = Object.fromEntries((repairPlan.files ?? [])
@@ -535,7 +639,7 @@ export async function executeBuildRun(
             }
         }
 
-        if (!validation.success && !fallbackUsed) {
+        if (!validation.success && !fallbackUsed && !isSupabaseBuild) {
             fallbackUsed = true
             await updateProgress({ phase: "fallback", fallbackUsed: true, currentAction: "Repair failed; switching to deterministic fallback" })
             await appendStep("Switching to deterministic fallback")
@@ -592,19 +696,28 @@ export async function executeBuildRun(
 
 // Core files that MUST always be regenerated. Without App.tsx the template
 // placeholder ("Generated app ready") survives and the user sees nothing.
-const REQUIRED_CORE_FILES: BuildManifestFile[] = [
-    { path: "src/App.tsx", reason: "App entry: mounts router and wires generated pages" },
-    { path: "src/styles.css", reason: "Tailwind entry and theme tokens" },
-    { path: "src/lib/mock-data.ts", reason: "Local mock data for the preview" },
-    { path: "src/components/ui/app-kit.tsx", reason: "Shared UI primitives" },
-    { path: "src/pages/LandingPage.tsx", reason: "Landing-first generated app route" },
-    { path: "src/pages/AppWorkspace.tsx", reason: "Usable product workspace route" },
-]
+function getRequiredCoreFiles(job: BuildJob): BuildManifestFile[] {
+    const base = [
+        { path: "src/App.tsx", reason: "App entry: mounts router and wires generated pages" },
+        { path: "src/styles.css", reason: "Tailwind entry and theme tokens" },
+        { path: "src/components/ui/app-kit.tsx", reason: "Shared UI primitives" },
+        { path: "src/pages/LandingPage.tsx", reason: "Landing-first generated app route" },
+        { path: "src/pages/AppWorkspace.tsx", reason: "Usable product workspace route" },
+        { path: "src/pages/NotFound.tsx", reason: "Catch-all route for invalid URLs" },
+    ]
+    if (job.supabaseConfig?.provider === "supabase_postgres") {
+        return base
+    }
+    return [
+        ...base,
+        { path: "src/lib/mock-data.ts", reason: "Local mock data for the preview" },
+    ]
+}
 
-function mergeRequiredCoreFiles(files: BuildManifestFile[]): BuildManifestFile[] {
+function mergeRequiredCoreFiles(files: BuildManifestFile[], job: BuildJob): BuildManifestFile[] {
     const existingPaths = new Set(files.map((f) => f.path))
     const merged = [...files]
-    for (const required of REQUIRED_CORE_FILES) {
+    for (const required of getRequiredCoreFiles(job)) {
         if (!existingPaths.has(required.path)) {
             merged.unshift(required)
         }
@@ -617,7 +730,7 @@ async function createBuildManifest(
     signal: AbortSignal,
     appendLog: (line: string) => Promise<void>,
 ): Promise<BuildManifest> {
-    const fallbackManifest = createDeterministicManifest()
+    const fallbackManifest = createDeterministicManifest(job)
 
     try {
         const { content: response, model: usedModel } = await generateBuildCompletionWithFallback({
@@ -635,7 +748,7 @@ async function createBuildManifest(
 
         if (aiFiles.length === 0) throw new Error("Manifest did not include editable files")
 
-        const files = mergeRequiredCoreFiles(aiFiles)
+        const files = mergeRequiredCoreFiles(aiFiles, job)
         const added = files.length - aiFiles.length
         if (added > 0) {
             await appendLog(`Forced ${added} required core file(s) into AI manifest (App.tsx, styles, etc.)`)
@@ -647,14 +760,15 @@ async function createBuildManifest(
     }
 }
 
-function createDeterministicManifest(): BuildManifest {
+function createDeterministicManifest(job: BuildJob): BuildManifest {
     const files = Array.from(new Set([
         "src/App.tsx",
         "src/styles.css",
         "src/components/ui/app-kit.tsx",
-        "src/lib/mock-data.ts",
+        ...(job.supabaseConfig?.provider !== "supabase_postgres" ? ["src/lib/mock-data.ts"] : []),
         "src/pages/LandingPage.tsx",
         "src/pages/AppWorkspace.tsx",
+        "src/pages/NotFound.tsx",
     ])).slice(0, MAX_MANIFEST_FILES)
 
     return {

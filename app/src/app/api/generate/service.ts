@@ -6,6 +6,7 @@ import {
     clarificationQuestionSchema,
     clarificationResponseSchema,
     discussionResponseSchema,
+    type PRDConfig,
 } from "@/lib/prd/schema"
 import { projectPlanGenerateResponseSchema, type ProjectPlan } from "@/lib/project-plan/schema"
 
@@ -81,6 +82,16 @@ export interface GenerateResult {
 
 export function normalizeUBPFields(): void {
     // Retained only for compatibility with legacy imports during the cutover.
+}
+
+export function enforceWebOnlyPrdConfig(prd: PRDConfig): PRDConfig {
+    return {
+        ...prd,
+        metadata: {
+            ...prd.metadata,
+            platforms: ["web"],
+        },
+    }
 }
 
 function toHistoryMessages(context?: ChatMessage[]): BaseMessage[] {
@@ -173,6 +184,7 @@ Rules:
 - Capture what is explicitly known; infer lightly only when the inference is obvious.
 - readyForPrd should be true only when the core product shape is clear enough to generate a solid first project plan.
 - missingInfoTags should contain only the unresolved high-impact gaps.
+- When the user's idea involves user accounts, saving data, persistence, or multi-user collaboration but does NOT explicitly choose a database approach, include "tech_preferences" in missingInfoTags.
 - Never mention that this is an internal step.`,
     ],
     new MessagesPlaceholder("history"),
@@ -196,9 +208,10 @@ Rules:
 - Use selectionMode "multiple" when multiple answers are valid.
 - All non-custom options must use kind "preset".
 - Ask at most 3 questions total.
-- Focus on only these areas: primary user, problem, core workflow, MVP scope, and critical constraints.
+- Focus on only these areas: primary user, problem, core workflow, MVP scope, critical constraints, and database preference.
+- When tech_preferences is in missingInfoTags, ask: "Do you want real persistent storage (Supabase) or a working prototype with mock data?"
 - Never ask about platform selection, mobile apps, iOS, Android, responsive/mobile support, or native clients.
-- Never ask the user to choose vendors, SDKs, hosting providers, or other implementation details before the first project plan.
+- Only ask about database/storage when the product clearly needs persistence or user accounts; do not ask for simple landing pages or static prototypes.
 - Keep the message short and direct.
 - Do not generate the project plan yet.
 - Do not show or mention any internal rewritten prompt.`,
@@ -228,10 +241,11 @@ Use this exact shape:
 - buildTasks: id, title, description, status
 - acceptanceChecks
 - risks
+- database: provider, authMode, rlsStrategy
 
 Rules:
 - Use the enhanced brief as the source of truth and use the chat history only to resolve detail.
-- templateId must equal exactly "vite-react-app".
+- templateId must equal exactly "vite-react-app" unless database.provider is "supabase_postgres", in which case use "vite-react-supabase-app".
 - Routes must describe real screens/pages the generated app should implement.
 - Build tasks must be concrete and implementation-relevant.
 - UI requirements must be specific enough for the build contract to guide generated landing and product screens.
@@ -240,7 +254,13 @@ Rules:
 - The landing page should make the product name the strongest first-viewport signal with one memorable visual idea and a clear CTA into the app.
 - The product app should be dense, useful, and workflow-oriented rather than a marketing page.
 - Data models should only contain necessary product data.
-- Never use "Flowro" as the product name.`,
+- Never use "Flowro" as the product name.
+- When the user mentions user accounts, login, data persistence, saving data, or multi-user features:
+  * Set database.provider to "supabase_postgres"
+  * Set database.authMode to "email_only" when login is needed, "none" for anonymous/public data
+  * Set database.rlsStrategy to "user_owned" (default), "public_read_user_write" for content-sharing apps
+  * Set templateId to "vite-react-supabase-app"
+- When the user only wants a prototype or demo: keep database.provider as "none" (mock data path)`,
     ],
     ["system", "### ENHANCED BRIEF\n{enhancedBrief}"],
     new MessagesPlaceholder("history"),
