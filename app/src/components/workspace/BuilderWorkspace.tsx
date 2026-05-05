@@ -1,13 +1,14 @@
 "use client"
 
 import Image from "next/image"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { User } from "firebase/auth"
 import type { BuildRun } from "@/lib/project-plan/schema"
 import type { ProjectView } from "@/lib/types/views"
 import { ActionButton, isBuildRunning } from "@/components/workspace/BuildMissionControl"
 import { authPost } from "@/lib/authFetch"
 import { normalizePreviewPath } from "@/lib/previewRoutes"
+import { findLatestRecoverablePreviewRun, findLatestSuccessfulPreviewRun } from "@/lib/previewSelection"
 
 export type PlanView = NonNullable<ProjectView["latestPlan"]>
 
@@ -129,11 +130,15 @@ function BuildingView({
   busyAction,
   onCancelBuild,
   onRetryBuild,
+  onRelaunchPreview,
+  hasReusablePreview,
 }: {
   build: BuildRun | null
   busyAction: string | null
   onCancelBuild: () => void
   onRetryBuild: () => void
+  onRelaunchPreview: () => void
+  hasReusablePreview: boolean
 }) {
   const running = isBuildRunning(build)
   const failed = build?.status === "failed" || build?.status === "canceled"
@@ -164,6 +169,12 @@ function BuildingView({
 
           {failed ? (
             <div className="mt-8 flex flex-wrap justify-center gap-3">
+              {hasReusablePreview ? (
+                <ActionButton onClick={onRelaunchPreview} disabled={busyAction !== null} tone="secondary">
+                  <span className="material-symbols-outlined text-[18px]">play_arrow</span>
+                  Relaunch preview
+                </ActionButton>
+              ) : null}
               <ActionButton onClick={onRetryBuild} disabled={busyAction !== null}>
                 <span className="material-symbols-outlined text-[18px]">refresh</span>
                 Retry
@@ -235,17 +246,23 @@ function PreviewOnly({
   previewUrl,
   selectedPath,
   user,
+  refreshKey,
 }: {
   projectId: string
   previewUrl: string
   selectedPath: string
   user: User
+  refreshKey: number
 }) {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [managedPreviewUrl, setManagedPreviewUrl] = useState(previewUrl)
 
   useEffect(() => {
     let canceled = false
+    setReady(false)
+    setError(null)
+    setManagedPreviewUrl(previewUrl)
     async function ensureRunning() {
       try {
         const res = await authPost(`/api/projects/${projectId}/build/relaunch`, user, {})
@@ -254,14 +271,18 @@ function PreviewOnly({
           if (!canceled) setError(data.error || "Failed to start preview server")
           return
         }
-        if (!canceled) setReady(true)
+        const data = await res.json()
+        if (!canceled) {
+          setManagedPreviewUrl(data.previewUrl || previewUrl)
+          setReady(true)
+        }
       } catch {
         if (!canceled) setError("Could not reach preview server")
       }
     }
     void ensureRunning()
     return () => { canceled = true }
-  }, [projectId, user])
+  }, [projectId, previewUrl, refreshKey, user])
 
   if (error) {
     return (
@@ -282,7 +303,8 @@ function PreviewOnly({
   return (
     <div className="h-full min-h-[calc(100vh-6rem)] overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[#1a1a1a] p-3 shadow-[0_26px_70px_-52px_rgba(0,0,0,0.95)]">
       <iframe
-        src={getPreviewSrc(previewUrl, selectedPath)}
+        key={`${managedPreviewUrl}:${selectedPath}:${refreshKey}`}
+        src={getPreviewSrc(managedPreviewUrl, selectedPath)}
         title="Generated app preview"
         className="h-full min-h-[calc(100vh-7.5rem)] w-full rounded-[0.75rem] border-0 bg-white"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
@@ -299,6 +321,7 @@ export function BuilderWorkspace({
   error,
   user,
   selectedPreviewPath = "/",
+  previewRefreshKey = 0,
   onApprovePlan,
   onRegeneratePlan,
   onStartBuild,
@@ -311,6 +334,7 @@ export function BuilderWorkspace({
   error: string | null
   user: User
   selectedPreviewPath?: string
+  previewRefreshKey?: number
   onApprovePlan: () => void
   onRegeneratePlan: () => void
   onStartBuild: () => void
@@ -319,6 +343,34 @@ export function BuilderWorkspace({
 }) {
   const approvedPlan = planView?.status === "approved"
   const latestBuild = buildRuns[0] ?? null
+  const [relaunchedPreviewUrl, setRelaunchedPreviewUrl] = useState<string | null>(null)
+  const [relaunchError, setRelaunchError] = useState<string | null>(null)
+  const lastHandledRefreshKey = useRef(previewRefreshKey)
+  const latestSuccessfulPreview = findLatestSuccessfulPreviewRun(buildRuns)
+  const latestRecoverablePreview = findLatestRecoverablePreviewRun(buildRuns)
+  const previewBuild = latestBuild?.status === "success" && latestBuild.previewAvailable && latestBuild.previewUrl
+    ? latestBuild
+    : latestSuccessfulPreview
+
+  async function handleRelaunchPreview() {
+    try {
+      setRelaunchError(null)
+      const response = await authPost(`/api/projects/${project.id}/build/relaunch`, user, {})
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Failed to relaunch preview")
+      setRelaunchedPreviewUrl(data.previewUrl)
+    } catch (error) {
+      setRelaunchError(error instanceof Error ? error.message : "Failed to relaunch preview")
+    }
+  }
+
+  useEffect(() => {
+    if (previewRefreshKey === lastHandledRefreshKey.current) return
+    lastHandledRefreshKey.current = previewRefreshKey
+    if (!latestSuccessfulPreview && latestRecoverablePreview) {
+      void handleRelaunchPreview()
+    }
+  }, [latestRecoverablePreview, latestSuccessfulPreview, previewRefreshKey])
 
   if (!approvedPlan) {
     return (
@@ -341,8 +393,12 @@ export function BuilderWorkspace({
     )
   }
 
-  if (latestBuild?.previewAvailable && latestBuild.previewUrl) {
-    return <PreviewOnly projectId={project.id} previewUrl={latestBuild.previewUrl} selectedPath={selectedPreviewPath} user={user} />
+  if (relaunchedPreviewUrl) {
+    return <PreviewOnly key={relaunchedPreviewUrl} projectId={project.id} previewUrl={relaunchedPreviewUrl} selectedPath={selectedPreviewPath} user={user} refreshKey={previewRefreshKey} />
+  }
+
+  if (previewBuild?.previewUrl) {
+    return <PreviewOnly key={previewBuild.id} projectId={project.id} previewUrl={previewBuild.previewUrl} selectedPath={selectedPreviewPath} user={user} refreshKey={previewRefreshKey} />
   }
 
   return (
@@ -352,11 +408,18 @@ export function BuilderWorkspace({
           {error}
         </div>
       ) : null}
+      {relaunchError ? (
+        <div className="mb-3 rounded-2xl border border-red-300/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+          {relaunchError}
+        </div>
+      ) : null}
       <BuildingView
         build={latestBuild}
         busyAction={busyAction}
         onCancelBuild={onCancelBuild}
         onRetryBuild={onStartBuild}
+        onRelaunchPreview={handleRelaunchPreview}
+        hasReusablePreview={Boolean(latestRecoverablePreview)}
       />
     </>
   )

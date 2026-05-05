@@ -9,6 +9,10 @@ export function isBuildRunning(build: BuildRun | null) {
   return Boolean(build && !BUILD_TERMINAL_STATUSES.has(build.status))
 }
 
+export function shouldPollBuildRun(build: BuildRun | null) {
+  return isBuildRunning(build)
+}
+
 export function mergeBuildRun(current: BuildRun[], nextRun: BuildRun): BuildRun[] {
   const existingIndex = current.findIndex((run) => run.id === nextRun.id)
   if (existingIndex === -1) return [nextRun, ...current]

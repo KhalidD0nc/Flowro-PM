@@ -104,6 +104,13 @@ export interface ProjectView {
     projectName: string
     description?: string
     stage?: ProjectStage
+    publishStatus?: "idle" | "pushing" | "deploying" | "live" | "failed"
+    githubRepoUrl?: string
+    vercelProjectName?: string
+    vercelDeploymentId?: string
+    vercelDeploymentUrl?: string
+    vercelDeployUrl?: string
+    publishedAt?: string
     chatHistory: MessageView[]
     createdAt: string
     updatedAt: string

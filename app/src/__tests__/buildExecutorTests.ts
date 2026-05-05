@@ -2,6 +2,7 @@ import {
     deriveBuildProgress,
     extractJsonFromResponse,
     parseBundledFiles,
+    summarizeSupabaseTemplateOwnedTypecheckFailure,
     stripMarkdownCodeBlocks,
 } from "../lib/build-worker/executor"
 import { buildFallbackFiles } from "../lib/build-worker/fallback"
@@ -13,9 +14,13 @@ import { executeEditSearch, selectTargetFiles, type EditSearchPlan } from "../li
 import { filterFilesToTargetSet } from "../lib/build-worker/editExecutor"
 import { createBuildContract, getTemplateManifest } from "../lib/project-plan/schema"
 import type { BuildJob } from "../lib/build-worker/agentPrompt"
+import { shouldPollBuildRun } from "../components/workspace/BuildMissionControl"
+import { findLatestRecoverablePreviewRun, findLatestRelaunchablePreviewRun, findLatestSuccessfulPreviewRun } from "../lib/previewSelection"
+import type { BuildRun } from "../lib/project-plan/schema"
 import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
+import ts from "typescript"
 
 const templateManifest = getTemplateManifest("vite-react-app")
 const projectPlan = {
@@ -133,6 +138,81 @@ export async function runBuildExecutorTests(): Promise<Array<{ name: string; pas
             passed: deriveBuildProgress({ status: "running", phase: "generating", completedFiles: 2, totalFiles: 4 }) > 30,
         },
         {
+            name: "build polling stays active for managed non-terminal runs",
+            passed: shouldPollBuildRun({
+                id: "run-1",
+                projectId: "project-1",
+                templateId: "vite-react-app",
+                status: "running",
+                phase: "preview",
+                steps: [],
+                logs: [],
+                filesChanged: [],
+                previewUrl: null,
+                commandsRun: [],
+                verificationResults: [],
+                detectedPackages: [],
+                installedPackages: [],
+                validationErrors: [],
+            }) && !shouldPollBuildRun({
+                id: "run-2",
+                projectId: "project-1",
+                templateId: "vite-react-app",
+                status: "failed",
+                phase: "failed",
+                steps: [],
+                logs: [],
+                filesChanged: [],
+                previewUrl: null,
+                commandsRun: [],
+                verificationResults: [],
+                detectedPackages: [],
+                installedPackages: [],
+                validationErrors: [],
+            }),
+        },
+        {
+            name: "preview selection uses latest successful run when latest run failed",
+            passed: (() => {
+                const failedLatest = testBuildRun("failed-latest", "failed")
+                const successfulOlder = testBuildRun("success-older", "success", {
+                    previewAvailable: true,
+                    previewUrl: "http://localhost:3310",
+                    targetWorkspacePath: "/tmp/flowro-success",
+                })
+                return findLatestSuccessfulPreviewRun([failedLatest, successfulOlder])?.id === "success-older"
+            })(),
+        },
+        {
+            name: "preview selection ignores failed runs without older success",
+            passed: findLatestSuccessfulPreviewRun([testBuildRun("failed-latest", "failed")]) === null,
+        },
+        {
+            name: "relaunch selection returns newest successful workspace run",
+            passed: (() => {
+                const failedLatest = testBuildRun("failed-latest", "failed", { targetWorkspacePath: "/tmp/failed" })
+                const newestSuccess = testBuildRun("success-new", "success", {
+                    previewAvailable: true,
+                    previewUrl: null,
+                    targetWorkspacePath: "/tmp/new",
+                })
+                const olderSuccess = testBuildRun("success-old", "success", {
+                    previewAvailable: true,
+                    previewUrl: "http://localhost:3310",
+                    targetWorkspacePath: "/tmp/old",
+                })
+                return findLatestRelaunchablePreviewRun([failedLatest, newestSuccess, olderSuccess])?.id === "success-new"
+            })(),
+        },
+        {
+            name: "recoverable preview selection can use failed workspace runs",
+            passed: findLatestRecoverablePreviewRun([
+                testBuildRun("failed-with-workspace", "failed", {
+                    targetWorkspacePath: "/tmp/flowro-failed",
+                }),
+            ])?.id === "failed-with-workspace",
+        },
+        {
             name: "build completion defaults are bounded for fast worker calls",
             passed: buildCompletionDefaults.timeoutMs < 300000 && buildCompletionDefaults.maxRetries < 3,
         },
@@ -203,7 +283,45 @@ export async function runBuildExecutorTests(): Promise<Array<{ name: string; pas
             name: "targeted edit blocks new feature requests in P0",
             passed: await targetedEditBlocksFeatureRequests(),
         },
+        {
+            name: "Supabase auth helper accepts sync ProtectedRoute callbacks",
+            passed: await supabaseAuthTemplateAcceptsSyncCallbacks(),
+        },
+        {
+            name: "Supabase template-owned typecheck failures are repair-blocked",
+            passed: (() => {
+                const message = summarizeSupabaseTemplateOwnedTypecheckFailure(
+                    "src/components/ProtectedRoute.tsx:10:40 - error TS2345: Type 'void' is not assignable to type 'Promise<void>'.",
+                )
+                return Boolean(message?.includes("Supabase template-owned file failed typecheck") &&
+                    message.includes("src/components/ProtectedRoute.tsx") &&
+                    message.includes("repair cannot edit it"))
+            })(),
+        },
     ]
+}
+
+function testBuildRun(
+    id: string,
+    status: BuildRun["status"],
+    overrides: Partial<BuildRun> = {},
+): BuildRun {
+    return {
+        id,
+        projectId: "project-1",
+        templateId: "vite-react-app",
+        status,
+        steps: [],
+        logs: [],
+        filesChanged: [],
+        previewUrl: null,
+        commandsRun: [],
+        verificationResults: [],
+        detectedPackages: [],
+        installedPackages: [],
+        validationErrors: [],
+        ...overrides,
+    }
 }
 
 if (require.main === module) {
@@ -330,6 +448,73 @@ async function targetedEditBlocksFeatureRequests(): Promise<boolean> {
         const search = executeEditSearch(plan, manifest)
         const selection = selectTargetFiles("add a new settings page", plan, search.results, manifest)
         return !selection.ok && selection.reason.includes("P0 targeted edits")
+    } finally {
+        await fs.rm(workspacePath, { recursive: true, force: true })
+    }
+}
+
+async function supabaseAuthTemplateAcceptsSyncCallbacks(): Promise<boolean> {
+    const workspacePath = await fs.mkdtemp(path.join(os.tmpdir(), "flowro-auth-contract-"))
+    try {
+        await fs.mkdir(path.join(workspacePath, "src/lib"), { recursive: true })
+        await fs.mkdir(path.join(workspacePath, "src/components"), { recursive: true })
+        await fs.mkdir(path.join(workspacePath, "src/types"), { recursive: true })
+
+        await fs.writeFile(path.join(workspacePath, "src/types/react-router-dom.d.ts"), [
+            "declare module 'react-router-dom' {",
+            "  export function Navigate(props: { to: string; replace?: boolean }): JSX.Element",
+            "}",
+        ].join("\n"))
+
+        await fs.writeFile(path.join(workspacePath, "src/lib/auth.ts"), [
+            "export type AuthChangeEvent = 'SIGNED_IN' | 'SIGNED_OUT'",
+            "export type Session = { user: { id: string } }",
+            "const supabase = {",
+            "  auth: {",
+            "    onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => Promise<void>) {",
+            "      void callback('SIGNED_OUT', null)",
+            "      return { data: { subscription: { unsubscribe: () => undefined } } }",
+            "    },",
+            "  },",
+            "}",
+            "type AuthStateChangeCallback = (event: AuthChangeEvent, session: Session | null) => void | Promise<void>",
+            "export function onAuthStateChange(callback: AuthStateChangeCallback) {",
+            "  return supabase.auth.onAuthStateChange(async (event, session) => {",
+            "    await callback(event, session)",
+            "  })",
+            "}",
+        ].join("\n"))
+
+        const protectedRouteTemplate = await fs.readFile(
+            path.join(process.cwd(), "src/lib/build-worker/authTemplates/ProtectedRoute.tsx"),
+            "utf-8",
+        )
+        await fs.writeFile(path.join(workspacePath, "src/components/ProtectedRoute.tsx"), protectedRouteTemplate)
+
+        const configPath = path.join(workspacePath, "tsconfig.json")
+        await fs.writeFile(configPath, JSON.stringify({
+            compilerOptions: {
+                target: "ES2020",
+                module: "NodeNext",
+                moduleResolution: "NodeNext",
+                jsx: "react-jsx",
+                strict: true,
+                esModuleInterop: true,
+                skipLibCheck: true,
+                baseUrl: ".",
+                paths: { "@/*": ["src/*"] },
+                typeRoots: [path.join(process.cwd(), "node_modules/@types"), path.join(workspacePath, "src/types")],
+                types: ["react", "react-dom"],
+            },
+            include: ["src"],
+        }, null, 2))
+
+        const config = ts.readConfigFile(configPath, ts.sys.readFile)
+        const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, workspacePath)
+        const program = ts.createProgram(parsed.fileNames, parsed.options)
+        const diagnostics = ts.getPreEmitDiagnostics(program)
+
+        return diagnostics.length === 0
     } finally {
         await fs.rm(workspacePath, { recursive: true, force: true })
     }
