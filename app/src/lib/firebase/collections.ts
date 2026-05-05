@@ -602,6 +602,25 @@ export async function setProjectStage(projectId: string, stage: ProjectStage): P
     await updateProject(projectId, { stage })
 }
 
+export async function updateProjectPublish(
+    projectId: string,
+    fields: Partial<Pick<ProjectDocument,
+        "publishStatus" |
+        "githubRepoUrl" |
+        "vercelProjectName" |
+        "vercelDeploymentId" |
+        "vercelDeploymentUrl" |
+        "vercelDeployUrl" |
+        "publishedAt" |
+        "publishError"
+    >>
+): Promise<void> {
+    const db = getDb()
+    await db.collection(COLLECTIONS.PROJECTS).doc(projectId).update(
+        removeUndefinedValues({ ...fields, updatedAt: Timestamp.now() } as unknown as Record<string, unknown>)
+    )
+}
+
 export async function createBuildRun(
     data: Omit<BuildRun, "id" | "createdAt" | "updatedAt">
 ): Promise<BuildRunDocument> {

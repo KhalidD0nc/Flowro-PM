@@ -3,8 +3,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAtom } from "jotai";
 import { workspaceTabAtom } from "@/atoms/workspaceAtoms";
+import type { User } from "firebase/auth";
+import { authFetch } from "@/lib/authFetch";
 
 export type WorkspaceTabKey = "preview" | "code" | "files";
+
+type PublishState = "idle" | "pushing" | "deploying" | "live" | "failed";
 
 interface TabDef {
   key: WorkspaceTabKey;
@@ -17,6 +21,11 @@ interface WorkspaceTabsProps {
   previewRoutes?: Array<{ path: string; name: string }>;
   selectedPreviewPath?: string;
   onPreviewPathChange?: (path: string) => void;
+  onRefreshPreview?: () => void;
+  projectId?: string;
+  user?: User | null;
+  initialPublishStatus?: PublishState;
+  initialVercelUrl?: string;
 }
 
 export default function WorkspaceTabs({
@@ -24,9 +33,16 @@ export default function WorkspaceTabs({
   previewRoutes,
   selectedPreviewPath = "/",
   onPreviewPathChange,
+  onRefreshPreview,
+  projectId,
+  user,
+  initialPublishStatus,
+  initialVercelUrl,
 }: WorkspaceTabsProps) {
   const [active, setActive] = useAtom(workspaceTabAtom);
   const [isRouteMenuOpen, setIsRouteMenuOpen] = useState(false);
+  const [publishState, setPublishState] = useState<PublishState>(initialPublishStatus ?? "idle");
+  const [vercelUrl, setVercelUrl] = useState<string | undefined>(initialVercelUrl);
   const routeMenuRef = useRef<HTMLDivElement>(null);
   const effectiveActive: WorkspaceTabKey =
     active === "code" || active === "files" ? active : "preview";
@@ -65,6 +81,74 @@ export default function WorkspaceTabs({
     onPreviewPathChange?.(path);
     setIsRouteMenuOpen(false);
   };
+
+  async function handlePublish() {
+    if (!projectId || !user) return;
+    if (publishState === "pushing" || publishState === "deploying") return;
+    if (publishState === "live" && vercelUrl) {
+      window.open(vercelUrl, "_blank");
+      return;
+    }
+
+    setPublishState("pushing");
+    try {
+      const res = await authFetch(`/api/projects/${projectId}/publish`, user, { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.error("[publish]", body.error);
+        setPublishState("failed");
+        return;
+      }
+      const { vercelDeployUrl } = await res.json();
+      setVercelUrl(vercelDeployUrl);
+      setPublishState("live");
+      if (vercelDeployUrl) window.open(vercelDeployUrl, "_blank");
+    } catch (err) {
+      console.error("[publish]", err);
+      setPublishState("failed");
+    }
+  }
+
+  const isDeploying = publishState === "pushing" || publishState === "deploying";
+
+  const publishButtonContent = () => {
+    if (isDeploying) {
+      return (
+        <>
+          <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+          <span>Publishing…</span>
+        </>
+      );
+    }
+    if (publishState === "live") {
+      return (
+        <>
+          <span className="material-symbols-outlined text-[16px]">check_circle</span>
+          <span>Live ↗</span>
+        </>
+      );
+    }
+    if (publishState === "failed") {
+      return (
+        <>
+          <span className="material-symbols-outlined text-[16px]">error</span>
+          <span>Retry</span>
+        </>
+      );
+    }
+    return <span>Publish</span>;
+  };
+
+  const publishButtonClass = (() => {
+    const base = "inline-flex min-h-10 items-center gap-1.5 rounded-[0.7rem] px-4 text-sm font-semibold text-white shadow-[0_16px_28px_-22px_rgba(65,105,255,0.95)] transition";
+    if (isDeploying) return `${base} cursor-not-allowed bg-[#4169ff]/70`;
+    if (publishState === "live") return `${base} bg-[#1a7a4a] hover:bg-[#1e9057]`;
+    if (publishState === "failed") return `${base} bg-[#8b2020] hover:bg-[#a32626]`;
+    return `${base} bg-[#4169ff] hover:bg-[#587cff]`;
+  })();
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#111111]">
@@ -127,7 +211,15 @@ export default function WorkspaceTabs({
           <button type="button" aria-label="Open preview" className="ml-auto flex size-7 items-center justify-center rounded-md text-[#c9c9c6] transition hover:bg-white/[0.06] hover:text-white">
             <span className="material-symbols-outlined text-[17px]">open_in_new</span>
           </button>
-          <button type="button" aria-label="Refresh preview" className="flex size-7 items-center justify-center rounded-md text-[#c9c9c6] transition hover:bg-white/[0.06] hover:text-white">
+          <button
+            type="button"
+            aria-label="Refresh preview"
+            onClick={() => {
+              if (effectiveActive === "preview") onRefreshPreview?.();
+            }}
+            disabled={effectiveActive !== "preview" || !onRefreshPreview}
+            className="flex size-7 items-center justify-center rounded-md text-[#c9c9c6] transition hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+          >
             <span className="material-symbols-outlined text-[17px]">refresh</span>
           </button>
           {isRouteMenuOpen && effectiveActive === "preview" ? (
@@ -157,8 +249,14 @@ export default function WorkspaceTabs({
           <button type="button" aria-label="Comments" className="hidden size-10 items-center justify-center rounded-full bg-[#2a2a29] text-[#d8d8d5] transition hover:bg-[#333331] sm:flex">
             <span className="material-symbols-outlined text-[19px]">chat_bubble</span>
           </button>
-          <button type="button" className="min-h-10 rounded-[0.7rem] bg-[#4169ff] px-4 text-sm font-semibold text-white shadow-[0_16px_28px_-22px_rgba(65,105,255,0.95)] transition hover:bg-[#587cff]">
-            Publish
+          <button
+            type="button"
+            onClick={handlePublish}
+            disabled={isDeploying}
+            className={publishButtonClass}
+            title={publishState === "live" && vercelUrl ? vercelUrl : undefined}
+          >
+            {publishButtonContent()}
           </button>
         </div>
       </div>

@@ -21,7 +21,7 @@ import type { ChatMessage, SelectionContext } from "@/components/chat/types"
 import WorkspaceTabs, { type WorkspaceTabKey } from "@/components/workspace/WorkspaceTabs"
 import { BuilderWorkspace, EmptyTab, type PlanView } from "@/components/workspace/BuilderWorkspace"
 import GeneratedAppExplorer from "@/components/workspace/GeneratedAppExplorer"
-import { mergeBuildRun, isBuildRunning } from "@/components/workspace/BuildMissionControl"
+import { mergeBuildRun, isBuildRunning, shouldPollBuildRun } from "@/components/workspace/BuildMissionControl"
 
 interface ChatViewProps {
   projectId: string
@@ -67,6 +67,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
   const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, ClarificationAnswerState>>({})
   const [mobilePane, setMobilePane] = useState<"chat" | "workspace">("chat")
   const [selectedPreviewPath, setSelectedPreviewPath] = useState("/")
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
   const hasInitialized = useRef(false)
   const hasBootstrappedSeed = useRef(false)
 
@@ -79,7 +80,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
   const isChatSubmitting = chatRequestState === "submitting"
   const latestBuild = buildRuns[0] ?? null
   const latestBuildId = latestBuild?.id
-  const shouldPollBuild = isBuildRunning(latestBuild)
+  const shouldPollBuild = shouldPollBuildRun(latestBuild)
   const hasWorkspaceContent = Boolean(draftPlan)
 
   useEffect(() => {
@@ -495,6 +496,11 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
                 previewRoutes={draftPlan?.plan.routes}
                 selectedPreviewPath={selectedPreviewPath}
                 onPreviewPathChange={setSelectedPreviewPath}
+                onRefreshPreview={() => setPreviewRefreshKey((current) => current + 1)}
+                projectId={projectId}
+                user={user}
+                initialPublishStatus={project?.publishStatus}
+                initialVercelUrl={project?.vercelDeployUrl}
                 renderTab={(tab: WorkspaceTabKey) => {
                   if (tab === "code") {
                     return (
@@ -519,6 +525,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
                       error={workspaceError}
                       user={user}
                       selectedPreviewPath={selectedPreviewPath}
+                      previewRefreshKey={previewRefreshKey}
                       onApprovePlan={handleApprovePlan}
                       onRegeneratePlan={handleRegeneratePlan}
                       onStartBuild={handleStartBuild}

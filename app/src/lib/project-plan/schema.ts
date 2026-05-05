@@ -6,6 +6,7 @@ export const projectStageSchema = z.enum([
     "plan_approved",
     "coding",
     "preview_ready",
+    "published",
     "failed",
 ])
 
