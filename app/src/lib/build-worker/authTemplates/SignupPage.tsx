@@ -1,8 +1,10 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Button, Input, Label, FadeIn } from "@/components/ui/app-kit"
 import { signUpWithEmail } from "@/lib/auth"
 
 export default function SignupPage() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -13,10 +15,12 @@ export default function SignupPage() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const { error } = await signUpWithEmail(email, password)
+    const { data, error } = await signUpWithEmail(email, password)
     setLoading(false)
     if (error) {
       setError(error.message)
+    } else if (data.session) {
+      navigate("/app")
     } else {
       setSuccess(true)
     }

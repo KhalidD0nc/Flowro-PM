@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 const setupError = new Error('Supabase client not available. Check VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY or VITE_SUPABASE_ANON_KEY.')
 
@@ -17,10 +18,14 @@ export async function signOut() {
   return supabase.auth.signOut()
 }
 
-export function onAuthStateChange(callback: (event: string, session: unknown) => void) {
+type AuthStateChangeCallback = (event: AuthChangeEvent, session: Session | null) => void | Promise<void>
+
+export function onAuthStateChange(callback: AuthStateChangeCallback) {
   if (!supabase) {
-    queueMicrotask(() => callback('SUPABASE_NOT_CONFIGURED', null))
+    queueMicrotask(() => { void callback('SIGNED_OUT', null) })
     return { data: { subscription: { unsubscribe: () => {} } } }
   }
-  return supabase.auth.onAuthStateChange(callback)
+  return supabase.auth.onAuthStateChange(async (event, session) => {
+    await callback(event, session)
+  })
 }

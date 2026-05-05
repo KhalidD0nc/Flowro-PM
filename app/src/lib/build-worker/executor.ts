@@ -39,6 +39,7 @@ const SUPABASE_TEMPLATE_OWNED_FILES = new Set([
     "src/lib/supabase.ts",
     "src/lib/supabase-helpers.ts",
 ])
+const SUPABASE_TEMPLATE_REPAIR_BLOCKED_PREFIX = "Supabase template-owned file failed typecheck; repair cannot edit it:"
 
 class BuildCanceledError extends Error {
     constructor() {
@@ -79,6 +80,20 @@ export function deriveBuildProgress(input: BuildProgressInput): number {
     }
 
     return phaseWeights[input.phase ?? "queued"]
+}
+
+export function summarizeSupabaseTemplateOwnedTypecheckFailure(output: string): string | null {
+    const normalizedOutput = output.replace(/\\/g, "/")
+    const matchingFiles = Array.from(SUPABASE_TEMPLATE_OWNED_FILES)
+        .filter((filePath) => normalizedOutput.includes(filePath))
+
+    if (matchingFiles.length === 0) return null
+
+    return `${SUPABASE_TEMPLATE_REPAIR_BLOCKED_PREFIX} ${matchingFiles.join(", ")}. Fix the deterministic Supabase auth/template source before rerunning the build.`
+}
+
+function isSupabaseTemplateOwnedValidationFailure(validation: { errors: string[] }): boolean {
+    return validation.errors.some((error) => error.startsWith(SUPABASE_TEMPLATE_REPAIR_BLOCKED_PREFIX))
 }
 
 export function isEditablePath(filePath: string, editablePaths: string[]): boolean {
@@ -567,16 +582,23 @@ export async function executeBuildRun(
             const diagnosticBuild = await runCommand(job.targetWorkspacePath, "npm run build", BUILD_TIMEOUT_MS, controller.signal, { env: { NODE_ENV: "production" } })
             await appendCommand("npm run build (vite diagnostic)", diagnosticBuild)
             if (diagnosticBuild.exitCode !== 0) {
+                const templateOwnedFailure = isSupabaseBuild
+                    ? summarizeSupabaseTemplateOwnedTypecheckFailure(`${diagnosticBuild.stderr}\n${diagnosticBuild.stdout}`)
+                    : null
                 validation = {
                     success: false,
-                    errors: [`Vite diagnostic build failed: ${summarizeCommandOutput(`${diagnosticBuild.stderr}\n${diagnosticBuild.stdout}`)}`],
+                    errors: [templateOwnedFailure ?? `Vite diagnostic build failed: ${summarizeCommandOutput(`${diagnosticBuild.stderr}\n${diagnosticBuild.stdout}`)}`],
                     warnings: validation.warnings,
                 }
             }
         }
 
         let repairAttempts = 0
-        while (!validation.success && repairAttempts < MAX_REPAIR_ATTEMPTS && !fallbackUsed) {
+        if (!validation.success && isSupabaseTemplateOwnedValidationFailure(validation)) {
+            await appendLog("Skipping AI repair because the failure is in a protected Supabase template-owned file")
+        }
+
+        while (!validation.success && !isSupabaseTemplateOwnedValidationFailure(validation) && repairAttempts < MAX_REPAIR_ATTEMPTS && !fallbackUsed) {
             repairAttempts++
             await updateProgress({ repairAttempts })
             await checkCanceled()
@@ -625,9 +647,12 @@ export async function executeBuildRun(
                     const diagnosticBuild = await runCommand(job.targetWorkspacePath, "npm run build", BUILD_TIMEOUT_MS, controller.signal, { env: { NODE_ENV: "production" } })
                     await appendCommand("npm run build (repair diagnostic)", diagnosticBuild)
                     if (diagnosticBuild.exitCode !== 0) {
+                        const templateOwnedFailure = isSupabaseBuild
+                            ? summarizeSupabaseTemplateOwnedTypecheckFailure(`${diagnosticBuild.stderr}\n${diagnosticBuild.stdout}`)
+                            : null
                         validation = {
                             success: false,
-                            errors: [`Vite diagnostic build failed after repair: ${summarizeCommandOutput(`${diagnosticBuild.stderr}\n${diagnosticBuild.stdout}`)}`],
+                            errors: [templateOwnedFailure ?? `Vite diagnostic build failed after repair: ${summarizeCommandOutput(`${diagnosticBuild.stderr}\n${diagnosticBuild.stdout}`)}`],
                             warnings: validation.warnings,
                         }
                     }

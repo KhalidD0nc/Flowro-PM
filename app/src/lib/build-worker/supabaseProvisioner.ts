@@ -215,6 +215,12 @@ export async function provisionSupabase(
   }
   await appendLog("Project is active and healthy.")
 
+  if (databasePlan.authMode === "email_only") {
+    await appendLog("Disabling Supabase email confirmation...")
+    await disableSupabaseEmailConfirmation(projectRef, token)
+    await appendLog("Disabled Supabase email confirmation for generated app.")
+  }
+
   await appendLog("Compiling deterministic Supabase schema...")
   const { schemaSQL, rlsPoliciesSQL, canonicalTables } = generateSchema(projectPlan.dataModels, databasePlan)
   const validation = validateGeneratedSchema(schemaSQL, rlsPoliciesSQL, {
@@ -286,6 +292,7 @@ export async function provisionSupabase(
     authHelperPath,
     [
       `import { supabase } from "./supabase"`,
+      `import type { AuthChangeEvent, Session } from "@supabase/supabase-js"`,
       ``,
       `export async function signInWithEmail(email: string, password: string) {`,
       `  return supabase.auth.signInWithPassword({ email, password })`,
@@ -299,10 +306,14 @@ export async function provisionSupabase(
       `  return supabase.auth.signOut()`,
       `}`,
       ``,
+      `type AuthStateChangeCallback = (event: AuthChangeEvent, session: Session | null) => void | Promise<void>`,
+      ``,
       `export function onAuthStateChange(`,
-      `  callback: Parameters<typeof supabase.auth.onAuthStateChange>[0],`,
+      `  callback: AuthStateChangeCallback,`,
       `) {`,
-      `  return supabase.auth.onAuthStateChange(callback)`,
+      `  return supabase.auth.onAuthStateChange(async (event, session) => {`,
+      `    await callback(event, session)`,
+      `  })`,
       `}`,
     ].join("\n"),
     "utf-8",
@@ -375,6 +386,23 @@ async function pollProjectReady(projectRef: string, token: string): Promise<bool
     await new Promise((r) => setTimeout(r, PROJECT_READINESS_POLL_INTERVAL_MS))
   }
   return false
+}
+
+export async function disableSupabaseEmailConfirmation(
+  projectRef: string,
+  token: string,
+): Promise<void> {
+  const result = await makeSupabaseRequest<unknown>(`/v1/projects/${projectRef}/config/auth`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ mailer_autoconfirm: true }),
+  })
+
+  if (!result.ok) {
+    throw new SupabaseProvisioningError(
+      "supabase_provision_failed",
+      `Failed to disable Supabase email confirmation. Ensure SUPABASE_ACCESS_TOKEN has auth:write OAuth scope or fine-grained auth_config_write/project_admin_write permissions. Supabase response (${result.status}): ${result.message}`,
+    )
+  }
 }
 
 async function applySQL(
