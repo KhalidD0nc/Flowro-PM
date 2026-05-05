@@ -118,6 +118,7 @@ export function sanitizeGeneratedContent(filePath: string, content: string): str
 
     if (filePath.endsWith(".css")) {
         sanitized = sanitized.replace(/\bshadow-(3xl|4xl|5xl)\b/g, "shadow-2xl")
+        sanitized = expandKnownCustomApplyClasses(sanitized)
         // Tailwind v4: replace v3-style @tailwind directives with @import + @reference,
         // which is required for @apply to find utility classes from a CSS file.
         if (/@tailwind\s+base/.test(sanitized) || /@tailwind\s+utilities/.test(sanitized)) {
@@ -130,6 +131,22 @@ export function sanitizeGeneratedContent(filePath: string, content: string): str
     }
 
     return sanitized.trim() + "\n"
+}
+
+function expandKnownCustomApplyClasses(content: string): string {
+    const knownCustomClasses: Record<string, string> = {
+        "text-label": "text-[0.75rem] leading-[1.6] font-medium tracking-wide uppercase",
+        "text-small": "text-[0.875rem] leading-[1.6]",
+    }
+
+    return content.replace(/@apply\s+([^;]+);/g, (fullMatch, rawUtilities: string) => {
+        const utilities = rawUtilities
+            .trim()
+            .split(/\s+/)
+            .flatMap((utility: string) => knownCustomClasses[utility]?.split(/\s+/) ?? [utility])
+
+        return `@apply ${utilities.join(" ")};`
+    })
 }
 
 export function detectPackagesFromFiles(files: Record<string, string>): string[] {

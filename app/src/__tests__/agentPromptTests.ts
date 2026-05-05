@@ -65,6 +65,48 @@ const baseJob: BuildJob = {
     commands: templateManifest.scripts,
 }
 
+const supabaseTemplateManifest = getTemplateManifest("vite-react-supabase-app")
+const supabasePlan = {
+    ...validPlan,
+    templateId: "vite-react-supabase-app" as const,
+    database: {
+        provider: "supabase_postgres" as const,
+        authMode: "email_only" as const,
+        rlsStrategy: "user_owned" as const,
+    },
+}
+const supabaseJob: BuildJob = {
+    projectId: "project-2",
+    projectPlan: supabasePlan,
+    buildContract: createBuildContract("project-2", supabasePlan, supabaseTemplateManifest),
+    templateManifest: supabaseTemplateManifest,
+    targetWorkspacePath: "/Users/khalidr/Desktop/Flowro_PM_Project/Flowro-PM/generated-apps/project-2",
+    editablePaths: supabaseTemplateManifest.editablePaths,
+    commands: supabaseTemplateManifest.scripts,
+    supabaseConfig: supabasePlan.database,
+    supabaseContext: {
+        projectRef: "abc123",
+        projectUrl: "https://abc123.supabase.co",
+        browserKey: "sb_publishable_test",
+        browserKeyType: "publishable",
+        anonKey: "sb_publishable_test",
+        supabaseProjectId: "abc123",
+        canonicalTables: [
+            {
+                modelName: "Task",
+                tableName: "task",
+                columns: [
+                    { fieldName: "title", columnName: "title", pgType: "text", required: false },
+                ],
+            },
+        ],
+        migrationPath: "supabase/migrations/20260505000000_flowro_generated_schema_abc123.sql",
+        schemaSQL: "BEGIN; COMMIT;",
+        rlsPoliciesSQL: "BEGIN; COMMIT;",
+        typescriptTypes: "export type Database = {}",
+    },
+}
+
 const manifest: BuildManifest = {
     summary: "Core files",
     files: [
@@ -129,9 +171,27 @@ export function runAgentPromptTests(): Array<{ name: string; passed: boolean }> 
             passed: buildPrompt(baseJob).includes('Route "/" is a polished product landing page') &&
                 buildPrompt(baseJob).includes('route "/app" is the usable product workspace') &&
                 buildPrompt(baseJob).includes('landing CTA must navigate to "/app"') &&
-                buildBundledFileGenerationPrompt(manifest, baseJob).includes('Route "/" MUST render a landing page') &&
-                buildBundledFileGenerationPrompt(manifest, baseJob).includes('Route "/app" MUST render the product workspace') &&
+                buildBundledFileGenerationPrompt(manifest, baseJob).includes('Route "/" landing page MUST use <LandingShell>') &&
+                buildBundledFileGenerationPrompt(manifest, baseJob).includes('Route "/app" workspace MUST use <AppShell>') &&
                 buildBundledFileGenerationPrompt(manifest, baseJob).includes("BrowserRouter"),
+        },
+        {
+            name: "generation and repair prompts warn against custom @apply aliases",
+            passed: buildBundledFileGenerationPrompt(manifest, baseJob).includes("never write @apply text-label") &&
+                buildBundledFileGenerationPrompt(manifest, baseJob).includes("@apply may only reference real Tailwind utility classes") &&
+                buildPrompt(baseJob).includes("Tailwind v4 CSS rule"),
+        },
+        {
+            name: "Supabase manifest prompt avoids mock-data fallback",
+            passed: buildBuildManifestPrompt(supabaseJob).includes("do not include mock-data.ts") &&
+                !buildBuildManifestPrompt(supabaseJob).includes("always include all seven"),
+        },
+        {
+            name: "Supabase generation prompt uses canonical table names and publishable key",
+            passed: buildBundledFileGenerationPrompt(manifest, supabaseJob).includes("Task -> task") &&
+                buildBundledFileGenerationPrompt(manifest, supabaseJob).includes("VITE_SUPABASE_PUBLISHABLE_KEY") &&
+                buildBundledFileGenerationPrompt(manifest, supabaseJob).includes('supabase.from("<table>")') &&
+                !buildBundledFileGenerationPrompt(manifest, supabaseJob).includes("Table names: Task"),
         },
     ]
 }

@@ -4,8 +4,8 @@ import StepCard, { type StepStatus } from "./StepCard";
 
 const PHASES: Array<{ key: string; icon: string; title: string; subtitle: string }> = [
   { key: "thinking", icon: "psychology", title: "Read project context", subtitle: "Understanding the brief and current workspace" },
-  { key: "planning", icon: "route", title: "Plan the response", subtitle: "Mapping the steps Flowro will take" },
-  { key: "generating", icon: "auto_fix_high", title: "Generate output", subtitle: "Drafting plan, screens, or proposal" },
+  { key: "planning", icon: "route", title: "Plan clarification", subtitle: "Mapping the minimum questions to ask" },
+  { key: "generating", icon: "auto_fix_high", title: "Generate output", subtitle: "Drafting questions, plan, screens, or proposal" },
   { key: "verifying", icon: "task_alt", title: "Verify constraints", subtitle: "Checking schema and build requirements" },
   { key: "finalizing", icon: "flag", title: "Save updates", subtitle: "Finalizing changes in your workspace" },
 ];

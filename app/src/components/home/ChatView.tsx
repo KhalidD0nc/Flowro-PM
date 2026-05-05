@@ -227,6 +227,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
         role: "assistant",
         content: data.intent === "clarification" ? JSON.stringify(data) : data.message,
         intent: data.intent,
+        modelUsed: data.modelUsed,
         timestamp: new Date().toISOString(),
       }
 

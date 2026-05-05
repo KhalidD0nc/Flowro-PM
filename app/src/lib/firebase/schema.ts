@@ -226,6 +226,7 @@ export interface MessageDocument {
     role: MessageRole
     content: string
     proposedChanges?: ProposedChanges
+    modelUsed?: string
     intent: MessageIntent
     timestamp: FirestoreTimestamp
 }
@@ -237,6 +238,7 @@ export interface MessageCreateData {
     role: MessageRole
     content: string
     proposedChanges?: ProposedChanges
+    modelUsed?: string
     intent: MessageIntent
     timestamp: FirestoreTimestamp
 }
