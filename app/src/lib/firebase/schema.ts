@@ -194,6 +194,14 @@ export interface ProjectDocument {
     stage?: ProjectStage
     collaborators?: ProjectCollaborator[] // Team members with access
     collaboratorUserIds?: string[] // Flat array of collaborator UIDs for efficient Firestore queries
+    publishStatus?: "idle" | "pushing" | "deploying" | "live" | "failed"
+    githubRepoUrl?: string
+    vercelProjectName?: string
+    vercelDeploymentId?: string
+    vercelDeploymentUrl?: string
+    vercelDeployUrl?: string
+    publishedAt?: FirestoreTimestamp
+    publishError?: string
     createdAt: FirestoreTimestamp
     updatedAt: FirestoreTimestamp
 }
