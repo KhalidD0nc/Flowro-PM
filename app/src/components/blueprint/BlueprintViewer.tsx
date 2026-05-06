@@ -239,8 +239,8 @@ export default function BlueprintViewer({
         const data = await response.json()
         setHistory(data.history || [])
       }
-    } catch (error) {
-      console.error("Failed to load history:", error)
+    } catch {
+      // History load failed — panel stays empty
     } finally {
       setIsLoadingHistory(false)
     }
@@ -257,8 +257,8 @@ export default function BlueprintViewer({
     try {
       await onUpdate(snapshot.contentSnapshot as UBPContent)
       setIsHistoryOpen(false)
-    } catch (error) {
-      console.error("Failed to restore version:", error)
+    } catch {
+      // Restore failed — current version unchanged
     }
   }
 
@@ -353,8 +353,8 @@ export default function BlueprintViewer({
                 code
               )
               el.innerHTML = svg
-            } catch (e) {
-              console.error("Mermaid render error:", e)
+            } catch {
+              // Mermaid render failed — leave placeholder visible
             }
           }
         }

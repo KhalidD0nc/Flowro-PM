@@ -2,14 +2,35 @@ import { exec, spawn, type ChildProcess } from "child_process"
 import { promises as fs } from "fs"
 import path from "path"
 
+const DEFAULT_REPAIR_CONTEXT_MAX_BYTES = 200_000
+const DEFAULT_REPAIR_CONTEXT_MAX_FILES = 40
+const EXCLUDED_CONTEXT_DIRS = new Set([
+    ".git",
+    ".next",
+    "coverage",
+    "dist",
+    "node_modules",
+    "out",
+])
+
 /**
  * Copy a template directory to the target workspace.
  */
 export async function copyTemplate(templateId: string, targetPath: string): Promise<void> {
     const templatePath = path.resolve(process.cwd(), "templates", templateId)
+    await fs.rm(targetPath, { recursive: true, force: true })
     await fs.mkdir(targetPath, { recursive: true })
     await copyDir(templatePath, targetPath)
 }
+
+const SKIP_TEMPLATE_DIRS = new Set([
+    "node_modules",
+    "dist",
+    ".git",
+    ".next",
+    "coverage",
+    "out",
+])
 
 async function copyDir(src: string, dest: string): Promise<void> {
     await fs.mkdir(dest, { recursive: true })
@@ -18,6 +39,7 @@ async function copyDir(src: string, dest: string): Promise<void> {
         const srcPath = path.join(src, entry.name)
         const destPath = path.join(dest, entry.name)
         if (entry.isDirectory()) {
+            if (SKIP_TEMPLATE_DIRS.has(entry.name)) continue
             await copyDir(srcPath, destPath)
         } else {
             await fs.copyFile(srcPath, destPath)
@@ -60,6 +82,93 @@ export async function readWorkspaceFiles(workspacePath: string): Promise<Record<
     return files
 }
 
+export interface RepairContextOptions {
+    maxBytes?: number
+    maxFiles?: number
+}
+
+/**
+ * Read a bounded set of editable source files for LLM repair.
+ *
+ * Repair prompts must stay small: this intentionally skips dependency/build
+ * directories and only includes files the build worker is allowed to patch.
+ */
+export async function readRepairContextFiles(
+    workspacePath: string,
+    editablePaths: string[],
+    options: RepairContextOptions = {}
+): Promise<Record<string, string>> {
+    const maxBytes = options.maxBytes ?? DEFAULT_REPAIR_CONTEXT_MAX_BYTES
+    const maxFiles = options.maxFiles ?? DEFAULT_REPAIR_CONTEXT_MAX_FILES
+    const files: Record<string, string> = {}
+    let totalBytes = 0
+
+    for (const editablePath of editablePaths) {
+        const normalizedEditablePath = normalizeRelativePath(editablePath)
+        if (!normalizedEditablePath) continue
+
+        const absoluteEditablePath = path.join(workspacePath, normalizedEditablePath)
+        await walkRepairContext(workspacePath, absoluteEditablePath, async (relativePath, absolutePath) => {
+            if (Object.keys(files).length >= maxFiles) return false
+            if (!isTextFile(relativePath)) return true
+
+            try {
+                const stat = await fs.stat(absolutePath)
+                if (!stat.isFile()) return true
+                if (totalBytes + stat.size > maxBytes) return false
+
+                files[relativePath] = await fs.readFile(absolutePath, "utf-8")
+                totalBytes += stat.size
+            } catch {
+                // skip unreadable files
+            }
+
+            return true
+        })
+
+        if (Object.keys(files).length >= maxFiles || totalBytes >= maxBytes) break
+    }
+
+    return files
+}
+
+async function walkRepairContext(
+    workspacePath: string,
+    currentPath: string,
+    visitFile: (relativePath: string, absolutePath: string) => Promise<boolean>
+): Promise<boolean> {
+    let entries
+    try {
+        entries = await fs.readdir(currentPath, { withFileTypes: true })
+    } catch {
+        return true
+    }
+
+    for (const entry of entries) {
+        const absolutePath = path.join(currentPath, entry.name)
+        const relativePath = normalizeRelativePath(path.relative(workspacePath, absolutePath))
+
+        if (!relativePath) continue
+        if (entry.isDirectory()) {
+            if (EXCLUDED_CONTEXT_DIRS.has(entry.name)) continue
+            const shouldContinue = await walkRepairContext(workspacePath, absolutePath, visitFile)
+            if (!shouldContinue) return false
+            continue
+        }
+
+        if (entry.isFile()) {
+            const shouldContinue = await visitFile(relativePath, absolutePath)
+            if (!shouldContinue) return false
+        }
+    }
+
+    return true
+}
+
+function normalizeRelativePath(filePath: string): string {
+    return filePath.replace(/\\/g, "/").replace(/^\/+/, "")
+}
+
 function isTextFile(filePath: string): boolean {
     const textExtensions = new Set([
         ".ts", ".tsx", ".js", ".jsx", ".json", ".css", ".html", ".md",
@@ -75,17 +184,27 @@ export interface CommandResult {
     stderr: string
 }
 
+export interface RunCommandOptions {
+    env?: Record<string, string | undefined>
+}
+
 /**
  * Run a shell command in the workspace directory with a timeout.
  */
-export function runCommand(cwd: string, command: string, timeoutMs = 120000, signal?: AbortSignal): Promise<CommandResult> {
+export function runCommand(
+    cwd: string,
+    command: string,
+    timeoutMs = 120000,
+    signal?: AbortSignal,
+    options: RunCommandOptions = {}
+): Promise<CommandResult> {
     return new Promise((resolve) => {
         if (signal?.aborted) {
             resolve({ exitCode: 1, stdout: "", stderr: "Command canceled" })
             return
         }
 
-        const child = exec(command, { cwd, timeout: timeoutMs }, (error, stdout, stderr) => {
+        const child = exec(command, { cwd, timeout: timeoutMs, env: createCommandEnv(options.env) }, (error, stdout, stderr) => {
             signal?.removeEventListener("abort", abortCommand)
             if (error) {
                 resolve({ exitCode: error.code as number || 1, stdout, stderr })
@@ -122,28 +241,28 @@ export function startDevServer(workspacePath: string, projectId: string, port = 
         activeServers.delete(projectId)
     }
 
-    const child = spawn("npm", ["run", "dev"], {
+    const child = spawn("npm", ["run", "dev", "--", "--port", String(port)], {
         cwd: workspacePath,
         detached: false,
         stdio: "pipe",
-        env: { ...process.env, PORT: String(port) },
+        env: createCommandEnv({ PORT: String(port) }),
     })
 
     child.stdout?.on("data", (data) => {
-        console.log(`[dev-server ${projectId}]`, data.toString().trim())
+        process.stdout.write(`[dev-server ${projectId}] ${data.toString().trim()}\n`)
     })
 
     child.stderr?.on("data", (data) => {
-        console.error(`[dev-server ${projectId}]`, data.toString().trim())
+        process.stderr.write(`[dev-server ${projectId}] ${data.toString().trim()}\n`)
     })
 
     child.on("exit", (code) => {
-        console.log(`[dev-server ${projectId}] exited with code ${code}`)
+        process.stdout.write(`[dev-server ${projectId}] exited with code ${code}\n`)
         activeServers.delete(projectId)
     })
 
     child.on("error", (err) => {
-        console.error(`[dev-server ${projectId}] error:`, err)
+        process.stderr.write(`[dev-server ${projectId}] error: ${err instanceof Error ? err.message : String(err)}\n`)
         activeServers.delete(projectId)
     })
 
@@ -180,4 +299,20 @@ export function stopDevServer(projectId: string): void {
         child.kill("SIGTERM")
     }
     activeServers.delete(projectId)
+}
+
+export function getPreviewPort(projectId: string, basePort = 3100): number {
+    let hash = 0
+    for (const char of projectId) {
+        hash = (hash * 31 + char.charCodeAt(0)) % 1000
+    }
+    return basePort + hash
+}
+
+function createCommandEnv(overrides: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {
+    const env: Record<string, string | undefined> = { ...process.env, ...overrides }
+    if (env.NODE_ENV && !["development", "production", "test"].includes(env.NODE_ENV)) {
+        env.NODE_ENV = undefined
+    }
+    return env as NodeJS.ProcessEnv
 }

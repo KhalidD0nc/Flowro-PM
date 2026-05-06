@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "@/app/api/blueprints/auth"
+import { logError } from "@/lib/logger"
 import {
     createBuildRun,
-    getApprovedDesignArtifacts,
     getProject,
     getProjectPlanByProjectId,
     setProjectStage,
 } from "@/lib/firebase/collections"
 import { timestampToISO } from "@/lib/firebase/schema"
-import { buildKimiStage3Prompt } from "@/lib/build-worker/kimiPrompt"
+import { buildPrompt, type BuildJob } from "@/lib/build-worker/agentPrompt"
 import { executeBuildRun } from "@/lib/build-worker/executor"
-import { getTemplateManifest } from "@/lib/project-plan/schema"
+import { getBuildStartPlanError } from "@/lib/build-worker/startGuard"
+import { createBuildContract, getTemplateManifest } from "@/lib/project-plan/schema"
 import { mkdirSync } from "fs"
 import { homedir } from "os"
 import path from "path"
@@ -40,35 +41,33 @@ export async function POST(
         await verifyOwnership(projectId, authResult.userId)
 
         const planDoc = await getProjectPlanByProjectId(projectId)
-        if (!planDoc || planDoc.status !== "approved") {
-            return NextResponse.json({ error: "Approve the project plan before starting build." }, { status: 409 })
+        const planError = getBuildStartPlanError(planDoc)
+        if (planError) {
+            return NextResponse.json({ error: planError.error }, { status: planError.status })
         }
 
-        const designs = await getApprovedDesignArtifacts(projectId)
-        if (designs.length === 0) {
-            return NextResponse.json({ error: "Approve all UI screens before starting build." }, { status: 409 })
+        const plan = planDoc!.plan
+        const hasDatabase = plan.database?.provider === "supabase_postgres"
+        const templateId = hasDatabase ? "vite-react-supabase-app" : "vite-react-app"
+        const templateManifest = getTemplateManifest(templateId)
+        const buildPlan = {
+            ...plan,
+            templateId: templateManifest.id,
         }
-
-        const templateManifest = getTemplateManifest(planDoc.plan.templateId)
+        const buildContract = createBuildContract(projectId, buildPlan, templateManifest)
         const targetWorkspacePath = getTargetWorkspacePath(projectId)
 
         mkdirSync(targetWorkspacePath, { recursive: true })
 
-        const primaryDesign = designs[0]
-        const designArtifact = {
-            ...primaryDesign,
-            createdAt: timestampToISO(primaryDesign.createdAt),
-            approvedAt: primaryDesign.approvedAt ? timestampToISO(primaryDesign.approvedAt) : undefined,
-        }
-
-        const promptSnapshot = buildKimiStage3Prompt({
+        const promptSnapshot = buildPrompt({
             projectId,
-            projectPlan: planDoc.plan,
-            designArtifact,
+            projectPlan: buildPlan,
+            buildContract,
             templateManifest,
             targetWorkspacePath,
             editablePaths: templateManifest.editablePaths,
             commands: templateManifest.scripts,
+            supabaseConfig: plan.database,
         })
 
         const promptPreview = promptSnapshot.slice(0, 1000)
@@ -94,22 +93,49 @@ export async function POST(
             agentStatus: "prompt_ready",
             commandsRun: [],
             previewAvailable: false,
+            buildContractSnapshot: buildContract,
+            verificationResults: [],
+            detectedPackages: [],
+            installedPackages: [],
+            validationErrors: [],
+            repairAttempts: 0,
+            runType: "initial_build",
         })
 
+        // Infer design archetype from project description for quick-win theming
+        const planRaw = JSON.stringify(buildPlan)
+        const planText = planRaw.toLowerCase()
+        let designArchetype: BuildJob["designArchetype"] = "saas"
+        const hasArabicChars = /[؀-ۿ]/.test(planRaw)
+        const hasArabicKeyword = planText.includes("arabic") || planText.includes("in arabic") || planText.includes("make it arabic") || planRaw.includes("عربي") || planRaw.includes("بالعربي") || planRaw.includes("باللغة العربية")
+        if (hasArabicChars || hasArabicKeyword) {
+            designArchetype = "arabic"
+        } else if (planText.includes("portfolio") || planText.includes("blog") || planText.includes("creative") || planText.includes("editorial")) {
+            designArchetype = "editorial"
+        } else if (planText.includes("dark") || planText.includes("night") || planText.includes("crypto") || planText.includes("gaming")) {
+            designArchetype = "darkmode"
+        } else if (planText.includes("playful") || planText.includes("fun") || planText.includes("kids") || planText.includes("community")) {
+            designArchetype = "playful"
+        } else if (planText.includes("minimal") || planText.includes("swiss") || planText.includes("luxury")) {
+            designArchetype = "minimal"
+        }
+
         // Fire build execution in the background so the HTTP response returns immediately
-        const job = {
+        const job: BuildJob = {
             projectId,
-            projectPlan: planDoc.plan,
-            designArtifact,
+            projectPlan: buildPlan,
+            buildContract,
             templateManifest,
             targetWorkspacePath,
             editablePaths: templateManifest.editablePaths,
             commands: templateManifest.scripts,
+            designArchetype,
+            supabaseConfig: plan.database,
         }
 
         Promise.resolve().then(() =>
             executeBuildRun(projectId, run.id, job).catch((err) => {
-                console.error(`[build-run ${run.id}] Unhandled executor error:`, err)
+                logError("build_run_executor", { runId: run.id, error: String(err) })
             })
         )
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "./auth"
+import { logError } from "@/lib/logger"
 import {
     getProject,
     getBlueprintByProjectId,
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ blueprints })
     } catch (error) {
-        console.error("List blueprints error:", error)
+        logError("list_blueprints", { error: String(error) })
         const message = error instanceof Error ? error.message : "Failed to list blueprints"
         const status = message.includes("Access denied") ? 403 : message.includes("not found") ? 404 : 500
         return NextResponse.json({ error: message }, { status })
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true })
     } catch (error) {
-        console.error("Create blueprint error:", error)
+        logError("create_blueprint", { error: String(error) })
         const message = error instanceof Error ? error.message : "Failed to create blueprint"
         const status = message.includes("Access denied") ? 403 : message.includes("not found") ? 404 : 500
         return NextResponse.json({ error: message }, { status })
@@ -227,7 +228,7 @@ export async function PATCH(request: NextRequest) {
 
         return NextResponse.json({ error: "No action or content provided" }, { status: 400 })
     } catch (error) {
-        console.error("Update blueprint error:", error)
+        logError("update_blueprint", { error: String(error) })
         const message = error instanceof Error ? error.message : "Failed to update blueprint"
         const status = message.includes("Access denied") ? 403 :
             message.includes("not found") ? 404 :

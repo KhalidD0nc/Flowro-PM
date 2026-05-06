@@ -3,10 +3,12 @@
 import { useRef } from "react";
 import MessageList, { WelcomeScreen } from "./MessageList";
 import ChatInput from "./ChatInput";
+import ChatHeader from "./ChatHeader";
 import type { ChatPanelProps, ProposedChanges } from "./types";
 
 export default function ChatPanel({
   project,
+  user,
   currentPrd,
   isGenerating,
   isStreaming,
@@ -18,7 +20,11 @@ export default function ChatPanel({
   selectionContext,
   onMessageChange,
   onSendMessage,
+  actionMode,
+  onActionModeChange,
   onOpenBlueprint,
+  onProjectSelect,
+  onGoHome,
   onApplyProposedChanges,
   onClearContext,
   onQuickAction,
@@ -48,7 +54,8 @@ export default function ChatPanel({
         : "Describe your product idea...";
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col">
+    <div className="flex h-full min-h-0 w-full flex-col bg-[#191919]">
+      <ChatHeader project={project} user={user} onOpenBlueprint={onOpenBlueprint} onProjectSelect={onProjectSelect} onGoHome={onGoHome} />
       <div className="relative flex min-h-0 flex-1 flex-col">
         {project.chatHistory.length === 0 ? (
           <WelcomeScreen onQuickAction={onQuickAction} />
@@ -64,11 +71,12 @@ export default function ChatPanel({
             onOpenBlueprint={onOpenBlueprint}
             onApplyProposedChanges={handleApplyProposedChanges}
             messagesEndRef={messagesEndRef}
+            onQuickAction={onQuickAction}
           />
         )}
 
         {error ? (
-          <div className="mx-4 mb-3 rounded-[1.25rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 shadow-[0_18px_32px_-28px_rgba(239,68,68,0.5)]">
+          <div className="mx-5 mb-3 rounded-[1rem] border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200 shadow-[0_18px_32px_-28px_rgba(239,68,68,0.5)]">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="material-symbols-outlined text-lg">error</span>
@@ -78,7 +86,7 @@ export default function ChatPanel({
                 <button
                   onClick={onRetry}
                   disabled={isGenerating}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-red-300/30 bg-red-300/10 px-3 py-1.5 text-sm font-medium text-red-100 transition hover:bg-red-300/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="material-symbols-outlined text-[16px]">refresh</span>
                   Retry
@@ -92,6 +100,8 @@ export default function ChatPanel({
           message={message}
           onMessageChange={onMessageChange}
           onSend={onSendMessage}
+          actionMode={actionMode}
+          onActionModeChange={onActionModeChange}
           isGenerating={isGenerating}
           selectionContext={selectionContext}
           onClearContext={onClearContext}

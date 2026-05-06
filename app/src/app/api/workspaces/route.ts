@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAdminDb } from "@/lib/firebase-admin"
 import { getAuth } from "firebase-admin/auth"
 import { createWorkspace, getUserWorkspaces, ensurePersonalWorkspace } from "./service"
+import { logError } from "@/lib/logger"
 
 // Helper to get user from token
 async function getUserFromRequest(request: NextRequest) {
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
         const workspaces = await getUserWorkspaces(user.uid)
         return NextResponse.json({ workspaces })
     } catch (error) {
-        console.error("Error fetching workspaces:", error)
+        logError("workspaces_fetch_failed", { error: error instanceof Error ? error.message : String(error) })
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
     }
 }
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(workspace)
     } catch (error) {
-        console.error("Error creating workspace:", error)
+        logError("workspace_create_failed", { error: error instanceof Error ? error.message : String(error) })
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
     }
 }

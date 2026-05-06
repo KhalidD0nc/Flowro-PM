@@ -7,7 +7,6 @@
 export { default as Sidebar } from "./Sidebar";
 export { default as CommandCenter } from "./CommandCenter";
 export { default as VisionInput } from "./VisionInput";
-export { default as QuickActions } from "./QuickActions";
 export { default as ProjectCard } from "./ProjectCard";
 export { default as RecentProjects } from "./RecentProjects";
 export type { ProjectCardProps } from "./ProjectCard";

@@ -70,7 +70,9 @@ export function middleware(request: NextRequest) {
   const method = request.method
   const host = request.headers.get("host")
 
-  if (isPublicLandingHost(host) && !isPublicLandingPath(pathname)) {
+  const isProduction = process.env.NODE_ENV === "production"
+
+  if (isProduction && isPublicLandingHost(host) && !isPublicLandingPath(pathname)) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
         { error: "This endpoint is not available on the public landing site." },

@@ -19,9 +19,7 @@ if (typeof window !== 'undefined') {
         .map(([key]) => key)
 
     if (missingVars.length > 0) {
-        console.error('Missing Firebase configuration:', missingVars)
-    } else {
-        console.log('Firebase configuration loaded successfully')
+        process.stderr.write(`[firebase] Missing configuration vars: ${missingVars.join(', ')}\n`)
     }
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAuthToken, isAuthError, unauthorizedResponse } from "../../blueprints/auth"
+import { logError } from "@/lib/logger"
 import {
     getProject,
     getProjectWithDetails,
@@ -139,16 +140,18 @@ export async function GET(
             projectName: details.project.name,
             description: (details.project as { description?: string }).description,
             stage: details.project.stage || (latestPlan?.status === "approved" ? "plan_approved" : "planning"),
+            publishStatus: details.project.publishStatus,
+            githubRepoUrl: details.project.githubRepoUrl,
+            vercelProjectName: details.project.vercelProjectName,
+            vercelDeploymentId: details.project.vercelDeploymentId,
+            vercelDeploymentUrl: details.project.vercelDeploymentUrl,
+            vercelDeployUrl: details.project.vercelDeployUrl,
+            publishedAt: details.project.publishedAt ? timestampToISO(details.project.publishedAt) : undefined,
             chatHistory,
             createdAt: timestampToISO(details.project.createdAt),
             updatedAt: timestampToISO(details.project.updatedAt),
             latestPrd,
             latestPlan,
-            designArtifacts: details.designArtifacts.map((artifact) => ({
-                ...artifact,
-                createdAt: timestampToISO(artifact.createdAt),
-                approvedAt: artifact.approvedAt ? timestampToISO(artifact.approvedAt) : undefined,
-            })),
             buildRuns: details.buildRuns.map((run) => ({
                 ...run,
                 createdAt: timestampToISO(run.createdAt),
@@ -183,7 +186,7 @@ export async function GET(
                 : null,
         })
     } catch (error) {
-        console.error("Get project error:", error)
+        logError("get_project", { error: String(error) })
         const message = error instanceof Error ? error.message : "Failed to get project"
         const status = message.includes("Access denied")
             ? 403
@@ -287,7 +290,7 @@ export async function PATCH(
             appended: validMessages.length,
         })
     } catch (error) {
-        console.error("Update project error:", error)
+        logError("update_project", { error: String(error) })
         const message = error instanceof Error ? error.message : "Failed to update project"
         const status = message.includes("Access denied")
             ? 403
@@ -334,7 +337,7 @@ export async function DELETE(
             message: "Project deleted successfully",
         })
     } catch (error) {
-        console.error("Delete project error:", error)
+        logError("delete_project", { error: String(error) })
         const message = error instanceof Error ? error.message : "Failed to delete project"
         const status = message.includes("Access denied")
             ? 403

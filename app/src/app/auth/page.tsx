@@ -56,8 +56,7 @@ export default function AuthPage() {
             await signInWithGoogle()
             analytics.signupCompleted("google")
             router.push("/app")
-        } catch (error) {
-            console.error("Sign in error:", error)
+        } catch {
             setError("Failed to sign in with Google. Please try again.")
         } finally {
             setIsGoogleLoading(false)
@@ -90,7 +89,6 @@ export default function AuthPage() {
                 router.push("/app")
             }
         } catch (error: unknown) {
-            console.error("Auth error:", error)
             if (error instanceof Error) {
                 // Handle specific Firebase auth errors
                 if (error.message.includes("auth/invalid-email")) {
@@ -136,8 +134,7 @@ export default function AuthPage() {
             await resendVerificationEmail()
             setSuccessMessage("Verification email sent! Check your inbox.")
             setResendCooldown(60)
-        } catch (error) {
-            console.error("Resend verification error:", error)
+        } catch {
             setError("Failed to resend verification email. Please try again.")
         } finally {
             setIsSubmitting(false)

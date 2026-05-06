@@ -1,0 +1,64 @@
+/* ── Google Fonts for Timeless ── */
+/* Playfair Display (serif) + Inter (sans) loaded via @import */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400;1,500&display=swap');
+
+/* ────────────────────────────────────────────────────────
+   Scoped design tokens — all live on .timeless-root ONLY.
+   This prevents collisions with the main Flowro @theme.
+   See: Docs/Tailwind-v4-Scoped-Theme-Pattern.md
+   ──────────────────────────────────────────────────────── */
+.timeless-root {
+  /* Dark luxury palette */
+  --background:      hsl(0, 0%, 8%);
+  --surface:         hsl(0, 0%, 12%);
+  --surface-elevated:hsl(0, 0%, 16%);
+  --ink:             hsl(0, 0%, 98%);
+  --ink-secondary:   hsl(0, 0%, 70%);
+  --ink-muted:       hsl(0, 0%, 50%);
+  --line:            hsl(0, 0%, 20%);
+  --line-faint:      hsl(0, 0%, 12%);
+  --accent:          hsl(38, 30%, 65%);
+  --accent-soft:     hsla(38, 30%, 65%, 0.1);
+  --accent-text:     hsl(0, 0%, 7%);
+  --success:         hsl(142, 40%, 45%);
+  --warning:         hsl(38, 90%, 55%);
+  --danger:          hsl(0, 70%, 50%);
+
+  /* Typography */
+  --font-timeless-serif: 'Playfair Display', ui-serif, Georgia, serif;
+  --font-timeless-sans:  'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  /* Base styles */
+  background-color: var(--background);
+  color: var(--ink);
+  font-family: var(--font-timeless-sans);
+}
+
+/* Override Tailwind font utilities scoped to timeless */
+.timeless-root .font-serif { font-family: var(--font-timeless-serif) !important; }
+.timeless-root .font-sans  { font-family: var(--font-timeless-sans) !important; }
+
+/* ── Animations ── */
+@keyframes timeless-slow-zoom {
+  0%   { transform: scale(1); }
+  100% { transform: scale(1.1); }
+}
+
+.timeless-root .animate-slow-zoom {
+  animation: timeless-slow-zoom 20s ease-in-out infinite alternate !important;
+}
+
+/* ── Focus ring ── */
+.timeless-root *:focus-visible {
+  outline: 2px solid hsl(38, 30%, 65%);
+  outline-offset: 4px;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .timeless-root * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

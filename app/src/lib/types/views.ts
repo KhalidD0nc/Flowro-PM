@@ -10,7 +10,8 @@
  */
 
 import type { ClarificationQuestion, ClarificationResponse, PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
-import type { BuildRun, DesignArtifact, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
+import type { BuildRun, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
+import type { User } from "firebase/auth"
 
 // =============================================================================
 // Intent Types
@@ -42,6 +43,7 @@ export interface MessageView {
     timestamp: string
     intent?: Intent
     proposedChanges?: ProposedChanges
+    modelUsed?: string
 }
 
 // Backward-compatible alias
@@ -102,12 +104,18 @@ export interface ProjectView {
     projectName: string
     description?: string
     stage?: ProjectStage
+    publishStatus?: "idle" | "pushing" | "deploying" | "live" | "failed"
+    githubRepoUrl?: string
+    vercelProjectName?: string
+    vercelDeploymentId?: string
+    vercelDeploymentUrl?: string
+    vercelDeployUrl?: string
+    publishedAt?: string
     chatHistory: MessageView[]
     createdAt: string
     updatedAt: string
     latestPrd?: PRDView
     latestPlan?: ProjectPlanView
-    designArtifacts?: DesignArtifact[]
     buildRuns?: BuildRun[]
 }
 
@@ -130,6 +138,7 @@ export interface GenerateResult {
     questions?: ClarificationResponse["questions"]
     remainingRequired?: ClarificationResponse["remainingRequired"]
     stage?: ClarificationResponse["stage"]
+    modelUsed?: string
 }
 
 export interface EnhanceResult {
@@ -184,6 +193,8 @@ export interface ChatInputProps {
     message: string
     onMessageChange: (message: string) => void
     onSend: (e: React.FormEvent) => void
+    actionMode?: "build" | "plan"
+    onActionModeChange?: (mode: "build" | "plan") => void
     isGenerating: boolean
     selectionContext: SelectionContext | null
     onClearContext: () => void
@@ -212,6 +223,7 @@ export interface MessageListProps {
     onOpenBlueprint: () => void
     onApplyProposedChanges: (changes: ProposedChanges, index: number) => void
     messagesEndRef: React.RefObject<HTMLDivElement | null>
+    onQuickAction?: (message: string) => void
 }
 
 /**
@@ -219,6 +231,7 @@ export interface MessageListProps {
  */
 export interface ChatPanelProps {
     project: ProjectView
+    user?: User
     currentPrd?: PRDConfig | null
     isGenerating: boolean
     isStreaming: boolean
@@ -230,7 +243,11 @@ export interface ChatPanelProps {
     selectionContext: SelectionContext | null
     onMessageChange: (message: string) => void
     onSendMessage: (e: React.FormEvent) => void
+    actionMode?: "build" | "plan"
+    onActionModeChange?: (mode: "build" | "plan") => void
     onOpenBlueprint: () => void
+    onProjectSelect?: (projectId: string) => void
+    onGoHome?: () => void
     onApplyProposedChanges: (changes: ProposedChanges, index: number) => void
     onClearContext: () => void
     onQuickAction: (message: string) => void

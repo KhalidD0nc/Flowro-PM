@@ -1,14 +1,19 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 /* Google Material Symbols - imported in layout.tsx via link tag */
 
 :root {
-  --primary: #2f8fff;
+  /* === Flowro Brand Colors === */
+  --primary: oklch(0.627 0.189 248);         /* #2f8fff — Flowro blue */
+  --primary-foreground: oklch(0.985 0 0);    /* white text on blue */
   --background-light: #f7f2eb;
   --background-dark: #f7f2eb;
   --surface-dark: #ffffff;
   --border-dark: #d8dfeb;
-  --accent: #5f9dff;
   --text-secondary: #6c7788;
 
   /* Authenticated workspace palette */
@@ -22,17 +27,49 @@
   --surface-subtle: #f8fafc;
   --text-primary: #172033;
   --text-muted: #6b7280;
+
+  /* === shadcn/ui Semantic Tokens (Flowro-tuned) === */
+  --background: oklch(0.964 0.013 76);       /* #f7f2eb — warm beige */
+  --foreground: oklch(0.145 0.035 254);      /* #172033 — dark navy */
+  --card: oklch(1 0 0);                      /* white cards */
+  --card-foreground: oklch(0.145 0.035 254);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0.035 254);
+  --secondary: oklch(0.955 0.012 76);        /* slightly darker beige */
+  --secondary-foreground: oklch(0.145 0.035 254);
+  --muted: oklch(0.955 0.012 76);
+  --muted-foreground: oklch(0.48 0.011 248); /* #6c7788 */
+  --accent: oklch(0.94 0.05 248);            /* very light blue hover */
+  --accent-foreground: oklch(0.627 0.189 248);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.883 0.02 248);           /* #d8dfeb — blue-tinted border */
+  --input: oklch(0.883 0.02 248);
+  --ring: oklch(0.627 0.189 248);            /* blue focus ring */
+  --chart-1: oklch(0.627 0.189 248);
+  --chart-2: oklch(0.683 0.157 249);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.977 0.008 76);          /* #fbf7f1 — cream sidebar */
+  --sidebar-foreground: oklch(0.145 0.035 254);
+  --sidebar-primary: oklch(0.627 0.189 248);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.94 0.05 248);
+  --sidebar-accent-foreground: oklch(0.627 0.189 248);
+  --sidebar-border: oklch(0.883 0.02 248);
+  --sidebar-ring: oklch(0.627 0.189 248);
 }
 
 @theme inline {
   --color-primary: var(--primary);
-  --color-background: var(--background-dark);
+  --color-background: var(--background);
   --color-background-light: var(--background-light);
   --color-surface-dark: var(--surface-dark);
   --color-border-dark: var(--border-dark);
   --color-accent: var(--accent);
   --color-text-secondary: var(--text-secondary);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-jetbrains-mono);
 
   /* Phase 3.D — Premium Theme Colors */
@@ -105,6 +142,42 @@
       opacity: 1;
     }
   }
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6)
 }
 
 /* Custom Utilities from index.html */
@@ -126,6 +199,37 @@
       transparent 50%);
 }
 
+.dark .premium-bg {
+  background-image: radial-gradient(circle at 50% 0%,
+      rgba(91, 141, 239, 0.08) 0%,
+      transparent 60%),
+    radial-gradient(circle at 85% 10%,
+      rgba(91, 141, 239, 0.04) 0%,
+      transparent 50%),
+    radial-gradient(circle at 15% 90%,
+      rgba(91, 141, 239, 0.06) 0%,
+      transparent 50%);
+}
+
+/* Command center focused dark shell */
+.command-center-bg {
+  background:
+    linear-gradient(180deg, rgba(47, 143, 255, 0.08) 0%, rgba(47, 143, 255, 0) 28rem),
+    linear-gradient(135deg, #0b0f17 0%, #080a0f 52%, #0a0d13 100%);
+}
+
+.command-center-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent 68%);
+}
+
 /* Phase 3.A — Glass Panel Effect */
 .glass-panel {
   background: var(--glass-dark);
@@ -133,6 +237,10 @@
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
   box-shadow: 0 18px 48px -28px rgba(38, 50, 76, 0.18);
+}
+
+.dark .glass-panel {
+  box-shadow: 0 18px 48px -28px rgba(0, 0, 0, 0.4);
 }
 
 /* ========================================
@@ -331,6 +439,12 @@
   background-size: 40px 40px;
 }
 
+.dark .grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
 .doc-card {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
 }
@@ -346,23 +460,32 @@
   }
 }
 
-/* Custom scrollbar for dark mode */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(221, 226, 235, 0.5);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(154, 166, 183, 0.7);
+  background: rgba(154, 166, 183, 0.5);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(112, 125, 145, 0.9);
+  background: rgba(112, 125, 145, 0.7);
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* Prevent horizontal scroll on mobile */
@@ -386,11 +509,7 @@ body {
   padding-right: env(safe-area-inset-right, 0);
 }
 
-body {
-  background: var(--background-light);
-  color: var(--text-primary);
-  font-family: var(--font-inter), sans-serif;
-}
+/* body styles moved to @layer base to respect theme overrides */
 
 /* Material Symbols fill settings */
 .material-symbols-outlined {
@@ -497,28 +616,58 @@ body {
    @see /Docs/Brand-Guidelines.md
    ======================================== */
 
-/* AI message bubble - replaces white background with brand-aligned design */
+/* Refined builder workspace shell */
+.flowro-builder-shell {
+  background:
+    radial-gradient(circle at 92% 12%, rgba(30, 154, 128, 0.055), transparent 30rem),
+    linear-gradient(180deg, #f7f7f4 0%, #f4f3ef 100%);
+}
+
+.flowro-builder-shell ::selection {
+  background: rgba(30, 154, 128, 0.18);
+  color: #111111;
+}
+
+/* AI message bubble - refined dark command surface */
 .ai-message-bubble {
-  background: linear-gradient(135deg, 
-    rgba(248, 250, 252, 0.95) 0%, 
-    rgba(241, 245, 249, 0.9) 100%
-  );
-  border: 1px solid rgba(209, 216, 226, 0.95);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.025) 100%),
+    #14171d;
+  border: 1px solid rgba(255, 255, 255, 0.075);
   box-shadow:
-    0 6px 20px -18px rgba(15, 23, 42, 0.22),
-    0 4px 12px rgba(47, 143, 255, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    0 18px 46px -36px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   transition: all 0.2s ease;
 }
 
 .ai-message-bubble:hover {
-  border-color: rgba(47, 143, 255, 0.18);
+  border-color: rgba(47, 143, 255, 0.22);
   box-shadow:
-    0 10px 24px -18px rgba(15, 23, 42, 0.18),
-    0 10px 20px rgba(47, 143, 255, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    0 22px 52px -38px rgba(0, 0, 0, 0.95),
+    0 12px 30px -26px rgba(47, 143, 255, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.lovable-message {
+  color: #d6d6d3;
+}
+
+.lovable-message a {
+  color: #9fb0ff;
+}
+
+.lovable-message code {
+  border-radius: 0.45rem;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.12rem 0.35rem;
+  color: #eeeeeb;
+}
+
+.flowro-bidi-text {
+  text-align: start;
+  unicode-bidi: plaintext;
 }
 
 /* Streaming text reveal animation */
@@ -569,22 +718,30 @@ body {
 }
 
 /* AI message bubble - DARK MODE variant */
-.ai-message-bubble-dark {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.94) 100%);
-  border: 1px solid rgba(209, 216, 226, 0.95);
+.dark .ai-message-bubble {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.025) 100%),
+    #14171d;
+  border: 1px solid rgba(255, 255, 255, 0.075);
   box-shadow:
-    0 6px 20px -18px rgba(15, 23, 42, 0.22),
-    0 4px 12px rgba(47, 143, 255, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  transition: all 0.2s ease;
+    0 18px 46px -36px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
-.ai-message-bubble-dark:hover {
-  border-color: rgba(47, 143, 255, 0.18);
+.dark .ai-message-bubble:hover {
+  border-color: rgba(47, 143, 255, 0.22);
   box-shadow:
-    0 10px 24px -18px rgba(15, 23, 42, 0.18),
-    0 10px 20px rgba(47, 143, 255, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    0 22px 52px -38px rgba(0, 0, 0, 0.95),
+    0 12px 30px -26px rgba(47, 143, 255, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* User message gradient - DARK MODE variant */
+.dark .user-message-gradient {
+  background: linear-gradient(135deg, rgba(91, 141, 239, 0.15) 0%, rgba(91, 141, 239, 0.08) 100%);
+  box-shadow:
+    0 18px 36px -28px rgba(91, 141, 239, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 /* ========================================
@@ -780,4 +937,97 @@ select:focus {
 
 .animate-fade-in {
   animation: fade-in 0.2s ease-out forwards;
+}
+
+.dark {
+  /* ========================================
+     Flowro Dark Mode v2 — Inspired by Linear, Vercel, Raycast
+     Principles:
+     - Warm, deep charcoal base (not pure black, not blue)
+     - Layered surfaces with subtle elevation
+     - Desaturated accent that doesn't scream
+     - Invisible borders, visible hierarchy
+     - Soft text with clear contrast levels
+     ======================================== */
+
+  /* Base Layer — warm charcoal, almost black */
+  --background: #0C0C0E;
+  --foreground: rgba(255, 255, 255, 0.9);
+
+  /* Elevation Layers — subtle step up from base */
+  --card: #141416;
+  --card-foreground: rgba(255, 255, 255, 0.9);
+  --popover: #141416;
+  --popover-foreground: rgba(255, 255, 255, 0.9);
+
+  /* Primary — desaturated blue, easy on the eyes */
+  --primary: #5B8DEF;
+  --primary-foreground: #0C0C0E;
+
+  /* Secondary — barely elevated surface */
+  --secondary: #1A1A1D;
+  --secondary-foreground: rgba(255, 255, 255, 0.85);
+
+  /* Muted — subtle background for tags, badges */
+  --muted: #1A1A1D;
+  --muted-foreground: rgba(255, 255, 255, 0.45);
+
+  /* Accent — interactive hover states */
+  --accent: #1E1E22;
+  --accent-foreground: rgba(255, 255, 255, 0.9);
+
+  /* Destructive — softer red for dark mode */
+  --destructive: #E85D5D;
+  --destructive-foreground: #0C0C0E;
+
+  /* Borders — nearly invisible, just enough to define edges */
+  --border: rgba(255, 255, 255, 0.06);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #5B8DEF;
+
+  /* Charts — muted, accessible colors */
+  --chart-1: #5B8DEF;
+  --chart-2: #7BA3F0;
+  --chart-3: rgba(255, 255, 255, 0.6);
+  --chart-4: rgba(255, 255, 255, 0.4);
+  --chart-5: rgba(255, 255, 255, 0.2);
+
+  /* Sidebar — same as card for seamless feel */
+  --sidebar: #141416;
+  --sidebar-foreground: rgba(255, 255, 255, 0.9);
+  --sidebar-primary: #5B8DEF;
+  --sidebar-primary-foreground: #0C0C0E;
+  --sidebar-accent: #1E1E22;
+  --sidebar-accent-foreground: rgba(255, 255, 255, 0.9);
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-ring: #5B8DEF;
+
+  /* Additional semantic tokens for custom components */
+  --background-light: #0C0C0E;
+  --background-dark: #0C0C0E;
+  --surface-dark: #141416;
+  --border-dark: rgba(255, 255, 255, 0.06);
+  --text-secondary: rgba(255, 255, 255, 0.5);
+  --text-primary: rgba(255, 255, 255, 0.9);
+  --text-muted: rgba(255, 255, 255, 0.45);
+  --premium-bg: #0C0C0E;
+  --sidebar-dark: #141416;
+  --glass-dark: rgba(20, 20, 22, 0.84);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --accent-cyan: #5B8DEF;
+  --accent-violet: #7BA3F0;
+  --surface-muted: #1A1A1D;
+  --surface-subtle: #1E1E22;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }

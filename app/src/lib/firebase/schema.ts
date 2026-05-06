@@ -1,5 +1,5 @@
 import type { PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
-import type { BuildRun, DesignArtifact, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
+import type { BuildRun, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
 
 /**
  * Firebase Schema Definitions
@@ -194,6 +194,14 @@ export interface ProjectDocument {
     stage?: ProjectStage
     collaborators?: ProjectCollaborator[] // Team members with access
     collaboratorUserIds?: string[] // Flat array of collaborator UIDs for efficient Firestore queries
+    publishStatus?: "idle" | "pushing" | "deploying" | "live" | "failed"
+    githubRepoUrl?: string
+    vercelProjectName?: string
+    vercelDeploymentId?: string
+    vercelDeploymentUrl?: string
+    vercelDeployUrl?: string
+    publishedAt?: FirestoreTimestamp
+    publishError?: string
     createdAt: FirestoreTimestamp
     updatedAt: FirestoreTimestamp
 }
@@ -226,6 +234,7 @@ export interface MessageDocument {
     role: MessageRole
     content: string
     proposedChanges?: ProposedChanges
+    modelUsed?: string
     intent: MessageIntent
     timestamp: FirestoreTimestamp
 }
@@ -237,6 +246,7 @@ export interface MessageCreateData {
     role: MessageRole
     content: string
     proposedChanges?: ProposedChanges
+    modelUsed?: string
     intent: MessageIntent
     timestamp: FirestoreTimestamp
 }
@@ -287,11 +297,6 @@ export interface ProjectPlanCreateData {
     approvedAt?: FirestoreTimestamp
     approvedBy?: string
     updatedAt: FirestoreTimestamp
-}
-
-export type DesignArtifactDocument = Omit<DesignArtifact, "createdAt" | "approvedAt"> & {
-    createdAt: FirestoreTimestamp
-    approvedAt?: FirestoreTimestamp
 }
 
 export type BuildRunDocument = Omit<BuildRun, "createdAt" | "updatedAt"> & {
@@ -361,7 +366,6 @@ export interface ProjectWithDetails {
     blueprint: BlueprintDocument | null
     prd: PRDDocument | null
     projectPlan: ProjectPlanDocument | null
-    designArtifacts: DesignArtifactDocument[]
     buildRuns: BuildRunDocument[]
 }
 
@@ -449,7 +453,6 @@ export const COLLECTIONS = {
     BLUEPRINTS: "blueprints",
     PRDS: "prds",
     PROJECT_PLANS: "projectPlans",
-    DESIGN_ARTIFACTS: "designArtifacts",
     BUILD_RUNS: "buildRuns",
     MESSAGES: "messages", // Subcollection under projects
     HISTORY: "history", // Subcollection under blueprints

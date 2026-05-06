@@ -10,10 +10,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/components/Providers";
 import { authPost } from "@/lib/authFetch";
+import { ArrowUp, Hourglass, Mic, Paperclip } from "lucide-react";
 
 interface VisionInputProps {
   onProjectCreated?: (projectId: string, initialMessage: string) => void;
 }
+
+const PROMPT_EXAMPLES = [
+  "a landing page",
+  "a SaaS dashboard",
+  "a marketplace",
+  "an onboarding flow",
+];
 
 export default function VisionInput({ onProjectCreated }: VisionInputProps) {
   const { user } = useAuth();
@@ -23,15 +31,67 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [placeholder, setPlaceholder] = useState("Build a multi-vendor marketplace with vendor onboarding, secure payment escrow, product reviews, and an admin dashboard...");
+  const [typedPrompt, setTypedPrompt] = useState(PROMPT_EXAMPLES[0]);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotionPreference = () => setPrefersReducedMotion(mediaQuery.matches);
+
+    updateMotionPreference();
+    mediaQuery.addEventListener("change", updateMotionPreference);
+    return () => mediaQuery.removeEventListener("change", updateMotionPreference);
+  }, []);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setTypedPrompt(PROMPT_EXAMPLES[0]);
+      return;
+    }
+
+    let exampleIndex = 0;
+    let charIndex = PROMPT_EXAMPLES[0].length;
+    let deleting = true;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const tick = () => {
+      const currentExample = PROMPT_EXAMPLES[exampleIndex];
+      let nextDelay = 58;
+
+      if (deleting) {
+        charIndex -= 1;
+        setTypedPrompt(currentExample.slice(0, Math.max(charIndex, 0)));
+        nextDelay = 42;
+
+        if (charIndex <= 0) {
+          deleting = false;
+          exampleIndex = (exampleIndex + 1) % PROMPT_EXAMPLES.length;
+          nextDelay = 180;
+        }
+      } else {
+        const nextExample = PROMPT_EXAMPLES[exampleIndex];
+        charIndex += 1;
+        setTypedPrompt(nextExample.slice(0, charIndex));
+        nextDelay = 58;
+
+        if (charIndex >= nextExample.length) {
+          deleting = true;
+          nextDelay = 1350;
+        }
+      }
+
+      timeoutId = setTimeout(tick, nextDelay);
+    };
+
+    timeoutId = setTimeout(tick, 1250);
+    return () => clearTimeout(timeoutId);
+  }, [prefersReducedMotion]);
 
   // Listen for placeholder/vision update events from quick actions
   useEffect(() => {
     const handleSetPlaceholder = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
       if (customEvent.detail) {
-        setPlaceholder(customEvent.detail);
-        // Also set the value so it becomes 'sendable'
         setValue(customEvent.detail);
       }
     };
@@ -75,8 +135,7 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
       if (onProjectCreated) {
         onProjectCreated(id, value.trim());
       }
-    } catch (err) {
-      console.error("Error creating project:", err);
+    } catch {
       setError("Failed to create project. Please try again.");
       setIsSubmitting(false);
     }
@@ -91,20 +150,22 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
   };
 
   return (
-    <div className="w-full relative group mt-4">
-      {/* Glow Effect - enhanced when focused */}
+    <div className="group relative w-full">
       <div
-        className={`absolute -inset-0.5 rounded-[1.75rem] bg-gradient-to-r from-[#d5e6ff] via-[#f5ebe0] to-[#d8e8ff] blur transition-opacity duration-500 ${isFocused ? "opacity-80" : "opacity-40"
-          }`}
-      />
-
-      {/* Glass Panel */}
-      <div
-        className={`glass-panel relative rounded-[1.75rem] p-2 transition-all duration-300 ${isFocused ? "ring-1 ring-[#2f8fff]/30 shadow-[0_24px_50px_-28px_rgba(47,143,255,0.35)]" : ""
+        className={`relative rounded-[1.75rem] border border-white/[0.09] bg-[#11151d]/95 p-2 shadow-[0_28px_90px_-54px_rgba(0,0,0,0.95)] transition-[border-color,box-shadow] duration-300 ${isFocused ? "border-[#2f8fff]/55 shadow-[0_32px_100px_-58px_rgba(47,143,255,0.75)]" : ""
           }`}
       >
         <div className="relative flex flex-col">
-          {/* Textarea */}
+          {!value ? (
+            <div className="pointer-events-none absolute left-5 right-5 top-4 flex min-h-[32px] flex-wrap items-center gap-x-1.5 text-lg leading-relaxed text-slate-400">
+              <span>Ask Flowro to make</span>
+              <span className="text-slate-200">{typedPrompt}</span>
+              {!prefersReducedMotion ? (
+                <span className="mb-0.5 inline-block h-5 w-px translate-y-0.5 bg-[#2f8fff]/90" aria-hidden="true" />
+              ) : null}
+            </div>
+          ) : null}
+
           <textarea
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -112,36 +173,33 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
             onBlur={() => setIsFocused(false)}
             onKeyDown={handleKeyDown}
             disabled={isSubmitting}
-            className="min-h-[72px] max-h-[200px] w-full resize-none border-0 bg-transparent px-5 py-4 text-lg leading-relaxed text-slate-900 placeholder:text-slate-400 focus:ring-0 focus:outline-none disabled:opacity-50"
-            placeholder={placeholder}
+            dir="auto"
+            aria-label="Describe what Flowro should make"
+            className="flowro-bidi-text min-h-[92px] max-h-[220px] w-full resize-none border-0 bg-transparent px-5 py-4 text-lg leading-relaxed text-white caret-[#2f8fff] placeholder:text-transparent focus:outline-none focus:ring-0 disabled:opacity-50"
+            placeholder="Ask Flowro to make a landing page"
             rows={2}
           />
 
-          {/* Action Bar */}
           <div className="flex items-center justify-between px-2 pb-1 pt-2">
             <div className="flex items-center gap-2">
-              {/* Attach Button - disabled placeholder */}
               <button
                 type="button"
                 disabled
-                className="cursor-not-allowed rounded-xl p-2 text-slate-300 opacity-60"
+                className="flex size-11 cursor-not-allowed items-center justify-center rounded-xl text-slate-500 opacity-70"
                 title="Attach file (coming soon)"
+                aria-label="Attach file coming soon"
               >
-                <span className="material-symbols-outlined text-[20px]">
-                  attach_file
-                </span>
+                <Paperclip size={18} />
               </button>
 
-              {/* Mic Button - disabled placeholder */}
               <button
                 type="button"
                 disabled
-                className="cursor-not-allowed rounded-xl p-2 text-slate-300 opacity-60"
+                className="flex size-11 cursor-not-allowed items-center justify-center rounded-xl text-slate-500 opacity-70"
                 title="Use microphone (coming soon)"
+                aria-label="Use microphone coming soon"
               >
-                <span className="material-symbols-outlined text-[20px]">
-                  mic
-                </span>
+                <Mic size={18} />
               </button>
             </div>
 
@@ -150,20 +208,18 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
                 {isSubmitting ? "Creating project..." : "Press Enter to submit"}
               </span>
 
-              {/* Submit Button */}
               <button
                 type="button"
                 onClick={handleSubmit}
                 disabled={!value.trim() || isSubmitting}
-                className={`flex items-center justify-center rounded-2xl p-2.5 shadow-lg transition-all ${value.trim() && !isSubmitting
-                  ? "bg-[#2f8fff] text-white shadow-[0_18px_30px_-18px_rgba(47,143,255,0.6)] hover:bg-[#267ce6] cursor-pointer"
-                  : "bg-slate-300 text-slate-500 cursor-not-allowed"
+                className={`flex size-11 items-center justify-center rounded-2xl shadow-lg transition-colors ${value.trim() && !isSubmitting
+                  ? "cursor-pointer bg-[#2f8fff] text-white shadow-[0_18px_30px_-18px_rgba(47,143,255,0.85)] hover:bg-[#267ce6]"
+                  : "cursor-not-allowed bg-white/[0.08] text-slate-500 shadow-none"
                   }`}
                 title={isSubmitting ? "Creating..." : "Submit"}
+                aria-label={isSubmitting ? "Creating project" : "Submit"}
               >
-                <span className={`material-symbols-outlined text-[20px] ${isSubmitting ? "animate-spin" : ""}`}>
-                  {isSubmitting ? "hourglass_top" : "arrow_upward"}
-                </span>
+                {isSubmitting ? <Hourglass className="animate-spin" size={18} /> : <ArrowUp size={19} />}
               </button>
             </div>
           </div>
@@ -180,7 +236,7 @@ export default function VisionInput({ onProjectCreated }: VisionInputProps) {
       {/* Error message */}
       {error && (
         <div className="absolute -bottom-10 left-0 right-0 flex items-center justify-center">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+          <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-sm text-red-300">
             <span className="material-symbols-outlined text-[16px]">error</span>
             {error}
           </div>
