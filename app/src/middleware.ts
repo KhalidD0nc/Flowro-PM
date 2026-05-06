@@ -3,6 +3,7 @@ import { checkRateLimit, getRateLimitHeaders, getRouteType } from "./lib/rateLim
 
 const PUBLIC_LANDING_HOSTS = new Set(["flowro.app", "www.flowro.app"])
 const PUBLIC_LANDING_PAGES = new Set(["/", "/privacy", "/terms"])
+const PUBLIC_LANDING_PREFIXES = ["/examples/", "/_next/", "/api/sitemap"]
 
 const PUBLIC_ASSET_EXTENSIONS = new Set([
   ".avif",
@@ -33,7 +34,11 @@ export function isPublicLandingHost(host: string | null): boolean {
 
 export function isPublicLandingPath(pathname: string): boolean {
   if (PUBLIC_LANDING_PAGES.has(pathname)) return true
-  if (pathname.startsWith("/_next/")) return true
+
+  // Allow /examples/* routes so iframe previews work on flowro.app
+  for (const prefix of PUBLIC_LANDING_PREFIXES) {
+    if (pathname.startsWith(prefix)) return true
+  }
 
   const fileName = pathname.split("/").pop() || ""
   const extension = fileName.includes(".")
