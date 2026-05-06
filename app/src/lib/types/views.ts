@@ -11,6 +11,7 @@
 
 import type { ClarificationQuestion, ClarificationResponse, PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
 import type { BuildRun, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
+import type { ProjectType, SlidesDeck, SlidesDeckStory, SlidesGenerationStatus, SlidesSource } from "@/lib/slides/schema"
 import type { User } from "firebase/auth"
 
 // =============================================================================
@@ -102,8 +103,14 @@ export interface ProjectPlanView {
 export interface ProjectView {
     id: string
     projectName: string
+    projectType?: ProjectType
     description?: string
     stage?: ProjectStage
+    slidesSources?: SlidesSource[]
+    slidesWebSearchEnabled?: boolean
+    slidesStatus?: SlidesGenerationStatus
+    slidesDeckStory?: SlidesDeckStory
+    slidesDeck?: SlidesDeck
     publishStatus?: "idle" | "pushing" | "deploying" | "live" | "failed"
     githubRepoUrl?: string
     vercelProjectName?: string
@@ -195,6 +202,7 @@ export interface ChatInputProps {
     onSend: (e: React.FormEvent) => void
     actionMode?: "build" | "plan"
     onActionModeChange?: (mode: "build" | "plan") => void
+    workflow?: ProjectType
     isGenerating: boolean
     selectionContext: SelectionContext | null
     onClearContext: () => void
@@ -245,6 +253,7 @@ export interface ChatPanelProps {
     onSendMessage: (e: React.FormEvent) => void
     actionMode?: "build" | "plan"
     onActionModeChange?: (mode: "build" | "plan") => void
+    workflow?: ProjectType
     onOpenBlueprint: () => void
     onProjectSelect?: (projectId: string) => void
     onGoHome?: () => void
