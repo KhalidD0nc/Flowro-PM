@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { X } from "lucide-react";
+import { MousePointerClick, X } from "lucide-react";
 
 const repoUrl = "https://github.com/KhalidD0nc/Flowro-PM";
 
@@ -27,127 +27,80 @@ const pipelineSteps = [
   { label: "Ship or iterate", detail: "Open the generated app locally and inspect the real output." },
 ];
 
-const integrationNodes = [
-  {
-    title: "Flowro",
-    subtitle: "Generate app",
-    chip: "Plan approved",
-    tone: "orange",
-  },
-  {
-    title: "Supabase",
-    subtitle: "Connect database",
-    chip: "Tables + auth",
-    tone: "green",
-  },
-  {
-    title: "Vercel",
-    subtitle: "Deploy live",
-    chip: "Production URL",
-    tone: "dark",
-  },
-];
-
-function FlowConnector({ reverse = false }: { reverse?: boolean }) {
-  const shouldReduceMotion = useReducedMotion();
-
-  return (
-    <div className="relative flex h-14 w-full items-center justify-center md:h-auto md:w-28" aria-hidden="true">
-      <div className="absolute left-1/2 top-0 h-full w-[2px] -translate-x-1/2 bg-[#201815] md:left-0 md:top-1/2 md:h-[2px] md:w-full md:translate-x-0 md:-translate-y-1/2" />
-      <div className="relative h-full w-[18px] overflow-hidden md:h-[18px] md:w-full">
-        <motion.div
-          className="absolute left-1/2 top-0 h-10 w-[6px] -translate-x-1/2 rounded-full bg-[#f97316] shadow-[0_0_16px_rgba(249,115,22,0.55)] md:left-0 md:top-1/2 md:h-[6px] md:w-14 md:translate-x-0 md:-translate-y-1/2"
-          animate={
-            shouldReduceMotion
-              ? { opacity: 1, x: 0, y: 0 }
-              : reverse
-                ? { opacity: [0.25, 1, 0.25], x: ["72px", "-16px"], y: ["-18px", "18px"] }
-                : { opacity: [0.25, 1, 0.25], x: ["-16px", "72px"], y: ["18px", "-18px"] }
-          }
-          transition={shouldReduceMotion ? undefined : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-        />
-      </div>
-    </div>
-  );
-}
-
 function IntegrationFlowBanner() {
   const shouldReduceMotion = useReducedMotion();
+  const cursorMotion = shouldReduceMotion
+    ? { opacity: 1, x: 0, y: 0, scale: 1 }
+    : {
+      opacity: [0, 1, 1, 1, 0],
+      x: ["-132px", "-92px", "-92px", "132px", "132px"],
+      y: [18, 0, 0, 0, 0],
+      scale: [0.95, 1, 0.82, 1, 0.82],
+    };
 
   return (
     <motion.section
-      aria-label="Flowro connects Supabase and deploys to Vercel"
-      className="relative mt-12 w-full max-w-5xl text-left sm:mt-14"
-      initial={shouldReduceMotion ? false : { opacity: 0, y: 28 }}
+      aria-label="Click to connect Supabase and deploy on Vercel"
+      className="relative mt-10 w-full max-w-3xl text-left sm:mt-12"
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 16 }}
       whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.55 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      viewport={{ once: true, amount: 0.7 }}
+      transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="absolute -left-4 -top-4 h-14 w-14 rotate-12 rounded-[12px] border-2 border-[#201815] bg-[#ffd75a] shadow-[5px_5px_0_#201815] max-sm:hidden" />
-      <div className="absolute -bottom-4 -right-4 h-16 w-20 -rotate-6 rounded-[12px] border-2 border-[#201815] bg-[#67d7c1] shadow-[5px_5px_0_#201815] max-sm:hidden" />
+      <div className="relative flex flex-col items-center gap-4 rounded-[18px] border-2 border-dashed border-[#201815]/35 px-4 py-4 sm:flex-row sm:justify-center sm:gap-8">
+        <motion.div
+          className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 text-[#201815]"
+          aria-hidden="true"
+          animate={cursorMotion}
+          transition={shouldReduceMotion ? undefined : { duration: 3.1, repeat: Infinity, repeatDelay: 0.45, ease: "easeInOut" }}
+        >
+          <div className="relative">
+            <MousePointerClick className="size-8 fill-[#fff7e3] stroke-[2.4]" />
+            <motion.span
+              className="absolute -right-2 -top-2 size-4 rounded-full border-2 border-[#201815] bg-[#f97316]"
+              animate={shouldReduceMotion ? undefined : { scale: [0.5, 1.7, 0.5], opacity: [0, 0.8, 0] }}
+              transition={shouldReduceMotion ? undefined : { duration: 0.8, repeat: Infinity, repeatDelay: 0.8 }}
+            />
+          </div>
+        </motion.div>
 
-      <div className="relative overflow-hidden rounded-[22px] border-2 border-[#201815] bg-white p-4 shadow-[10px_10px_0_#201815] sm:p-5">
-        <div className="pointer-events-none absolute inset-0 opacity-[0.08]" style={{ backgroundImage: "radial-gradient(#201815 1px, transparent 1px)", backgroundSize: "16px 16px" }} />
-        <div className="relative mb-4 flex flex-col gap-3 border-b-2 border-[#201815] pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#c2410c]">Supabase to Vercel</p>
-            <h2 className="mt-1 text-2xl font-black leading-tight text-[#201815] sm:text-3xl">
-              Connect your backend, then ship the app.
-            </h2>
-          </div>
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border-2 border-[#201815] bg-[#f8f1e5] px-3 py-2 text-xs font-black uppercase tracking-widest text-[#201815]">
-            <span className="size-2 rounded-full bg-[#16a34a]" />
-            Live pipeline
-          </div>
+        <div className="flex w-full max-w-[230px] flex-col items-center gap-2 sm:w-auto">
+          <motion.div
+            className="relative flex min-h-14 items-center justify-center"
+            animate={shouldReduceMotion ? undefined : { y: [0, -3, 0] }}
+            transition={shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <Image src="/connect-supabase-light.svg" alt="Connect Supabase database" width={156} height={31} className="h-auto w-[156px] max-w-full" />
+          </motion.div>
+          <span className="rounded-full border-2 border-[#201815] bg-[#67d7c1] px-3 py-1 text-[11px] font-black uppercase tracking-widest text-[#201815] shadow-[3px_3px_0_#201815]">
+            Click database
+          </span>
         </div>
 
-        <div className="relative grid gap-0 md:flex md:items-stretch md:justify-between">
-          {integrationNodes.map((node, index) => (
-            <React.Fragment key={node.title}>
-              <motion.div
-                className={[
-                  "relative z-10 flex min-h-[172px] flex-1 flex-col justify-between rounded-[18px] border-2 border-[#201815] p-4 shadow-[6px_6px_0_#201815]",
-                  node.tone === "dark" ? "bg-[#201815] text-white" : node.tone === "green" ? "bg-[#ecfff6]" : "bg-[#fff7e3]",
-                ].join(" ")}
-                initial={shouldReduceMotion ? false : { opacity: 0, y: 18, rotate: index === 1 ? -1 : 1 }}
-                whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0, rotate: 0 }}
-                viewport={{ once: true, amount: 0.55 }}
-                transition={{ duration: 0.4, delay: index * 0.12, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className={node.tone === "dark" ? "text-xs font-black uppercase tracking-[0.2em] text-white/60" : "text-xs font-black uppercase tracking-[0.2em] text-[#6b5b4f]"}>
-                      {node.subtitle}
-                    </p>
-                    <h3 className="mt-2 text-2xl font-black leading-none">{node.title}</h3>
-                  </div>
-                  <span className={node.tone === "dark" ? "rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white" : "rounded-full border border-[#201815] bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-[#201815]"}>
-                    {node.chip}
-                  </span>
-                </div>
+        <div className="relative h-8 w-px bg-[#201815]/45 sm:h-px sm:w-20" aria-hidden="true">
+          <motion.span
+            className="absolute left-1/2 top-0 size-2 -translate-x-1/2 rounded-full bg-[#f97316] sm:hidden"
+            animate={shouldReduceMotion ? undefined : { y: ["0rem", "2rem"], opacity: [0.2, 1, 0.2] }}
+            transition={shouldReduceMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.span
+            className="absolute left-0 top-1/2 hidden size-2 -translate-y-1/2 rounded-full bg-[#f97316] sm:block"
+            animate={shouldReduceMotion ? undefined : { x: ["0rem", "5rem"], opacity: [0.2, 1, 0.2] }}
+            transition={shouldReduceMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+          />
+        </div>
 
-                <div className="mt-6 flex h-16 items-center justify-center rounded-xl border-2 border-[#201815] bg-white p-3">
-                  {node.title === "Flowro" && (
-                    <div className="flex items-center gap-3">
-                      <Image src="/logo.svg" alt="Flowro logo" width={40} height={40} className="size-10" />
-                      <span className="text-lg font-black text-[#201815]">Flowro</span>
-                    </div>
-                  )}
-                  {node.title === "Supabase" && (
-                    <Image src="/connect-supabase-light.svg" alt="Connect Supabase" width={156} height={31} className="h-auto w-[156px] max-w-full" />
-                  )}
-                  {node.title === "Vercel" && (
-                    <div className="flex items-center gap-3 rounded-lg bg-[#201815] px-4 py-3">
-                      <Image src="/vercel.svg" alt="Vercel triangle logo" width={24} height={24} className="size-6" />
-                      <Image src="/vercel-logotype-light.png" alt="Vercel wordmark" width={160} height={32} className="h-4 w-auto" />
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-
-              {index < integrationNodes.length - 1 && <FlowConnector reverse={index === 1} />}
-            </React.Fragment>
-          ))}
+        <div className="flex w-full max-w-[230px] flex-col items-center gap-2 sm:w-auto">
+          <motion.div
+            className="flex min-h-14 items-center justify-center gap-3"
+            animate={shouldReduceMotion ? undefined : { rotate: [0, 1.5, 0] }}
+            transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <Image src="/vercel-logotype-light.png" alt="Vercel wordmark" width={148} height={29} className="h-[18px] w-auto" />
+          </motion.div>
+          <span className="rounded-full border-2 border-[#201815] bg-[#ffd75a] px-3 py-1 text-[11px] font-black uppercase tracking-widest text-[#201815] shadow-[3px_3px_0_#201815]">
+            Click deploy
+          </span>
         </div>
       </div>
     </motion.section>
