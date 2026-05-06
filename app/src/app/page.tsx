@@ -175,7 +175,8 @@ export default function Home() {
             </Link>
             <nav className="hidden items-center gap-6 text-sm font-bold md:flex">
               <a className="hover:text-[#c2410c]" href="#pipeline">Pipeline</a>
-
+              <a className="hover:text-[#c2410c]" href="#showcase">Showcase</a>
+              <a className="hover:text-[#c2410c]" href="#pricing">Pricing</a>
               <a className="hover:text-[#c2410c]" href="#quickstart">Self-host</a>
             </nav>
             <a
@@ -315,7 +316,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-b border-[#201815]/15 px-5 py-20 sm:px-8 lg:px-10 bg-white">
+      <section id="showcase" className="border-b border-[#201815]/15 px-5 py-20 sm:px-8 lg:px-10 bg-white">
         <div className="mx-auto max-w-7xl">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-black tracking-tight sm:text-5xl text-[#201815]">Built with Flowro</h2>
