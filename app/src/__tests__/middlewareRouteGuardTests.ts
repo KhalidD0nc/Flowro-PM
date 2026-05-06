@@ -84,6 +84,26 @@ const tests: TestCase[] = [
     },
   },
   {
+    name: "/examples/timeless/ is public on flowro.app (regression: iframe bug)",
+    run: () => isPublicLandingPath("/examples/timeless/"),
+  },
+  {
+    name: "/examples/salon-rawnq/ is public on flowro.app (regression: iframe bug)",
+    run: () => isPublicLandingPath("/examples/salon-rawnq/"),
+  },
+  {
+    name: "https://flowro.app/examples/timeless/ does NOT redirect to /",
+    run: () => {
+      const response = middleware(
+        new NextRequest("https://flowro.app/examples/timeless/", {
+          headers: { host: "flowro.app" },
+        })
+      )
+      // Should NOT be a redirect (307), should pass through
+      return response.status !== 307
+    },
+  },
+  {
     name: "http://localhost:3000/auth still passes through",
     run: () => {
       const response = middleware(
