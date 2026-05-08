@@ -5,6 +5,7 @@ import type { User } from "firebase/auth"
 import type { ProjectView } from "@/lib/types/views"
 import type { SlidesDeck } from "@/lib/slides/schema"
 import { authFetch, authPost } from "@/lib/authFetch"
+import SlideRenderer from "@/components/workspace/SlideRenderer"
 
 const BASE_STEPS = [
   { key: "reading", label: "Reading sources", icon: "folder_open" },
@@ -26,11 +27,13 @@ export default function SlidesWorkspace({
   user,
   isWorking,
   onProjectChange,
+  previewOnly = false,
 }: {
   project: ProjectView
   user: User
   isWorking: boolean
   onProjectChange?: (updates: Partial<ProjectView>) => void
+  previewOnly?: boolean
 }) {
   const [workingStep, setWorkingStep] = useState(0)
   const [selectedSlideId, setSelectedSlideId] = useState<string | null>(null)
@@ -135,6 +138,73 @@ export default function SlidesWorkspace({
     } finally {
       setBusyAction(null)
     }
+  }
+
+  if (previewOnly && deck) {
+    const selectedIndex = Math.max(0, deck.slides.findIndex((slide) => slide.id === selectedSlide?.id))
+    const previousSlide = () => {
+      const nextIndex = selectedIndex <= 0 ? deck.slides.length - 1 : selectedIndex - 1
+      setSelectedSlideId(deck.slides[nextIndex]?.id ?? null)
+    }
+    const nextSlide = () => {
+      const nextIndex = selectedIndex >= deck.slides.length - 1 ? 0 : selectedIndex + 1
+      setSelectedSlideId(deck.slides[nextIndex]?.id ?? null)
+    }
+
+    return (
+      <section className="relative flex h-full min-h-0 flex-1 overflow-hidden bg-[#080808] text-white">
+        <div className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-full border border-white/[0.1] bg-black/55 px-3 py-2 text-xs font-semibold text-white/80 backdrop-blur-xl">
+          <span>{selectedIndex + 1}</span>
+          <span className="text-white/35">/</span>
+          <span>{deck.slides.length}</span>
+        </div>
+
+        <div className="min-h-0 flex-1">
+          {selectedSlide ? (
+            <SlideRenderer deck={deck} slide={selectedSlide} sources={sources} variant="full" />
+          ) : null}
+        </div>
+
+        {deck.slides.length > 1 ? (
+          <>
+            <button
+              type="button"
+              onClick={previousSlide}
+              aria-label="Previous slide"
+              className="absolute left-4 top-1/2 z-20 hidden size-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/[0.1] bg-black/55 text-white/85 backdrop-blur-xl transition hover:bg-black/75 hover:text-white sm:flex"
+            >
+              <span className="material-symbols-outlined text-[24px]">chevron_left</span>
+            </button>
+            <button
+              type="button"
+              onClick={nextSlide}
+              aria-label="Next slide"
+              className="absolute right-4 top-1/2 z-20 hidden size-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/[0.1] bg-black/55 text-white/85 backdrop-blur-xl transition hover:bg-black/75 hover:text-white sm:flex"
+            >
+              <span className="material-symbols-outlined text-[24px]">chevron_right</span>
+            </button>
+          </>
+        ) : null}
+
+        <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center border-t border-white/[0.07] bg-black/55 px-3 py-3 backdrop-blur-xl">
+          <div className="flex max-w-full gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {deck.slides.map((slide) => (
+              <button
+                key={slide.id}
+                type="button"
+                onClick={() => setSelectedSlideId(slide.id)}
+                aria-label={`Open slide ${slide.slideNumber}`}
+                className={`h-12 w-[5.35rem] shrink-0 overflow-hidden rounded-[0.45rem] border text-left transition ${
+                  selectedSlide?.id === slide.id ? "border-[#8fb4ff] opacity-100" : "border-white/[0.14] opacity-55 hover:opacity-85"
+                }`}
+              >
+                <SlideRenderer deck={deck} slide={slide} sources={sources} variant="thumbnail" />
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -303,7 +373,7 @@ export default function SlidesWorkspace({
               <span className="text-xs text-[#8f8f8b]">{deck?.slides.length ?? 0} slides</span>
             </div>
             <div className="mt-3 space-y-2">
-              {deck?.slides.map((slide) => (
+              {deck ? deck.slides.map((slide) => (
                 <button
                   key={slide.id}
                   type="button"
@@ -314,12 +384,11 @@ export default function SlidesWorkspace({
                       : "border-white/[0.07] bg-[#232322] hover:bg-[#292927]"
                   }`}
                 >
-                  <div className="aspect-video rounded-[0.4rem] bg-[#f7f4ee] px-2 py-1.5 text-[#151515]">
-                    <p className="truncate text-[9px] font-bold">{slide.slideNumber}. {slide.title}</p>
-                    <p className="mt-1 line-clamp-2 text-[8px] leading-3 text-[#5f5a52]">{slide.claim}</p>
+                  <div className="aspect-video overflow-hidden rounded-[0.4rem]">
+                    <SlideRenderer deck={deck} slide={slide} sources={sources} variant="thumbnail" />
                   </div>
                 </button>
-              )) ?? (
+              )) : (
                 <div className="rounded-[0.75rem] border border-dashed border-white/[0.1] bg-[#232322] p-4 text-sm leading-6 text-[#a8a8a5]">
                   Slide previews appear after generation.
                 </div>
@@ -328,35 +397,9 @@ export default function SlidesWorkspace({
           </div>
 
           <div className="overflow-hidden rounded-[0.9rem] border border-white/[0.08] bg-[#eeeeea] p-4 text-[#111111]">
-            {selectedSlide ? (
-              <div className="aspect-video rounded-[0.7rem] border border-[#d9d7cf] bg-[#f7f4ee] p-6 shadow-[0_24px_60px_-46px_rgba(0,0,0,0.7)]">
-                <div className="grid h-full grid-cols-[1fr_0.78fr] gap-8">
-                  <div className="flex min-w-0 flex-col">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#6b7280]">Slide {selectedSlide.slideNumber}</p>
-                    <h3 className="mt-5 text-3xl font-semibold leading-tight tracking-tight">{selectedSlide.title}</h3>
-                    <p className="mt-4 text-lg leading-7 text-[#343434]">{selectedSlide.claim}</p>
-                    <div className="mt-auto space-y-2">
-                      {selectedSlide.body.slice(0, 3).map((item) => (
-                        <p key={item} className="text-sm leading-6 text-[#4f4d49]">{item}</p>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-[0.65rem] border border-[#d8d3c8] bg-white/70 p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#4169ff]">{selectedSlide.proof.type.replace(/_/g, " ")}</p>
-                    <h4 className="mt-3 text-lg font-semibold">{selectedSlide.proof.title}</h4>
-                    <p className="mt-3 text-sm leading-6 text-[#5f5a52]">{selectedSlide.proof.description}</p>
-                    {selectedSlide.proof.data.length ? (
-                      <div className="mt-4 space-y-2">
-                        {selectedSlide.proof.data.slice(0, 4).map((item) => (
-                          <div key={`${item.label}-${item.value}`} className="flex justify-between gap-3 border-t border-[#ded8cc] pt-2 text-xs">
-                            <span className="font-semibold">{item.label}</span>
-                            <span className="text-right text-[#6f6c66]">{item.value}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
+            {deck && selectedSlide ? (
+              <div className="aspect-video overflow-hidden rounded-[0.7rem] border border-[#d9d7cf] shadow-[0_24px_60px_-46px_rgba(0,0,0,0.7)]">
+                <SlideRenderer deck={deck} slide={selectedSlide} sources={sources} variant="panel" />
               </div>
             ) : (
               <div className="flex aspect-video items-center justify-center rounded-[0.7rem] border border-[#d9d7cf] bg-white p-6 text-center">
@@ -366,6 +409,9 @@ export default function SlidesWorkspace({
 
             {deck ? (
               <div className="mt-4 rounded-[0.75rem] border border-[#d9d7cf] bg-white p-3">
+                {process.env.NODE_ENV !== "production" ? (
+                  <div className="sr-only" data-slides-provider={deck.provider} data-slides-visuals={(deck.diagnostics?.visualAssetKinds ?? deck.slides.map((slide) => slide.visualAsset.kind)).join(",")} data-slides-fallback={deck.diagnostics?.fallbackReason ?? ""} />
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => void exportDeck("pptx")} disabled={busyAction !== null} className="rounded-full bg-[#111111] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Export PPTX</button>
                   <button type="button" onClick={() => void exportDeck("pdf")} disabled={busyAction !== null} className="rounded-full border border-[#d9d7cf] px-3 py-2 text-xs font-semibold text-[#111111] disabled:opacity-50">Export PDF</button>

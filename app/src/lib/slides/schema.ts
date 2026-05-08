@@ -36,6 +36,10 @@ export const slidesSourceInputSchema = z.object({
   mimeType: z.string().max(120).optional(),
   size: z.number().int().nonnegative().optional(),
   url: z.string().url().optional(),
+  dataUrl: z.string().startsWith("data:image/").max(900_000).optional(),
+  storagePath: z.string().min(1).max(500).optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
 })
 export type SlidesSourceInput = z.infer<typeof slidesSourceInputSchema>
 
@@ -75,6 +79,12 @@ export const slidesEvidenceSchema = z.object({
   query: z.string().min(1).max(300),
   summary: z.string().min(1).max(900),
   citations: z.array(slidesEvidenceCitationSchema).max(8),
+  visualCandidates: z.array(z.object({
+    title: z.string().min(1).max(180),
+    url: z.string().url(),
+    sourceUrl: z.string().url().optional(),
+    alt: z.string().min(1).max(220),
+  })).max(6).default([]),
   provider: z.enum(["openai_web_search", "skipped", "failed"]),
 })
 export type SlidesEvidence = z.infer<typeof slidesEvidenceSchema>
@@ -91,8 +101,8 @@ export type SlidesDeckBrief = z.infer<typeof slidesDeckBriefSchema>
 
 export const slidesOutlineItemSchema = z.object({
   id: z.string().min(1),
-  title: z.string().min(1).max(140),
-  claim: z.string().min(1).max(280),
+  title: z.string().min(1).max(60),
+  claim: z.string().min(1).max(110),
   proofType: z.enum(["chart", "image", "comparison", "timeline", "diagram", "table", "source_backed_visual"]),
   sourceIds: z.array(z.string().min(1)).max(8),
   evidenceIds: z.array(z.string().min(1)).max(6),
@@ -110,27 +120,45 @@ export type SlidesDeckStory = z.infer<typeof slidesDeckStorySchema>
 
 export const slidesProofObjectSchema = z.object({
   type: z.enum(["chart", "image", "comparison", "timeline", "diagram", "table", "source_backed_visual"]),
-  title: z.string().min(1).max(160),
-  description: z.string().min(1).max(420),
+  title: z.string().min(1).max(80),
+  description: z.string().min(1).max(160),
   data: z.array(z.object({
-    label: z.string().min(1).max(80),
-    value: z.string().min(1).max(140),
+    label: z.string().min(1).max(40),
+    value: z.string().min(1).max(60),
+    numericValue: z.number().finite().optional(),
+    group: z.string().min(1).max(40).optional(),
+    tone: z.enum(["accent", "positive", "warning", "neutral", "muted"]).optional(),
   })).max(8).default([]),
 })
 export type SlidesProofObject = z.infer<typeof slidesProofObjectSchema>
 
+export const slidesVisualAssetSchema = z.object({
+  kind: z.enum(["none", "source_image", "web_image", "generated_visual"]),
+  sourceId: z.string().min(1).optional(),
+  evidenceId: z.string().min(1).optional(),
+  url: z.string().url().optional(),
+  dataUrl: z.string().startsWith("data:image/").max(900_000).optional(),
+  query: z.string().min(1).max(180).optional(),
+  alt: z.string().min(1).max(220).optional(),
+  rationale: z.string().min(1).max(240).optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+}).default({ kind: "none" })
+export type SlidesVisualAsset = z.infer<typeof slidesVisualAssetSchema>
+
 export const slidesStructuredSlideSchema = z.object({
   id: z.string().min(1),
   slideNumber: z.number().int().positive(),
-  title: z.string().min(1).max(120),
-  claim: z.string().min(1).max(280),
-  body: z.array(z.string().min(1).max(180)).min(1).max(5),
+  title: z.string().min(1).max(60),
+  claim: z.string().min(1).max(110),
+  body: z.array(z.string().min(1).max(72)).min(1).max(3),
   proof: slidesProofObjectSchema,
   speakerNotes: z.string().min(1).max(700),
   sourceIds: z.array(z.string().min(1)).max(8),
   evidenceIds: z.array(z.string().min(1)).max(6),
   layout: z.enum(["cover", "claim_visual", "comparison", "timeline", "data_table", "closing"]),
   visualTone: z.string().min(1).max(160),
+  visualAsset: slidesVisualAssetSchema,
 })
 export type SlidesStructuredSlide = z.infer<typeof slidesStructuredSlideSchema>
 
@@ -146,6 +174,11 @@ export const slidesDeckSchema = z.object({
   slides: z.array(slidesStructuredSlideSchema).min(1).max(24),
   provider: z.enum(["openrouter", "deterministic"]),
   updatedAt: z.string().min(1),
+  diagnostics: z.object({
+    fallbackReason: z.string().min(1).max(240).optional(),
+    webEvidenceStatus: z.enum(["none", "ready", "skipped", "failed"]).optional(),
+    visualAssetKinds: z.array(z.enum(["none", "source_image", "web_image", "generated_visual"])).max(24).optional(),
+  }).optional(),
 })
 export type SlidesDeck = z.infer<typeof slidesDeckSchema>
 

@@ -86,6 +86,7 @@ export default function ChatView({ projectId, initialMessage, projectType, user,
   const shouldPollBuild = shouldPollBuildRun(latestBuild)
   const effectiveProjectType = project?.projectType ?? projectType ?? "app"
   const isSlidesProject = effectiveProjectType === "slides"
+  const hasPreparedSlides = isSlidesProject && Boolean(project?.slidesDeck)
   const hasWorkspaceContent = isSlidesProject || Boolean(draftPlan)
 
   useEffect(() => {
@@ -596,12 +597,13 @@ export default function ChatView({ projectId, initialMessage, projectType, user,
 
             <div className={`min-h-0 flex-1 bg-[#111111] ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
               {isSlidesProject ? (
-                <div className="h-full min-h-0 overflow-y-auto p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className={`h-full min-h-0 ${hasPreparedSlides ? "overflow-hidden" : "overflow-y-auto p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}`}>
                   <SlidesWorkspace
                     project={project}
                     user={user}
                     isWorking={isChatSubmitting}
                     onProjectChange={(updates) => setProject((prev) => prev ? { ...prev, ...updates } : prev)}
+                    previewOnly={hasPreparedSlides}
                   />
                 </div>
               ) : (

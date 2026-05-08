@@ -22,6 +22,13 @@ type OpenAIOutputItem = {
   }
 }
 
+type VisualCandidate = {
+  title: string
+  url: string
+  sourceUrl?: string
+  alt: string
+}
+
 function uniqueCitations(items: Array<{ title?: string; url?: string }>) {
   const seen = new Set<string>()
   return items
@@ -38,6 +45,24 @@ function uniqueCitations(items: Array<{ title?: string; url?: string }>) {
     }))
 }
 
+function visualCandidatesFromText(text: string): VisualCandidate[] {
+  const imageUrlPattern = /https?:\/\/[^\s)"']+\.(?:png|jpe?g|webp)(?:\?[^\s)"']*)?/gi
+  const seen = new Set<string>()
+  return Array.from(text.matchAll(imageUrlPattern))
+    .map((match) => match[0])
+    .filter((url) => {
+      if (seen.has(url)) return false
+      seen.add(url)
+      return true
+    })
+    .slice(0, 6)
+    .map((url, index) => ({
+      title: `Web visual ${index + 1}`,
+      url,
+      alt: "Presentation-supporting visual evidence found during web search.",
+    }))
+}
+
 function evidenceId(index: number) {
   return `web-${index + 1}`
 }
@@ -49,6 +74,7 @@ export async function gatherSlidesWebEvidence(prompt: string): Promise<SlidesEvi
       query: prompt.slice(0, 300),
       summary: "Web search was enabled, but OPENAI_API_KEY is not configured.",
       citations: [],
+      visualCandidates: [],
       provider: "skipped",
     }]
   }
@@ -64,7 +90,12 @@ export async function gatherSlidesWebEvidence(prompt: string): Promise<SlidesEvi
         model: process.env.OPENAI_SEARCH_MODEL || "gpt-5-mini",
         tools: [{ type: "web_search" }],
         tool_choice: "auto",
-        input: `Gather current, presentation-ready evidence for this deck request. Return concise evidence summaries with citations, not a deck outline.\n\nDeck request:\n${prompt}`,
+        input: `Gather current, presentation-ready evidence for this deck request. Return concise evidence summaries with citations, not a deck outline.
+
+If strong visuals would materially improve the deck and the user did not provide image assets, also mention credible, directly accessible image URLs only when you can verify they are public image files. Do not invent image URLs.
+
+Deck request:
+${prompt}`,
       }),
     })
 
@@ -99,6 +130,7 @@ export async function gatherSlidesWebEvidence(prompt: string): Promise<SlidesEvi
       query,
       summary: (messageTexts.join("\n\n") || data.output_text || "Web evidence gathered for the deck.").slice(0, 900),
       citations,
+      visualCandidates: visualCandidatesFromText(messageTexts.join("\n\n")),
       provider: "openai_web_search",
     }]
   } catch {
@@ -107,6 +139,7 @@ export async function gatherSlidesWebEvidence(prompt: string): Promise<SlidesEvi
       query: prompt.slice(0, 300),
       summary: "Web search was requested, but evidence gathering failed. Continue with uploaded and prompt context only.",
       citations: [],
+      visualCandidates: [],
       provider: "failed",
     }]
   }

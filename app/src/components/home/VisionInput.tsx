@@ -30,6 +30,10 @@ const CREATION_MODES = [
   { key: "slides", label: "Slides", icon: Presentation },
 ] as const;
 
+const MAX_PREVIEW_IMAGE_BYTES = 8_000_000;
+const MAX_INLINE_IMAGE_CHARS = 900_000;
+const MAX_IMAGE_EDGE = 1280;
+
 function createClientId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return `source-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -37,6 +41,59 @@ function createClientId() {
 
 function sourceKindForFile(file: File): SlidesSourceInput["kind"] {
   return file.type.startsWith("image/") ? "image" : "file";
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Unable to read image source."));
+    };
+    reader.onerror = () => reject(new Error("Unable to read image source."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function imageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => resolve({ width: 0, height: 0 });
+    image.src = dataUrl;
+  });
+}
+
+async function previewDataUrlForImage(file: File): Promise<string | null> {
+  if (file.size > MAX_PREVIEW_IMAGE_BYTES) return null;
+
+  const dataUrl = await readFileAsDataUrl(file);
+  if (dataUrl.length <= MAX_INLINE_IMAGE_CHARS) return dataUrl;
+
+  const dimensions = await imageDimensions(dataUrl);
+  if (!dimensions.width || !dimensions.height) return null;
+
+  const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(dimensions.width, dimensions.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(dimensions.width * scale));
+  canvas.height = Math.max(1, Math.round(dimensions.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  await new Promise<void>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve();
+    };
+    image.onerror = () => reject(new Error("Unable to compress image."));
+    image.src = dataUrl;
+  });
+
+  const compressed = canvas.toDataURL("image/jpeg", 0.78);
+  return compressed.length <= MAX_INLINE_IMAGE_CHARS ? compressed : null;
 }
 
 export default function VisionInput({ onProjectCreated, defaultProjectType = "app" }: VisionInputProps) {
@@ -170,14 +227,31 @@ export default function VisionInput({ onProjectCreated, defaultProjectType = "ap
     }
   }, [value, isSubmitting, user, selectedMode, sourceInputs, webSearchEnabled, onProjectCreated]);
 
-  const handleFilesSelected = (files: FileList | null) => {
+  const handleFilesSelected = async (files: FileList | null) => {
     if (!files?.length) return;
-    const nextSources = Array.from(files).map((file) => ({
-      id: createClientId(),
-      kind: sourceKindForFile(file),
-      name: file.name,
-      mimeType: file.type || undefined,
-      size: file.size,
+    const nextSources = await Promise.all(Array.from(files).map(async (file): Promise<SlidesSourceInput> => {
+      const base: SlidesSourceInput = {
+        id: createClientId(),
+        kind: sourceKindForFile(file),
+        name: file.name,
+        mimeType: file.type || undefined,
+        size: file.size,
+      };
+      if (base.kind !== "image") return base;
+
+      try {
+        const dataUrl = await previewDataUrlForImage(file);
+        if (!dataUrl) return base;
+        const dimensions = await imageDimensions(dataUrl);
+        return {
+          ...base,
+          dataUrl,
+          ...(dimensions.width > 0 ? { width: dimensions.width } : {}),
+          ...(dimensions.height > 0 ? { height: dimensions.height } : {}),
+        };
+      } catch {
+        return base;
+      }
     }));
     setSourceInputs((current) => [...current, ...nextSources].slice(0, 12));
     if (fileInputRef.current) fileInputRef.current.value = "";

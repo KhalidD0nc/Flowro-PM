@@ -17,11 +17,13 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
+  let projectIdForStatus: string | null = null
   try {
     const authResult = await verifyAuthToken(request)
     if (isAuthError(authResult)) return unauthorizedResponse(authResult)
 
     const { projectId } = await params
+    projectIdForStatus = projectId
     const project = await verifySlidesProject(projectId, authResult.userId)
 
     await updateProject(projectId, { slidesStatus: "drafting" })
@@ -34,6 +36,9 @@ export async function POST(
     return NextResponse.json({ success: true, slidesDeck: deck, slidesStatus: "ready" })
   } catch (error) {
     logError("slides_generate", { error: String(error) })
+    if (projectIdForStatus) {
+      await updateProject(projectIdForStatus, { slidesStatus: "failed" }).catch(() => undefined)
+    }
     const message = error instanceof Error ? error.message : "Failed to generate Slides deck"
     const status = message.includes("Access denied") ? 403 : message.includes("not found") ? 404 : 400
     return NextResponse.json({ error: message }, { status })

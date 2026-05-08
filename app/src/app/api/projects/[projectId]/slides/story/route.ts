@@ -34,6 +34,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
+  let projectIdForStatus: string | null = null
   try {
     const authResult = await verifyAuthToken(request)
     if (isAuthError(authResult)) {
@@ -41,6 +42,7 @@ export async function POST(
     }
 
     const { projectId } = await params
+    projectIdForStatus = projectId
     const body = await request.json()
     const prompt = typeof body.prompt === "string" ? body.prompt.trim() : ""
     if (!prompt) {
@@ -133,6 +135,9 @@ export async function POST(
     })
   } catch (error) {
     logError("slides_story", { error: String(error) })
+    if (projectIdForStatus) {
+      await updateProject(projectIdForStatus, { slidesStatus: "failed" }).catch(() => undefined)
+    }
     const message = error instanceof Error ? error.message : "Failed to build Slides story"
     const status = message.includes("Access denied")
       ? 403

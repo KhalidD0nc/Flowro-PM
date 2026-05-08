@@ -12,7 +12,7 @@ function runSlidesSourceIntakeTests(): TestResult[] {
     { id: "deck", kind: "file", name: "board-update.pptx", size: 1200 },
     { id: "data", kind: "file", name: "revenue.csv", mimeType: "text/csv", size: 1200 },
     { id: "brand", kind: "image", name: "brand-logo.svg", mimeType: "image/svg+xml", size: 1200 },
-    { id: "shot", kind: "image", name: "product-screenshot.png", mimeType: "image/png", size: 1200 },
+    { id: "shot", kind: "image", name: "product-screenshot.png", mimeType: "image/png", size: 1200, dataUrl: "data:image/png;base64,abc", width: 1440, height: 900 },
     { id: "link", kind: "link", name: "example.com", url: "https://example.com/report" },
   ]
 
@@ -39,6 +39,10 @@ function runSlidesSourceIntakeTests(): TestResult[] {
     {
       name: "classifies screenshots separately from image libraries",
       passed: byId.get("shot")?.role === "product_screenshot",
+    },
+    {
+      name: "preserves renderable image metadata",
+      passed: byId.get("shot")?.dataUrl?.startsWith("data:image/png") === true && byId.get("shot")?.width === 1440 && byId.get("shot")?.height === 900,
     },
     {
       name: "classifies links as web link sources",
