@@ -1,6 +1,6 @@
 import { fallbackSlidesDeck, normalizeSlidesDeckJson } from "../lib/slides/deck"
 import { fallbackStory } from "../lib/slides/story"
-import { slidesDeckSchema, type SlidesSource } from "../lib/slides/schema"
+import { inferSlidesChartType, slidesDeckSchema, type SlidesSource } from "../lib/slides/schema"
 
 interface TestResult {
   name: string
@@ -47,7 +47,7 @@ function runSlidesDeckTests(): TestResult[] {
           description: "The strongest proof is the shift from prompt to artifact.",
           data: [
             { label: "Chat answer", value: "35", numericValue: 35, tone: "muted" },
-            { label: "Flowro workspace", value: "90", numericValue: 90, tone: "positive" },
+            { label: "Flowro workspace", value: "90", xValue: 2, numericValue: 90, tone: "positive" },
           ],
         },
         speakerNotes: "Show the execution gap.",
@@ -69,6 +69,20 @@ function runSlidesDeckTests(): TestResult[] {
   const genericStory = fallbackStory("Create a 5-slide market entry deck for solar financing", [], [])
   const genericDeck = fallbackSlidesDeck(genericStory)
   const fallbackText = JSON.stringify({ genericStory, genericDeck }).toLowerCase()
+  const dataStory = fallbackStory("Create a 5-slide market entry deck for solar financing", [{
+    ...sources[0],
+    id: "source-data",
+    kind: "file",
+    name: "metrics.csv",
+    mimeType: "text/csv",
+    dataUrl: undefined,
+    width: undefined,
+    height: undefined,
+    role: "data_file",
+    roleLabel: "Data file",
+    summary: "Use this file as quantitative proof.",
+  }], [])
+  const chartFallback = fallbackSlidesDeck(dataStory).slides.find((slide) => slide.proof.type === "chart")
 
   return [
     {
@@ -81,12 +95,45 @@ function runSlidesDeckTests(): TestResult[] {
       passed: firstSlide?.proof.type === "chart" && firstSlide.proof.data[1]?.numericValue === 90,
     },
     {
+      name: "preserves scatter x-axis values",
+      passed: firstSlide?.proof.data[1]?.xValue === 2,
+    },
+    {
+      name: "infers proportions as donut before funnel",
+      passed: inferSlidesChartType({
+        data: [
+          { label: "Startups", value: "40%", numericValue: 40 },
+          { label: "Agencies", value: "30%", numericValue: 30 },
+          { label: "Consultants", value: "20%", numericValue: 20 },
+          { label: "Enterprise", value: "10%", numericValue: 10 },
+        ],
+      }) === "donut",
+    },
+    {
+      name: "infers conversion stages as funnel",
+      passed: inferSlidesChartType({
+        title: "Signup conversion",
+        data: [
+          { label: "Visitors", value: "12000", numericValue: 12000 },
+          { label: "Signups", value: "2400", numericValue: 2400 },
+          { label: "Activated", value: "960", numericValue: 960 },
+          { label: "Paid", value: "288", numericValue: 288 },
+        ],
+      }) === "funnel",
+    },
+    {
       name: "resolves source image asset",
       passed: firstSlide?.visualAsset.kind === "source_image" && firstSlide.visualAsset.dataUrl === "data:image/png;base64,abc",
     },
     {
       name: "keeps deterministic fallback prompt-specific",
       passed: !fallbackText.includes("flowro") && !fallbackText.includes("chat tool") && fallbackText.includes("solar financing"),
+    },
+    {
+      name: "deterministic chart fallback has 4 numeric points",
+      passed: chartFallback?.proof.chartType === "bar_horizontal" &&
+        chartFallback.proof.data.length >= 4 &&
+        chartFallback.proof.data.every((item) => typeof item.numericValue === "number"),
     },
   ]
 }

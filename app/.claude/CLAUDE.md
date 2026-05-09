@@ -64,7 +64,10 @@ Title: echo and amplify the claim in ≤8 words.
 **Chart data rules:**
 ```
 Charts: every data point MUST have a numericValue (integer or decimal).
-Minimum 4 data points. Labels max 5 words. Values are real numbers or percentages.
+Bar, line, area, donut, scatter, and funnel charts need at least 4 data points when the source supports it.
+Progress charts use 1 primary data point and may include 1 optional goal/context point.
+Scatter charts MUST include xValue for the x-axis and numericValue for the y-axis.
+Labels max 5 words. Values are real numbers or percentages.
 The highest bar tells the story — name it clearly.
 ```
 
@@ -96,7 +99,7 @@ background + foreground must have contrast ratio ≥ 4.5:1.
 ---
 
 ## Milestone 1 — Chart System (Multiple Types, Context-Aware)
-**Status: `IN PROGRESS`**
+**Status: `DONE`**
 **Impact: 🔴 Critical — charts are the most visible proof of quality**
 
 Files: `app/src/lib/slides/schema.ts`, `app/src/lib/slides/deck.ts`, `app/src/components/workspace/SlideRenderer.tsx`
@@ -113,6 +116,11 @@ chartType?: "bar_horizontal" | "bar_vertical" | "line" | "area" | "donut" | "pro
 ```
 
 Default: `"bar_horizontal"` (existing behavior preserved as fallback).
+
+Scatter data also needs a real x-axis field:
+```typescript
+data: Array<{ label: string; value: string; xValue?: number; numericValue?: number }>
+```
 
 ### 1.2 — Teach the AI When to Use Each Chart Type
 File: `app/src/lib/slides/deck.ts` — add to deck system prompt:
@@ -136,6 +144,7 @@ Rules:
 - Use donut only for proportions — never for trend or comparison data
 - Use funnel only for conversion or pipeline data (stages must be sequential)
 - NEVER use bar_horizontal as a default for time-series data
+- Scatter points must include `xValue` for the x-axis and `numericValue` for the y-axis
 ```
 
 ### 1.3 — Build Each Chart Renderer
@@ -225,6 +234,7 @@ HOW   ████ 6%
 #### `scatter`
 - SVG dots on XY axes
 - X-axis label + Y-axis label
+- `xValue` controls x-position; `numericValue` controls y-position
 - Dot size: uniform or scaled by optional `group` weight
 - Color: accent for main cluster, muted for outliers
 - Optional trend line: `stroke-dasharray`, muted color
@@ -238,13 +248,14 @@ If `chartType` is missing or invalid, infer from data shape:
 function inferChartType(proof: SlidesProofObject): ChartType {
   const items = proof.data ?? []
   const hasTime = items.some(d => /\b(jan|feb|mar|q[1-4]|20\d\d|week|month|day)\b/i.test(d.label))
-  const isProportional = items.every(d => d.numericValue) && sum(items) >= 95 && sum(items) <= 105
-  const isFunnel = items.every((d, i) => i === 0 || d.numericValue! <= items[i - 1].numericValue!)
+  const isProportional = items.every(d => d.numericValue !== undefined) && sum(items) >= 95 && sum(items) <= 105
+  const isFunnel = items.every((d, i) => i === 0 || d.numericValue! <= items[i - 1].numericValue!) &&
+    /\b(visitor|signup|activated|paid|lead|pipeline|conversion|trial|demo)\b/i.test(items.map(d => d.label).join(" "))
 
-  if (isFunnel && items.length >= 3) return "funnel"
   if (isProportional && items.length <= 5) return "donut"
   if (hasTime && items.length >= 5) return "line"
   if (items.length === 1) return "progress"
+  if (isFunnel && items.length >= 3) return "funnel"
   return "bar_horizontal"
 }
 ```
@@ -424,7 +435,8 @@ A Flowro slide deck is "great" when it passes all of these:
 
 - [ ] Body text across all slides ≤ 30 words per slide
 - [ ] Every chart uses the correct type for its data story (line for trends, donut for proportions, funnel for conversion, bar for comparisons)
-- [ ] Every chart has visible value labels and ≥ 4 data points with `numericValue`
+- [ ] Every non-progress chart has visible value labels and ≥ 4 data points with `numericValue`
+- [ ] Scatter charts use real `xValue` + `numericValue` pairs, not index-based positioning
 - [ ] No two consecutive slides share the same layout
 - [ ] Logo appears only on cover and closing slides, correctly sized
 - [ ] Product screenshots are wrapped in a device frame

@@ -1,6 +1,7 @@
 import { generateCompletion } from "@/lib/openrouter"
 import {
   slidesDeckSchema,
+  type ChartType,
   type SlidesDeck,
   type SlidesDeckStory,
   type SlidesProofObject,
@@ -56,6 +57,7 @@ function generatedVisualAsset(type: SlidesProofObject["type"], claim: string): S
 
 export function normalizeSlidesDeckJson(value: unknown, sources: SlidesSource[] = []) {
   const proofTypes = new Set(["chart", "image", "comparison", "timeline", "diagram", "table", "source_backed_visual"])
+  const chartTypes = new Set<ChartType>(["bar_horizontal", "bar_vertical", "line", "area", "donut", "progress", "scatter", "funnel"])
   const layouts = new Set(["cover", "claim_visual", "comparison", "timeline", "data_table", "closing"])
   const visualKinds = new Set(["none", "source_image", "web_image", "generated_visual"])
   const raw = value as {
@@ -89,6 +91,7 @@ export function normalizeSlidesDeckJson(value: unknown, sources: SlidesSource[] 
         body: body.length ? body : [truncate(slide.claim, 72) || "Use this slide to advance the deck narrative."],
         proof: {
           type: typeof proof?.type === "string" && proofTypes.has(proof.type) ? proof.type : "source_backed_visual",
+          ...(typeof proof?.chartType === "string" && chartTypes.has(proof.chartType as ChartType) ? { chartType: proof.chartType as ChartType } : {}),
           title: truncate(proof?.title, 80) || truncate(slide.title, 60) || "Visual proof",
           description: truncate(proof?.description, 160) || truncate(slide.claim, 110) || "Designed proof for the slide claim.",
           data: (Array.isArray(proof?.data) ? proof.data : [])
@@ -96,6 +99,7 @@ export function normalizeSlidesDeckJson(value: unknown, sources: SlidesSource[] 
             .map((item) => ({
               label: truncate(item.label, 40),
               value: truncate(item.value, 60),
+              ...(numberValue(item.xValue) !== undefined ? { xValue: numberValue(item.xValue) } : {}),
               ...(numberValue(item.numericValue ?? item.value) !== undefined ? { numericValue: numberValue(item.numericValue ?? item.value) } : {}),
               ...(truncate(item.group, 40) ? { group: truncate(item.group, 40) } : {}),
               ...(typeof item.tone === "string" && ["accent", "positive", "warning", "neutral", "muted"].includes(item.tone) ? { tone: item.tone } : {}),
@@ -148,13 +152,24 @@ const DEFAULT_THEME = {
 
 function fallbackProof(item: SlidesDeckStory["outline"][number], index: number): SlidesProofObject {
   const proofDataByType: Record<string, SlidesProofObject["data"]> = {
+    chart: [
+      { label: "Problem", value: "62", numericValue: 62 },
+      { label: "Urgency", value: "74", numericValue: 74 },
+      { label: "Fit", value: "81", numericValue: 81 },
+      { label: "Action", value: "88", numericValue: 88 },
+    ],
     comparison: [
-      { label: "Current path", value: "Keeps the gap unresolved" },
-      { label: "Recommended path", value: "Turns the claim into action" },
+      { label: "Current path", value: "Manual", group: "left" },
+      { label: "Slow handoff", value: "Context gets lost", group: "left" },
+      { label: "Weak proof", value: "Decision stays abstract", group: "left" },
+      { label: "Recommended path", value: "Focused", group: "right" },
+      { label: "Clear artifact", value: "Evidence drives action", group: "right" },
+      { label: "Next step", value: "Decision becomes executable", group: "right" },
     ],
     timeline: [
       { label: "Frame", value: "Clarify the decision" },
       { label: "Prove", value: "Use available evidence" },
+      { label: "Choose", value: "Select the strongest path" },
       { label: "Act", value: "Commit the next step" },
     ],
     table: [
@@ -174,6 +189,7 @@ function fallbackProof(item: SlidesDeckStory["outline"][number], index: number):
   ]
   return {
     type: item.proofType,
+    ...(item.proofType === "chart" ? { chartType: "bar_horizontal" as ChartType } : {}),
     title: item.title,
     description: item.speakerIntent,
     data,
@@ -250,7 +266,7 @@ export async function generateSlidesDeck({
       messages: [
         {
           role: "system",
-          content: `You generate structured presentation slides for Flowro Slides. Return JSON only with {"title","subtitle","theme":{"background","foreground","accent","muted"},"slides":[{"id","slideNumber","title","claim","body":["max 3 bullets"],"proof":{"type":"chart|image|comparison|timeline|diagram|table|source_backed_visual","title","description","data":[{"label","value","numericValue":0,"group":"optional","tone":"accent|positive|warning|neutral|muted"}]},"speakerNotes","sourceIds":["..."],"evidenceIds":["..."],"layout":"cover|claim_visual|comparison|timeline|data_table|closing","visualTone","visualAsset":{"kind":"none|source_image|web_image|generated_visual","sourceId":"optional","evidenceId":"optional","url":"optional direct public image URL","query":"optional visual search direction","alt":"optional","rationale":"optional"}}]}.
+          content: `You generate structured presentation slides for Flowro Slides. Return JSON only with {"title","subtitle","theme":{"background","foreground","accent","muted"},"slides":[{"id","slideNumber","title","claim","body":["max 3 bullets"],"proof":{"type":"chart|image|comparison|timeline|diagram|table|source_backed_visual","chartType":"bar_horizontal|bar_vertical|line|area|donut|progress|scatter|funnel","title","description","data":[{"label","value","xValue":0,"numericValue":0,"group":"optional","tone":"accent|positive|warning|neutral|muted"}]},"speakerNotes","sourceIds":["..."],"evidenceIds":["..."],"layout":"cover|claim_visual|comparison|timeline|data_table|closing","visualTone","visualAsset":{"kind":"none|source_image|web_image|generated_visual","sourceId":"optional","evidenceId":"optional","url":"optional direct public image URL","query":"optional visual search direction","alt":"optional","rationale":"optional"}}]}.
 
 TEXT RULES:
 Title: echo and amplify the claim in ≤8 words. Hard limit: 60 characters. Assertive, not a topic label.
@@ -259,11 +275,23 @@ Body bullets: max 3 items, each under 10 words. Use fragments: "Revenue up 3× i
 Proof title: scannable headline only, hard limit 80 characters.
 Proof description: 25 words max, hard limit 160 characters.
 
+CHART TYPE RULES:
+When proof.type is "chart", set chartType based on the data story:
+bar_horizontal — comparing discrete categories side by side (feature scores, market share by company)
+bar_vertical   — ranked values or distribution with short labels (monthly revenue by quarter)
+line           — trend over time with 5+ data points (weekly active users, churn over months)
+area           — same as line but emphasizing volume/cumulative growth (ARR growth, total signups)
+donut          — part-to-whole proportions, 2–5 segments (revenue by segment, traffic sources)
+progress       — progress toward a single goal (78% of target reached) — 1 data point only
+scatter        — correlation between two variables (deal size vs close rate)
+funnel         — conversion drop-off through sequential stages (sign-up → activation → paid)
+Rules: use line/area for time-series with 5+ points; bar_horizontal for long category labels; bar_vertical for short labels/ranked data; donut only for proportions; funnel only for sequential conversion; NEVER use bar_horizontal for time-series.
+
 CHART DATA RULES:
-Every data point MUST have a numericValue (integer or decimal). Minimum 4 data points. Labels max 5 words, hard limit 40 characters. Values are real numbers or percentages, hard limit 60 characters. The highest bar tells the story — name it clearly.
+Every data point MUST have a numericValue (integer or decimal). Bar, line, area, donut, scatter, and funnel charts need at least 4 data points when the source data supports it. Progress charts use 1 primary data point and may include 1 optional goal/context point. Scatter charts MUST include xValue for the x-axis and numericValue for the y-axis. Labels max 5 words, hard limit 40 characters. Values are real numbers or percentages, hard limit 60 characters. The highest bar tells the story — name it clearly.
 
 COMPARISON RULES:
-Two sides MUST have named headers (e.g. "Without Flowro" / "With Flowro", "Old Way" / "New Way"). Each side max 3 items. Last item in the right column = the win.
+Two sides MUST have named headers. Use group field: "left" for the before/without side, "right" for the after/with side. First item in each group is the header (label = header text, value = short descriptor). Each side max 3 items after the header. Last item in the right group = the win. Example: {"label":"Without Flowro","value":"Manual","group":"left"},{"label":"4hr/week","value":"reporting","group":"left"},{"label":"With Flowro","value":"Automated","group":"right"},{"label":"10min/week","value":"reporting","group":"right"}.
 
 TIMELINE RULES:
 4–5 steps. Each step = a verb phrase (action, not noun). Max 6 words per step.

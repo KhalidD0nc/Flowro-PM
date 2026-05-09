@@ -72,7 +72,7 @@ export async function classifySlidesSourcesWithOpenRouter(sources: SlidesSourceI
 
   try {
     const response = await generateCompletion({
-      model: process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "openai/gpt-mini-latest",
+      model: process.env.OPENROUTER_MODEL_SOURCE_INTAKE || "openai/gpt-mini-latest", 
       reasoning: false,
       maxTokens: 1200,
       timeoutMs: 20000,

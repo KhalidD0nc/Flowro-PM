@@ -2,7 +2,13 @@
 
 import type { CSSProperties } from "react"
 import Image from "next/image"
-import type { SlidesDeck, SlidesSource, SlidesStructuredSlide } from "@/lib/slides/schema"
+import {
+  inferSlidesChartType,
+  numericValueFromProofDatum,
+  type SlidesDeck,
+  type SlidesSource,
+  type SlidesStructuredSlide,
+} from "@/lib/slides/schema"
 
 type SlideRendererProps = {
   deck: SlidesDeck
@@ -34,88 +40,509 @@ function visualUrl(slide: SlidesStructuredSlide, sources: SlidesSource[]) {
   return source?.dataUrl || source?.url || null
 }
 
+function numericVal(row: ProofDatum): number {
+  return numericValueFromProofDatum(row)
+}
+
+function numericXVal(row: ProofDatum, index: number): number {
+  if (row.xValue !== undefined) return row.xValue
+  const parsed = Number(row.label.replace(/[^\d.-]/g, ""))
+  return Number.isFinite(parsed) ? parsed : index
+}
+
+// ─── Chart components ─────────────────────────────────────────────────────────
+
+function ChartBarHorizontal({ data }: { data: ProofDatum[] }) {
+  const rows = data.slice(0, 6)
+  const values = rows.map(numericVal)
+  const max = Math.max(1, ...values)
+
+  return (
+    <div className="space-y-2.5">
+      {rows.map((row, i) => {
+        const val = values[i]
+        const pct = Math.max(8, Math.min(100, (val / max) * 100))
+        const isMax = val === max
+        const valueInside = pct > 30
+
+        return (
+          <div key={`${row.label}-${i}`} className="flex items-center gap-3">
+            <span className="w-24 shrink-0 truncate text-right text-[0.8rem] font-semibold text-[color:var(--slide-fg)]">
+              {row.label}
+            </span>
+            <div className="relative flex-1">
+              <div className="h-6 w-full rounded-full bg-black/6" />
+              {[25, 50, 75].map((p) => (
+                <div key={p} className="absolute inset-y-0 w-px bg-black/10" style={{ left: `${p}%` }} />
+              ))}
+              <div
+                className="absolute left-0 top-0 flex h-6 items-center justify-end rounded-full pr-2"
+                style={{
+                  width: `${pct}%`,
+                  backgroundColor: "var(--slide-accent)",
+                  opacity: isMax ? 1 : 0.65,
+                }}
+              >
+                {valueInside && (
+                  <span className="text-[0.72rem] font-bold text-white">{row.value}</span>
+                )}
+              </div>
+              {!valueInside && (
+                <span
+                  className="absolute top-1/2 -translate-y-1/2 text-[0.72rem] font-bold text-[color:var(--slide-muted)]"
+                  style={{ left: `calc(${pct}% + 0.375rem)` }}
+                >
+                  {row.value}
+                </span>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ChartBarVertical({ data }: { data: ProofDatum[] }) {
+  const rows = data.slice(0, 8)
+  const values = rows.map(numericVal)
+  const max = Math.max(1, ...values)
+  const W = 280
+  const H = 140
+  const PAD = { top: 20, right: 8, bottom: rows.length > 5 ? 44 : 32, left: 8 }
+  const plotW = W - PAD.left - PAD.right
+  const plotH = H - PAD.top - PAD.bottom
+  const barW = Math.min(32, (plotW / rows.length) * 0.65)
+  const slot = plotW / rows.length
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+      <line x1={PAD.left} y1={H - PAD.bottom} x2={W - PAD.right} y2={H - PAD.bottom} stroke="currentColor" strokeOpacity={0.15} />
+      {rows.map((row, i) => {
+        const cx = PAD.left + slot * i + slot / 2
+        const barH = Math.max(4, (values[i] / max) * plotH)
+        const y = H - PAD.bottom - barH
+        const isMax = values[i] === max
+        return (
+          <g key={i}>
+            <rect x={cx - barW / 2} y={y} width={barW} height={barH} rx={2} fill="var(--slide-accent)" fillOpacity={isMax ? 1 : 0.65} />
+            <text x={cx} y={y - 4} textAnchor="middle" fontSize={9} fontWeight="bold" fill="var(--slide-accent)">{row.value}</text>
+            {rows.length > 5 ? (
+              <text x={cx + 2} y={H - PAD.bottom + 10} textAnchor="end" fontSize={7.5} fill="currentColor" fillOpacity={0.5}
+                transform={`rotate(-42 ${cx + 2} ${H - PAD.bottom + 10})`}>
+                {row.label.length > 9 ? `${row.label.slice(0, 8)}…` : row.label}
+              </text>
+            ) : (
+              <text x={cx} y={H - PAD.bottom + 14} textAnchor="middle" fontSize={8} fill="currentColor" fillOpacity={0.5}>
+                {row.label.length > 11 ? `${row.label.slice(0, 10)}…` : row.label}
+              </text>
+            )}
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+function ChartLine({ data, filled = false }: { data: ProofDatum[]; filled?: boolean }) {
+  const items = data.slice(0, 12)
+  if (items.length < 2) return <ChartBarHorizontal data={data} />
+  const values = items.map(numericVal)
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const W = 280
+  const H = 130
+  const PAD = { top: 16, right: 16, bottom: 28, left: 30 }
+  const plotW = W - PAD.left - PAD.right
+  const plotH = H - PAD.top - PAD.bottom
+
+  const px = (i: number) => PAD.left + (i / (items.length - 1)) * plotW
+  const py = (v: number) => PAD.top + (1 - (v - min) / range) * plotH
+  const pts = items.map((_, i) => ({ x: px(i), y: py(values[i]) }))
+  const polyline = pts.map((p) => `${p.x},${p.y}`).join(" ")
+  const refVals = [0, 0.5, 1].map((t) => min + t * range)
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+      {refVals.map((v) => {
+        const ry = py(v)
+        return (
+          <g key={v}>
+            <line x1={PAD.left} y1={ry} x2={W - PAD.right} y2={ry} stroke="currentColor" strokeOpacity={0.1} strokeDasharray="4 4" />
+            <text x={PAD.left - 3} y={ry} textAnchor="end" dominantBaseline="middle" fontSize={7.5} fill="currentColor" fillOpacity={0.4}>
+              {range > 100 ? Math.round(v) : v.toFixed(1)}
+            </text>
+          </g>
+        )
+      })}
+      {filled && (
+        <path
+          d={`M ${pts[0].x},${PAD.top + plotH} ${pts.map((p) => `L ${p.x},${p.y}`).join(" ")} L ${pts[pts.length - 1].x},${PAD.top + plotH} Z`}
+          fill="var(--slide-accent)"
+          fillOpacity={0.15}
+        />
+      )}
+      <polyline points={polyline} fill="none" stroke="var(--slide-accent)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      {pts.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={i === pts.length - 1 ? 5 : 3} fill="var(--slide-accent)" />
+      ))}
+      <text x={pts[pts.length - 1].x} y={pts[pts.length - 1].y - 9} textAnchor="middle" fontSize={9} fontWeight="bold" fill="var(--slide-accent)">
+        {items[items.length - 1].value}
+      </text>
+      {items.map((item, i) => {
+        const skip = items.length > 6 && i !== 0 && i !== items.length - 1 && i % Math.ceil(items.length / 6) !== 0
+        return skip ? null : (
+          <text key={i} x={pts[i].x} y={H - 4} textAnchor="middle" fontSize={7} fill="currentColor" fillOpacity={0.5}>
+            {item.label}
+          </text>
+        )
+      })}
+    </svg>
+  )
+}
+
+function ChartDonut({ data }: { data: ProofDatum[] }) {
+  const items = data.slice(0, 5)
+  const values = items.map((r) => Math.abs(numericVal(r)) || 1)
+  const total = values.reduce((a, b) => a + b, 0) || 1
+  const R = 40
+  const C = 2 * Math.PI * R
+  const CX = 55
+  const CY = 55
+  const opacities = [1, 0.72, 0.5, 0.32, 0.18]
+  let cumulative = 0
+  const segments = items.map((item, i) => {
+    const pct = values[i] / total
+    const dash = pct * C
+    const dashOffset = C * 0.25 - cumulative * C
+    cumulative += pct
+    return { item, dash, dashOffset, opacity: opacities[i] ?? 0.15 }
+  })
+  const largestIdx = values.indexOf(Math.max(...values))
+
+  return (
+    <div className="flex items-center gap-4">
+      <svg viewBox="0 0 110 110" className="h-28 w-28 shrink-0">
+        <circle cx={CX} cy={CY} r={R} fill="none" stroke="currentColor" strokeOpacity={0.07} strokeWidth={28} />
+        {segments.map((seg, i) => (
+          <circle
+            key={i}
+            cx={CX}
+            cy={CY}
+            r={R}
+            fill="none"
+            stroke="var(--slide-accent)"
+            strokeOpacity={seg.opacity}
+            strokeWidth={28}
+            strokeDasharray={`${seg.dash} ${C - seg.dash}`}
+            strokeDashoffset={seg.dashOffset}
+          />
+        ))}
+        <text x={CX} y={CY - 5} textAnchor="middle" fontSize={13} fontWeight="bold" fill="var(--slide-accent)">
+          {items[largestIdx]?.value}
+        </text>
+        <text x={CX} y={CY + 9} textAnchor="middle" fontSize={7.5} fill="currentColor" fillOpacity={0.5}>
+          {items[largestIdx]?.label}
+        </text>
+      </svg>
+      <div className="flex min-w-0 flex-col gap-1.5">
+        {segments.map((seg, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: "var(--slide-accent)", opacity: seg.opacity }} />
+            <span className="flex-1 truncate text-[0.68rem] text-[color:var(--slide-fg)]">{seg.item.label}</span>
+            <span className="shrink-0 text-[0.68rem] font-semibold text-[color:var(--slide-muted)]">{seg.item.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ChartProgress({ data }: { data: ProofDatum[] }) {
+  const item = data[0]
+  if (!item) return null
+  const val = numericVal(item)
+  const pct = Math.max(0, Math.min(100, val))
+  const goalItem = data[1]
+
+  return (
+    <div className="flex flex-col items-center gap-3 py-2">
+      <p className="text-[3rem] font-black leading-none text-[color:var(--slide-accent)]">{item.value}</p>
+      <div className="w-full">
+        <div className="h-3 w-full rounded-full bg-black/8">
+          <div className="h-3 rounded-full bg-[color:var(--slide-accent)]" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+      {goalItem && (
+        <p className="text-[0.75rem] text-[color:var(--slide-muted)]">{goalItem.label}: {goalItem.value}</p>
+      )}
+      {!goalItem && item.label && (
+        <p className="text-[0.75rem] text-[color:var(--slide-muted)]">{item.label}</p>
+      )}
+    </div>
+  )
+}
+
+function ChartFunnel({ data }: { data: ProofDatum[] }) {
+  const stages = data.slice(0, 6)
+  const values = stages.map(numericVal)
+  const maxVal = Math.max(1, ...values)
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {stages.map((stage, i) => {
+        const pct = Math.max(30, Math.min(100, (values[i] / maxVal) * 100))
+        const opacity = 1 - (i / stages.length) * 0.72
+        const nextVal = values[i + 1]
+        const dropPct = nextVal !== undefined && values[i] > 0 ? Math.round((1 - nextVal / values[i]) * 100) : null
+
+        return (
+          <div key={i} className="flex flex-col items-center">
+            <div
+              className="mx-auto flex items-center justify-between rounded px-2.5 py-1.5 text-white"
+              style={{ width: `${pct}%`, backgroundColor: "var(--slide-accent)", opacity }}
+            >
+              <span className="truncate text-[0.68rem] font-semibold">{stage.label}</span>
+              <span className="ml-2 shrink-0 text-[0.72rem] font-bold">{stage.value}</span>
+            </div>
+            {dropPct !== null && (
+              <p className="text-[0.62rem] font-semibold text-[color:var(--slide-muted)]">↓ {dropPct}% drop-off</p>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ChartScatter({ data }: { data: ProofDatum[] }) {
+  const items = data.slice(0, 20)
+  if (items.length < 2) return <ChartBarHorizontal data={data} />
+  const xValues = items.map(numericXVal)
+  const yValues = items.map(numericVal)
+  const minX = Math.min(...xValues)
+  const maxX = Math.max(...xValues)
+  const minY = Math.min(...yValues)
+  const maxY = Math.max(...yValues)
+  const rangeX = maxX - minX || 1
+  const rangeY = maxY - minY || 1
+  const W = 280
+  const H = 130
+  const PAD = { top: 12, right: 12, bottom: 28, left: 30 }
+  const plotW = W - PAD.left - PAD.right
+  const plotH = H - PAD.top - PAD.bottom
+
+  const pts = items.map((_, i) => ({
+    x: PAD.left + ((xValues[i] - minX) / rangeX) * plotW,
+    y: PAD.top + (1 - (yValues[i] - minY) / rangeY) * plotH,
+  }))
+
+  const n = pts.length
+  const sumX = pts.reduce((a, p) => a + p.x, 0)
+  const sumY = pts.reduce((a, p) => a + p.y, 0)
+  const sumXY = pts.reduce((a, p) => a + p.x * p.y, 0)
+  const sumX2 = pts.reduce((a, p) => a + p.x * p.x, 0)
+  const denom = n * sumX2 - sumX * sumX
+  const slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0
+  const intercept = (sumY - slope * sumX) / n
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+      <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={H - PAD.bottom} stroke="currentColor" strokeOpacity={0.2} />
+      <line x1={PAD.left} y1={H - PAD.bottom} x2={W - PAD.right} y2={H - PAD.bottom} stroke="currentColor" strokeOpacity={0.2} />
+      {n > 2 && (
+        <line
+          x1={PAD.left} y1={slope * PAD.left + intercept}
+          x2={W - PAD.right} y2={slope * (W - PAD.right) + intercept}
+          stroke="var(--slide-accent)" strokeOpacity={0.3} strokeWidth={1.5} strokeDasharray="4 4"
+        />
+      )}
+      {pts.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={4} fill="var(--slide-accent)" fillOpacity={0.75} />
+      ))}
+      <text x={PAD.left} y={H - 4} textAnchor="middle" fontSize={7} fill="currentColor" fillOpacity={0.5}>{minX}</text>
+      <text x={W - PAD.right} y={H - 4} textAnchor="middle" fontSize={7} fill="currentColor" fillOpacity={0.5}>{maxX}</text>
+      <text x={PAD.left - 5} y={PAD.top + 6} textAnchor="end" fontSize={7} fill="currentColor" fillOpacity={0.5}>{maxY}</text>
+      <text x={PAD.left - 5} y={H - PAD.bottom} textAnchor="end" fontSize={7} fill="currentColor" fillOpacity={0.5}>{minY}</text>
+    </svg>
+  )
+}
+
+// ─── Non-chart proof components ───────────────────────────────────────────────
+
+function ProofComparison({ rows }: { rows: ProofDatum[] }) {
+  const groups = [...new Set(rows.map((r) => r.group).filter(Boolean))]
+  let leftItems: ProofDatum[]
+  let rightItems: ProofDatum[]
+
+  if (groups.length >= 2) {
+    leftItems = rows.filter((r) => r.group === groups[0])
+    rightItems = rows.filter((r) => r.group === groups[1])
+  } else {
+    const mid = Math.ceil(rows.length / 2)
+    leftItems = rows.slice(0, mid)
+    rightItems = rows.slice(mid)
+  }
+
+  const leftHeader = leftItems[0]?.label ?? "Before"
+  const rightHeader = rightItems[0]?.label ?? "After"
+  const leftBullets = leftItems.slice(1)
+  const rightBullets = rightItems.slice(1)
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <p className="mb-3 border-b border-[color:var(--slide-muted)]/20 pb-2 text-[0.9rem] font-bold uppercase tracking-wide text-[color:var(--slide-muted)]">
+          {leftHeader}
+        </p>
+        <div className="space-y-2">
+          {leftBullets.length > 0
+            ? leftBullets.map((item, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0 text-[color:var(--slide-muted)]">—</span>
+                  <span className="text-[0.75rem] text-[color:var(--slide-muted)]">{item.label}{item.value ? `: ${item.value}` : ""}</span>
+                </div>
+              ))
+            : leftItems[0] && (
+                <p className="text-[0.75rem] text-[color:var(--slide-muted)]">{leftItems[0].value}</p>
+              )}
+        </div>
+      </div>
+      <div>
+        <p className="mb-3 border-b border-[color:var(--slide-accent)]/30 pb-2 text-[0.9rem] font-bold uppercase tracking-wide text-[color:var(--slide-accent)]">
+          {rightHeader}
+        </p>
+        <div className="space-y-2">
+          {rightBullets.length > 0
+            ? rightBullets.map((item, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0 font-bold text-[color:var(--slide-accent)]">✓</span>
+                  <span className="text-[0.75rem] font-medium text-[color:var(--slide-fg)]">{item.label}{item.value ? `: ${item.value}` : ""}</span>
+                </div>
+              ))
+            : rightItems[0] && (
+                <p className="text-[0.75rem] font-medium text-[color:var(--slide-accent)]">{rightItems[0].value}</p>
+              )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProofTimeline({ rows }: { rows: ProofDatum[] }) {
+  const steps = rows.slice(0, 5)
+  return (
+    <div className="flex items-start">
+      {steps.map((step, i) => {
+        const isLast = i === steps.length - 1
+        return (
+          <div key={i} className="flex flex-1 items-start">
+            <div className={`flex flex-1 flex-col items-center rounded-md p-2 ${isLast ? "bg-[color:var(--slide-accent)] text-white" : ""}`}>
+              <div
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                  isLast ? "bg-white/25 text-white" : "bg-[color:var(--slide-accent)] text-white"
+                }`}
+              >
+                {i + 1}
+              </div>
+              <p className={`mt-2 text-center text-[0.73rem] font-bold ${isLast ? "text-white" : "text-[color:var(--slide-fg)]"}`}>
+                {step.label}
+              </p>
+              <p className={`mt-1 text-center text-[0.63rem] leading-snug ${isLast ? "text-white/80" : "text-[color:var(--slide-muted)]"}`}>
+                {step.value}
+              </p>
+            </div>
+            {!isLast && (
+              <div className="mt-3.5 h-px w-4 shrink-0 border-t-2 border-[color:var(--slide-accent)]/40" />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ProofDiagram({ rows }: { rows: ProofDatum[] }) {
+  const nodes = rows.slice(0, 5)
+  return (
+    <div className="flex flex-wrap items-center gap-0">
+      {nodes.map((node, i) => {
+        const isLast = i === nodes.length - 1
+        return (
+          <div key={i} className="flex items-center">
+            <div
+              className={`rounded-md border p-3 ${
+                isLast
+                  ? "border-[color:var(--slide-accent)] bg-[color:var(--slide-accent)] text-white"
+                  : "border-[color:var(--slide-accent)] bg-white/75"
+              }`}
+            >
+              <p className={`text-[0.68rem] font-bold ${isLast ? "text-white" : "text-[color:var(--slide-fg)]"}`}>{node.label}</p>
+              <p className={`mt-1 text-[0.62rem] leading-snug ${isLast ? "text-white/80" : "text-[color:var(--slide-muted)]"}`}>{node.value}</p>
+            </div>
+            {!isLast && (
+              <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-[color:var(--slide-accent)]">
+                <path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+              </svg>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ProofTable({ rows }: { rows: ProofDatum[] }) {
+  return (
+    <div className="overflow-hidden rounded-md border border-black/10 bg-white/75">
+      {rows.slice(0, 5).map((row) => (
+        <div key={`${row.label}-${row.value}`} className="grid grid-cols-[0.8fr_1.2fr] border-b border-black/10 last:border-b-0">
+          <p className="px-3 py-2 text-[0.68rem] font-bold text-[color:var(--slide-fg)]">{row.label}</p>
+          <p className="px-3 py-2 text-[0.68rem] leading-snug text-[color:var(--slide-muted)]">{row.value}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Proof type badge labels ──────────────────────────────────────────────────
+
+const PROOF_BADGE: Record<string, string> = {
+  source_backed_visual: "EVIDENCE",
+  chart: "DATA",
+  comparison: "COMPARISON",
+  timeline: "TIMELINE",
+  diagram: "FLOW",
+  table: "TABLE",
+  image: "VISUAL",
+}
+
+// ─── ProofRows dispatcher ─────────────────────────────────────────────────────
+
 function ProofRows({ slide }: { slide: SlidesStructuredSlide }) {
   const rows: ProofDatum[] = slide.proof.data.length
-    ? slide.proof.data.slice(0, 5)
-    : slide.body.slice(0, 3).map((item, index) => ({ label: `Signal ${index + 1}`, value: item }))
+    ? slide.proof.data.slice(0, 8)
+    : slide.body.slice(0, 3).map((item, i) => ({ label: `Signal ${i + 1}`, value: item }))
 
   if (slide.proof.type === "chart") {
-    const values = rows.map((row) => row.numericValue ?? Number(String(row.value).replace(/[^\d.-]/g, ""))).filter(Number.isFinite)
-    const max = Math.max(1, ...values)
-    return (
-      <div className="space-y-3">
-        {rows.map((row, index) => {
-          const numeric = row.numericValue ?? Number(String(row.value).replace(/[^\d.-]/g, ""))
-          const width = Number.isFinite(numeric) ? Math.max(16, Math.min(100, (numeric / max) * 100)) : 72 - index * 9
-          return (
-            <div key={`${row.label}-${row.value}`} className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] items-center gap-3">
-              <span className="truncate text-[0.7rem] font-semibold text-[color:var(--slide-fg)]">{row.label}</span>
-              <div className="flex items-center gap-2">
-                <span className="h-2 rounded-full bg-[color:var(--slide-accent)]" style={{ width: `${width}%` }} />
-                <span className="min-w-10 text-right text-[0.65rem] font-semibold text-[color:var(--slide-muted)]">{row.value}</span>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    )
+    const chartType = inferSlidesChartType(slide.proof)
+    switch (chartType) {
+      case "bar_vertical": return <ChartBarVertical data={rows} />
+      case "line": return <ChartLine data={rows} />
+      case "area": return <ChartLine data={rows} filled />
+      case "donut": return <ChartDonut data={rows} />
+      case "progress": return <ChartProgress data={rows} />
+      case "funnel": return <ChartFunnel data={rows} />
+      case "scatter": return <ChartScatter data={rows} />
+      default: return <ChartBarHorizontal data={rows} />
+    }
   }
 
-  if (slide.proof.type === "timeline") {
-    return (
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {rows.slice(0, 4).map((row, index) => (
-          <div key={`${row.label}-${row.value}`} className="relative rounded-md border border-black/10 bg-white/70 p-3">
-            <div className="mb-3 flex size-7 items-center justify-center rounded-full bg-[color:var(--slide-accent)] text-xs font-bold text-white">{index + 1}</div>
-            <p className="text-[0.75rem] font-bold text-[color:var(--slide-fg)]">{row.label}</p>
-            <p className="mt-1 text-[0.68rem] leading-snug text-[color:var(--slide-muted)]">{row.value}</p>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  if (slide.proof.type === "comparison") {
-    return (
-      <div className="grid grid-cols-2 gap-3">
-        {rows.slice(0, 4).map((row, index) => (
-          <div key={`${row.label}-${row.value}`} className={`rounded-md border p-3 ${index === rows.length - 1 || row.tone === "positive" ? "border-[color:var(--slide-accent)] bg-[color:var(--slide-accent)] text-white" : "border-black/10 bg-white/70 text-[color:var(--slide-fg)]"}`}>
-            <p className="text-[0.7rem] font-bold">{row.label}</p>
-            <p className={`mt-2 text-[0.68rem] leading-snug ${index === rows.length - 1 || row.tone === "positive" ? "text-white/85" : "text-[color:var(--slide-muted)]"}`}>{row.value}</p>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  if (slide.proof.type === "table") {
-    return (
-      <div className="overflow-hidden rounded-md border border-black/10 bg-white/75">
-        {rows.slice(0, 5).map((row) => (
-          <div key={`${row.label}-${row.value}`} className="grid grid-cols-[0.8fr_1.2fr] border-b border-black/10 last:border-b-0">
-            <p className="px-3 py-2 text-[0.68rem] font-bold text-[color:var(--slide-fg)]">{row.label}</p>
-            <p className="px-3 py-2 text-[0.68rem] leading-snug text-[color:var(--slide-muted)]">{row.value}</p>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  if (slide.proof.type === "diagram" || slide.visualAsset.kind === "generated_visual") {
-    return (
-      <div className="grid grid-cols-3 items-center gap-2">
-        {rows.slice(0, 5).map((row, index) => (
-          <div key={`${row.label}-${row.value}`} className="relative">
-            <div className="rounded-md border border-black/10 bg-white/75 p-3">
-              <p className="text-[0.68rem] font-bold text-[color:var(--slide-fg)]">{row.label}</p>
-              <p className="mt-1 text-[0.62rem] leading-snug text-[color:var(--slide-muted)]">{row.value}</p>
-            </div>
-            {index < Math.min(rows.length, 5) - 1 ? <div className="absolute left-full top-1/2 hidden h-px w-2 bg-[color:var(--slide-accent)] sm:block" /> : null}
-          </div>
-        ))}
-      </div>
-    )
-  }
+  if (slide.proof.type === "comparison") return <ProofComparison rows={rows} />
+  if (slide.proof.type === "timeline") return <ProofTimeline rows={rows} />
+  if (slide.proof.type === "diagram") return <ProofDiagram rows={rows} />
+  if (slide.proof.type === "table") return <ProofTable rows={rows} />
 
   return (
     <div className="space-y-2">
@@ -128,6 +555,8 @@ function ProofRows({ slide }: { slide: SlidesStructuredSlide }) {
     </div>
   )
 }
+
+// ─── Visual panel ─────────────────────────────────────────────────────────────
 
 function VisualPanel({ slide, sources }: { slide: SlidesStructuredSlide; sources: SlidesSource[] }) {
   const image = visualUrl(slide, sources)
@@ -146,15 +575,21 @@ function VisualPanel({ slide, sources }: { slide: SlidesStructuredSlide; sources
 
   return (
     <div className="h-full min-h-0 rounded-lg border border-black/10 bg-white/70 p-4">
-      <p className="text-[0.62rem] font-bold uppercase text-[color:var(--slide-accent)]">{slide.proof.type.replace(/_/g, " ")}</p>
+      <p className="text-[0.72rem] font-bold uppercase text-[color:var(--slide-accent)]">
+        {PROOF_BADGE[slide.proof.type] ?? slide.proof.type.replace(/_/g, " ")}
+      </p>
       <h4 className="mt-2 text-[clamp(0.95rem,1.4vw,1.45rem)] font-bold leading-tight text-[color:var(--slide-fg)]">{slide.proof.title}</h4>
-      <p className="mt-2 text-[clamp(0.7rem,0.9vw,0.95rem)] leading-snug text-[color:var(--slide-muted)]">{slide.proof.description}</p>
+      {slide.proof.description && slide.proof.description.length >= 20 && (
+        <p className="mt-2 text-[clamp(0.7rem,0.9vw,0.95rem)] leading-snug text-[color:var(--slide-muted)]">{slide.proof.description}</p>
+      )}
       <div className="mt-4">
         <ProofRows slide={slide} />
       </div>
     </div>
   )
 }
+
+// ─── Main renderer ────────────────────────────────────────────────────────────
 
 export default function SlideRenderer({ deck, slide, sources = [], variant = "panel" }: SlideRendererProps) {
   const isFull = variant === "full"
@@ -184,7 +619,7 @@ export default function SlideRenderer({ deck, slide, sources = [], variant = "pa
           <div className="flex min-w-0 flex-col justify-between">
             <div>
               <p className="text-[clamp(0.55rem,0.75vw,0.78rem)] font-bold uppercase text-[color:var(--slide-accent)]">{isClosing ? "Recommendation" : `Slide ${slide.slideNumber}`}</p>
-              <h3 className="mt-5 max-w-[10ch] text-[clamp(2rem,5vw,5.9rem)] font-black leading-[0.95] text-[color:var(--slide-fg)]">{slide.title}</h3>
+              <h3 className="mt-5 text-[clamp(2rem,5vw,5.9rem)] font-black leading-[0.95] text-[color:var(--slide-fg)]">{slide.title}</h3>
             </div>
             <p className="max-w-2xl text-[clamp(0.95rem,1.5vw,1.7rem)] leading-snug text-[color:var(--slide-muted)]">{slide.claim}</p>
           </div>
@@ -195,10 +630,10 @@ export default function SlideRenderer({ deck, slide, sources = [], variant = "pa
           <section className="flex min-w-0 flex-col">
             <p className="text-[clamp(0.55rem,0.72vw,0.78rem)] font-bold uppercase text-[color:var(--slide-accent)]">Slide {slide.slideNumber}</p>
             <h3 className="mt-4 text-[clamp(1.45rem,3.2vw,4.25rem)] font-black leading-[0.98] text-[color:var(--slide-fg)]">{slide.title}</h3>
-            <p className="mt-4 text-[clamp(0.95rem,1.45vw,1.65rem)] leading-snug text-[color:var(--slide-muted)]">{slide.claim}</p>
+            <p className="mt-4 text-[clamp(1.05rem,1.6vw,1.8rem)] leading-snug text-[color:var(--slide-muted)]">{slide.claim}</p>
             <div className="mt-auto space-y-2 pt-4">
               {slide.body.slice(0, 3).map((item) => (
-                <p key={item} className="border-l-2 border-[color:var(--slide-accent)] pl-3 text-[clamp(0.7rem,0.92vw,1.05rem)] leading-snug text-[color:var(--slide-fg)]/85">{item}</p>
+                <p key={item} className="border-l-2 border-[color:var(--slide-accent)] pl-3 text-[clamp(0.85rem,1vw,1.1rem)] leading-snug text-[color:var(--slide-fg)]/85">{item}</p>
               ))}
             </div>
           </section>

@@ -118,19 +118,51 @@ export const slidesDeckStorySchema = z.object({
 })
 export type SlidesDeckStory = z.infer<typeof slidesDeckStorySchema>
 
+export const chartTypeSchema = z.enum(["bar_horizontal", "bar_vertical", "line", "area", "donut", "progress", "scatter", "funnel"])
+export type ChartType = z.infer<typeof chartTypeSchema>
+
 export const slidesProofObjectSchema = z.object({
   type: z.enum(["chart", "image", "comparison", "timeline", "diagram", "table", "source_backed_visual"]),
+  chartType: chartTypeSchema.optional(),
   title: z.string().min(1).max(80),
   description: z.string().min(1).max(160),
   data: z.array(z.object({
     label: z.string().min(1).max(40),
     value: z.string().min(1).max(60),
+    xValue: z.number().finite().optional(),
     numericValue: z.number().finite().optional(),
     group: z.string().min(1).max(40).optional(),
     tone: z.enum(["accent", "positive", "warning", "neutral", "muted"]).optional(),
   })).max(8).default([]),
 })
 export type SlidesProofObject = z.infer<typeof slidesProofObjectSchema>
+export type SlidesProofDatum = SlidesProofObject["data"][number]
+
+export function numericValueFromProofDatum(row: SlidesProofDatum): number {
+  if (row.numericValue !== undefined) return row.numericValue
+  const parsed = Number(String(row.value).replace(/[^\d.-]/g, ""))
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+export function inferSlidesChartType(proof: Pick<SlidesProofObject, "chartType" | "data"> & Partial<Pick<SlidesProofObject, "title" | "description">>): ChartType {
+  if (proof.chartType) return proof.chartType
+  const items = proof.data ?? []
+  if (!items.length) return "bar_horizontal"
+  if (items.length === 1) return "progress"
+
+  const hasTime = items.some((item) => /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|q[1-4]|20\d\d|week|month|day)\b/i.test(item.label))
+  const allNumeric = items.every((item) => item.numericValue !== undefined)
+  const total = allNumeric ? items.reduce((sum, item) => sum + (item.numericValue ?? 0), 0) : 0
+  const isProportional = allNumeric && items.length <= 5 && total >= 95 && total <= 105
+  const context = `${proof.title ?? ""} ${proof.description ?? ""} ${items.map((item) => item.label).join(" ")}`.toLowerCase()
+  const hasFunnelContext = /\b(visitor|signup|sign-up|registered|activated|paid|lead|mql|sql|qualified|opportunity|pipeline|stage|conversion|checkout|cart|trial|demo|retained)\b/.test(context)
+  const isDescending = allNumeric && items.length >= 3 && items.every((item, index) => index === 0 || (item.numericValue ?? 0) <= (items[index - 1].numericValue ?? 0))
+
+  if (isProportional) return "donut"
+  if (hasTime && items.length >= 5) return "line"
+  if (isDescending && hasFunnelContext) return "funnel"
+  return "bar_horizontal"
+}
 
 export const slidesVisualAssetSchema = z.object({
   kind: z.enum(["none", "source_image", "web_image", "generated_visual"]),
