@@ -1,5 +1,6 @@
 import pptxgen from "pptxgenjs"
-import type { SlidesDeck, SlidesStructuredSlide } from "@/lib/slides/schema"
+import type { SlidesAssetBag, SlidesDeck, SlidesProofDatum, SlidesStructuredSlide } from "@/lib/slides/schema"
+import { runSlideCode } from "@/lib/slides/sandbox"
 
 type Theme = {
   background: string
@@ -77,6 +78,10 @@ async function imageDataFromUrl(url?: string): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+async function visualImageData(structuredSlide: SlidesStructuredSlide): Promise<string | null> {
+  return structuredSlide.visualAsset?.dataUrl ?? await imageDataFromUrl(structuredSlide.visualAsset?.url)
 }
 
 function addBackground(slide: pptxgen.Slide, color: string) {
@@ -311,7 +316,7 @@ function addMiniTable(slide: pptxgen.Slide, structuredSlide: SlidesStructuredSli
 }
 
 async function addOptionalImage(slide: pptxgen.Slide, structuredSlide: SlidesStructuredSlide, theme: Theme, x: number, y: number, w: number, h: number): Promise<boolean> {
-  const data = structuredSlide.visualAsset?.dataUrl ?? await imageDataFromUrl(structuredSlide.visualAsset?.url)
+  const data = await visualImageData(structuredSlide)
   if (!data) return false
   slide.addShape("roundRect", {
     x,
@@ -332,6 +337,435 @@ async function addOptionalImage(slide: pptxgen.Slide, structuredSlide: SlidesStr
     altText: structuredSlide.visualAsset?.alt ?? structuredSlide.proof.title,
   })
   return true
+}
+
+function addBigNumberSlide(pptx: pptxgen, structuredSlide: SlidesStructuredSlide, theme: Theme) {
+  const slide = pptx.addSlide()
+  const primary = structuredSlide.proof.data[0]
+  const supporting = structuredSlide.proof.data.slice(1, 3)
+  addBackground(slide, theme.background)
+  addKicker(slide, structuredSlide.proof.title || "Key Metric", theme, 4.35, 0.72)
+  addText(slide, truncate(primary?.value || structuredSlide.title, 24), {
+    x: 1.1,
+    y: 1.55,
+    w: 11.1,
+    h: 1.35,
+    fontFace: "Aptos",
+    fontSize: primary ? 72 : 44,
+    bold: true,
+    color: theme.accent,
+    align: "center",
+    breakLine: false,
+  })
+  addText(slide, truncate(primary?.label || structuredSlide.claim, 90), {
+    x: 2.1,
+    y: 3.0,
+    w: 9.1,
+    h: 0.42,
+    fontFace: "Georgia",
+    fontSize: 20,
+    bold: true,
+    color: theme.foreground,
+    align: "center",
+    breakLine: false,
+  })
+  addText(slide, truncate(structuredSlide.claim, 180), {
+    x: 2.45,
+    y: 3.72,
+    w: 8.4,
+    h: 0.62,
+    fontFace: "Aptos",
+    fontSize: 14,
+    color: theme.muted,
+    align: "center",
+    breakLine: false,
+  })
+  supporting.forEach((item, index) => {
+    const left = 4.05 + index * 2.65
+    addText(slide, truncate(item.value, 28), {
+      x: left,
+      y: 5.0,
+      w: 2.1,
+      h: 0.42,
+      fontFace: "Aptos",
+      fontSize: 22,
+      bold: true,
+      color: theme.foreground,
+      align: "center",
+    })
+    addText(slide, truncate(item.label, 42), {
+      x: left,
+      y: 5.46,
+      w: 2.1,
+      h: 0.24,
+      fontFace: "Aptos",
+      fontSize: 8,
+      color: theme.muted,
+      align: "center",
+    })
+  })
+  addSlideNumber(slide, structuredSlide, theme)
+  slide.addNotes(structuredSlide.speakerNotes)
+}
+
+function sideBySideGroups(structuredSlide: SlidesStructuredSlide): [SlidesProofDatum[], SlidesProofDatum[]] {
+  const rows = structuredSlide.proof.data.slice(0, 8)
+  const groups = [...new Set(rows.map((row) => row.group).filter(Boolean))]
+  if (groups.length >= 2) {
+    return [
+      rows.filter((row) => row.group === groups[0]),
+      rows.filter((row) => row.group === groups[1]),
+    ]
+  }
+  const mid = Math.ceil(rows.length / 2)
+  const left = rows.slice(0, mid)
+  const right = rows.slice(mid)
+  const fallbackLeft: SlidesProofDatum[] = structuredSlide.body.slice(0, 2).map((item) => ({ label: item, value: "" }))
+  const fallbackRight: SlidesProofDatum[] = structuredSlide.body.slice(2).map((item) => ({ label: item, value: "" }))
+  return [left.length ? left : fallbackLeft, right.length ? right : fallbackRight]
+}
+
+function addSideBySideSlide(pptx: pptxgen, structuredSlide: SlidesStructuredSlide, theme: Theme) {
+  const slide = pptx.addSlide()
+  const [leftItems, rightItems] = sideBySideGroups(structuredSlide)
+  addBackground(slide, theme.background)
+  addKicker(slide, `Slide ${structuredSlide.slideNumber}`, theme)
+  addText(slide, truncate(structuredSlide.title, 100), {
+    x: 0.62,
+    y: 0.96,
+    w: 8.6,
+    h: 0.64,
+    fontFace: "Georgia",
+    fontSize: 24,
+    bold: true,
+    color: theme.foreground,
+    breakLine: false,
+  })
+
+  ;[
+    { items: leftItems, x: 0.82, accent: false },
+    { items: rightItems, x: 6.86, accent: true },
+  ].forEach((column) => {
+    const title = column.items[0]?.group || column.items[0]?.label || (column.accent ? "Option B" : "Option A")
+    slide.addShape("roundRect", {
+      x: column.x,
+      y: 2.02,
+      w: 5.58,
+      h: 4.42,
+      rectRadius: 0.08,
+      fill: { color: column.accent ? theme.accent : theme.panel, transparency: column.accent ? 88 : 0 },
+      line: { color: column.accent ? theme.accent : "D9DEE8", transparency: column.accent ? 25 : 15 },
+    })
+    addText(slide, truncate(String(title), 42).toUpperCase(), {
+      x: column.x + 0.36,
+      y: 2.42,
+      w: 4.86,
+      h: 0.24,
+      fontFace: "Aptos",
+      fontSize: 9,
+      bold: true,
+      color: column.accent ? theme.accent : theme.muted,
+      charSpacing: 0.8,
+    })
+    column.items.slice(1, 4).forEach((item, index) => {
+      const y = 3.08 + index * 0.82
+      slide.addShape("ellipse", {
+        x: column.x + 0.36,
+        y,
+        w: 0.28,
+        h: 0.28,
+        fill: { color: column.accent ? theme.accent : "B7C0CF" },
+        line: { color: column.accent ? theme.accent : "B7C0CF" },
+      })
+      addText(slide, truncate(`${item.label}${item.value ? `: ${item.value}` : ""}`, 95), {
+        x: column.x + 0.78,
+        y: y - 0.03,
+        w: 4.42,
+        h: 0.38,
+        fontFace: "Aptos",
+        fontSize: 10.5,
+        color: theme.foreground,
+        breakLine: false,
+      })
+    })
+  })
+  addSlideNumber(slide, structuredSlide, theme)
+  slide.addNotes(structuredSlide.speakerNotes)
+}
+
+function addQuoteHighlightSlide(pptx: pptxgen, structuredSlide: SlidesStructuredSlide, theme: Theme) {
+  const slide = pptx.addSlide()
+  const attribution = structuredSlide.proof.data[0]
+  addBackground(slide, theme.background)
+  addText(slide, "“", {
+    x: 0.82,
+    y: 0.72,
+    w: 0.78,
+    h: 0.78,
+    fontFace: "Georgia",
+    fontSize: 44,
+    bold: true,
+    color: theme.accent,
+  })
+  addText(slide, truncate(structuredSlide.proof.title || structuredSlide.claim, 190), {
+    x: 1.45,
+    y: 1.32,
+    w: 10.0,
+    h: 1.72,
+    fontFace: "Georgia",
+    fontSize: 30,
+    bold: true,
+    color: theme.foreground,
+    align: "center",
+    breakLine: false,
+  })
+  if (attribution) {
+    slide.addShape("line", { x: 5.82, y: 3.48, w: 1.68, h: 0, line: { color: theme.accent, transparency: 25, pt: 1.2 } })
+    addText(slide, truncate(attribution.label, 80), {
+      x: 4.3,
+      y: 3.74,
+      w: 4.7,
+      h: 0.24,
+      fontFace: "Aptos",
+      fontSize: 11,
+      bold: true,
+      color: theme.foreground,
+      align: "center",
+    })
+    if (attribution.value) {
+      addText(slide, truncate(attribution.value, 110), {
+        x: 4.3,
+        y: 4.08,
+        w: 4.7,
+        h: 0.24,
+        fontFace: "Aptos",
+        fontSize: 9,
+        color: theme.muted,
+        align: "center",
+      })
+    }
+  }
+  addText(slide, truncate(structuredSlide.proof.description || structuredSlide.body[0] || "", 190), {
+    x: 2.35,
+    y: 5.12,
+    w: 8.65,
+    h: 0.46,
+    fontFace: "Aptos",
+    fontSize: 11,
+    color: theme.muted,
+    align: "center",
+    breakLine: false,
+  })
+  addSlideNumber(slide, structuredSlide, theme)
+  slide.addNotes(structuredSlide.speakerNotes)
+}
+
+function addTimelineVerticalSlide(pptx: pptxgen, structuredSlide: SlidesStructuredSlide, theme: Theme) {
+  const slide = pptx.addSlide()
+  const steps = (structuredSlide.proof.data.length ? structuredSlide.proof.data : structuredSlide.body.map((item, index) => ({ label: `Step ${index + 1}`, value: item }))).slice(0, 7)
+  addBackground(slide, theme.background)
+  addKicker(slide, `Slide ${structuredSlide.slideNumber}`, theme)
+  addText(slide, truncate(structuredSlide.title, 95), {
+    x: 0.62,
+    y: 1.08,
+    w: 4.55,
+    h: 0.92,
+    fontFace: "Georgia",
+    fontSize: 25,
+    bold: true,
+    color: theme.foreground,
+    breakLine: false,
+  })
+  addText(slide, truncate(structuredSlide.claim, 160), {
+    x: 0.65,
+    y: 2.35,
+    w: 4.35,
+    h: 0.66,
+    fontFace: "Aptos",
+    fontSize: 12.5,
+    color: theme.muted,
+    breakLine: false,
+  })
+  steps.forEach((step, index) => {
+    const y = 0.9 + index * 0.82
+    const isLast = index === steps.length - 1
+    if (!isLast) {
+      slide.addShape("line", { x: 6.14, y: y + 0.34, w: 0, h: 0.52, line: { color: theme.accent, transparency: 55, pt: 1.1 } })
+    }
+    slide.addShape("ellipse", {
+      x: 5.96,
+      y: y + 0.05,
+      w: 0.36,
+      h: 0.36,
+      fill: { color: isLast ? theme.accent : "B7C0CF" },
+      line: { color: isLast ? theme.accent : "B7C0CF" },
+    })
+    addText(slide, String(index + 1), {
+      x: 5.96,
+      y: y + 0.14,
+      w: 0.36,
+      h: 0.1,
+      fontFace: "Aptos",
+      fontSize: 6.4,
+      bold: true,
+      color: "FFFFFF",
+      align: "center",
+    })
+    addText(slide, truncate(step.label, 58), {
+      x: 6.62,
+      y,
+      w: 4.95,
+      h: 0.22,
+      fontFace: "Aptos",
+      fontSize: 10.5,
+      bold: true,
+      color: isLast ? theme.accent : theme.foreground,
+    })
+    addText(slide, truncate(step.value, 88), {
+      x: 6.62,
+      y: y + 0.28,
+      w: 4.95,
+      h: 0.26,
+      fontFace: "Aptos",
+      fontSize: 8,
+      color: theme.muted,
+      breakLine: false,
+    })
+  })
+  addSlideNumber(slide, structuredSlide, theme)
+  slide.addNotes(structuredSlide.speakerNotes)
+}
+
+async function addImageLeftSlide(pptx: pptxgen, structuredSlide: SlidesStructuredSlide, theme: Theme) {
+  const slide = pptx.addSlide()
+  const image = await visualImageData(structuredSlide)
+  addBackground(slide, theme.background)
+  if (image) {
+    slide.addImage({
+      data: image,
+      x: 0,
+      y: 0,
+      w: 6.42,
+      h: 7.5,
+      sizing: { type: "crop", x: 0, y: 0, w: 6.42, h: 7.5 },
+      altText: structuredSlide.visualAsset?.alt ?? structuredSlide.title,
+    })
+  } else {
+    slide.addShape("rect", {
+      x: 0,
+      y: 0,
+      w: 6.42,
+      h: 7.5,
+      fill: { color: theme.accent, transparency: 88 },
+      line: { color: theme.accent, transparency: 100 },
+    })
+  }
+  addKicker(slide, `Slide ${structuredSlide.slideNumber}`, theme, 7.05, 1.0)
+  addText(slide, truncate(structuredSlide.title, 95), {
+    x: 7.05,
+    y: 1.52,
+    w: 5.35,
+    h: 1.04,
+    fontFace: "Georgia",
+    fontSize: 27,
+    bold: true,
+    color: theme.foreground,
+    breakLine: false,
+  })
+  addText(slide, truncate(structuredSlide.claim, 170), {
+    x: 7.08,
+    y: 3.0,
+    w: 5.08,
+    h: 0.64,
+    fontFace: "Aptos",
+    fontSize: 13.5,
+    color: theme.muted,
+    breakLine: false,
+  })
+  addText(slide, asLines(structuredSlide.body, 3), {
+    x: 7.1,
+    y: 4.18,
+    w: 4.85,
+    h: 1.55,
+    fontFace: "Aptos",
+    fontSize: 11,
+    color: theme.foreground,
+    valign: "top",
+    paraSpaceAfter: 7,
+  })
+  addSlideNumber(slide, structuredSlide, theme)
+  slide.addNotes(structuredSlide.speakerNotes)
+}
+
+async function addImageFullSlide(pptx: pptxgen, structuredSlide: SlidesStructuredSlide, theme: Theme) {
+  const slide = pptx.addSlide()
+  const image = await visualImageData(structuredSlide)
+  addBackground(slide, image ? "151515" : theme.background)
+  if (image) {
+    slide.addImage({
+      data: image,
+      x: 0,
+      y: 0,
+      w: 13.33,
+      h: 7.5,
+      sizing: { type: "crop", x: 0, y: 0, w: 13.33, h: 7.5 },
+      altText: structuredSlide.visualAsset?.alt ?? structuredSlide.title,
+    })
+    slide.addShape("rect", {
+      x: 0,
+      y: 0,
+      w: 13.33,
+      h: 7.5,
+      fill: { color: "000000", transparency: 42 },
+      line: { color: "000000", transparency: 100 },
+    })
+  } else {
+    slide.addShape("rect", {
+      x: 0,
+      y: 0,
+      w: 13.33,
+      h: 7.5,
+      fill: { color: theme.accent, transparency: 88 },
+      line: { color: theme.accent, transparency: 100 },
+    })
+  }
+  const textColor = image ? "FFFFFF" : theme.foreground
+  addText(slide, `SLIDE ${structuredSlide.slideNumber}`, {
+    x: 4.32,
+    y: 1.36,
+    w: 4.7,
+    h: 0.22,
+    fontFace: "Aptos",
+    fontSize: 8,
+    bold: true,
+    color: image ? "DDE3EA" : theme.accent,
+    align: "center",
+    charSpacing: 1,
+  })
+  addText(slide, truncate(structuredSlide.title, 95), {
+    x: 1.72,
+    y: 2.05,
+    w: 9.9,
+    h: 1.28,
+    fontFace: "Georgia",
+    fontSize: 36,
+    bold: true,
+    color: textColor,
+    align: "center",
+    breakLine: false,
+  })
+  addText(slide, truncate(structuredSlide.claim, 170), {
+    x: 2.65,
+    y: 3.85,
+    w: 8.05,
+    h: 0.56,
+    fontFace: "Aptos",
+    fontSize: 14,
+    color: image ? "DDE3EA" : theme.muted,
+    align: "center",
+    breakLine: false,
+  })
+  slide.addNotes(structuredSlide.speakerNotes)
 }
 
 async function addContentSlide(pptx: pptxgen, structuredSlide: SlidesStructuredSlide, theme: Theme) {
@@ -503,9 +937,52 @@ export async function exportSlidesDeckToPptx(deck: SlidesDeck): Promise<Buffer> 
       addCoverSlide(pptx, deck, structuredSlide, theme)
     } else if (structuredSlide.layout === "closing") {
       addClosingSlide(pptx, structuredSlide, theme)
+    } else if (structuredSlide.layout === "big_number") {
+      addBigNumberSlide(pptx, structuredSlide, theme)
+    } else if (structuredSlide.layout === "side_by_side") {
+      addSideBySideSlide(pptx, structuredSlide, theme)
+    } else if (structuredSlide.layout === "quote_highlight") {
+      addQuoteHighlightSlide(pptx, structuredSlide, theme)
+    } else if (structuredSlide.layout === "timeline_vertical") {
+      addTimelineVerticalSlide(pptx, structuredSlide, theme)
+    } else if (structuredSlide.layout === "image_left") {
+      await addImageLeftSlide(pptx, structuredSlide, theme)
+    } else if (structuredSlide.layout === "image_full") {
+      await addImageFullSlide(pptx, structuredSlide, theme)
     } else {
       await addContentSlide(pptx, structuredSlide, theme)
     }
+  }
+
+  const output = await pptx.write({ outputType: "nodebuffer", compression: true })
+  return Buffer.isBuffer(output) ? output : Buffer.from(output as Uint8Array)
+}
+
+// ─── Path A export ────────────────────────────────────────────────────────────
+// Run LLM-emitted slideCode against a real pptxgenjs instance inside the sandbox.
+// The sandbox is what guarantees the code can't escape (no fs/net/process); pptxgenjs handles
+// the actual .pptx authoring. This replaces the JSON-driven exporter for any deck that has slideCode.
+export async function exportSlidesDeckCodeToPptx(args: {
+  slideCode: string
+  assets?: SlidesAssetBag
+  title?: string
+  subtitle?: string
+}): Promise<Buffer> {
+  const pptx = new pptxgen()
+  pptx.layout = "LAYOUT_WIDE"
+  pptx.author = "Flowro"
+  pptx.company = "Flowro"
+  if (args.subtitle) pptx.subject = args.subtitle
+  if (args.title) pptx.title = args.title
+  pptx.theme = { headFontFace: "Georgia", bodyFontFace: "Aptos" }
+
+  const result = await runSlideCode({
+    code: args.slideCode,
+    options: { target: "pptx", assets: args.assets ?? {} },
+    pres: pptx,
+  })
+  if (!result.ok) {
+    throw new Error(`slideCode sandbox failed (${result.stage}): ${result.error}`)
   }
 
   const output = await pptx.write({ outputType: "nodebuffer", compression: true })

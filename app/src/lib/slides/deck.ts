@@ -1,14 +1,21 @@
 import { generateCompletion } from "@/lib/openrouter"
 import {
   slidesDeckSchema,
+  type AssetRecord,
   type ChartType,
+  type SlidesAssetBag,
   type SlidesDeck,
   type SlidesDeckStory,
+  type SlidesEvidence,
   type SlidesProofObject,
   type SlidesSource,
   type SlidesStructuredSlide,
   type SlidesVisualAsset,
 } from "@/lib/slides/schema"
+import { buildAssetBag, describeAssetBag } from "@/lib/slides/assetBag"
+import { describeAssetRecords } from "@/lib/slides/sourceIntake"
+import { extractBuildBody, validateSlideCode } from "@/lib/slides/sandbox"
+import { buildMinimalFallbackSlideCode } from "@/lib/slides/sampleDecks"
 
 function cleanJson(raw: string): string {
   return raw.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "")
@@ -58,7 +65,7 @@ function generatedVisualAsset(type: SlidesProofObject["type"], claim: string): S
 export function normalizeSlidesDeckJson(value: unknown, sources: SlidesSource[] = []) {
   const proofTypes = new Set(["chart", "image", "comparison", "timeline", "diagram", "table", "source_backed_visual"])
   const chartTypes = new Set<ChartType>(["bar_horizontal", "bar_vertical", "line", "area", "donut", "progress", "scatter", "funnel"])
-  const layouts = new Set(["cover", "claim_visual", "comparison", "timeline", "data_table", "closing"])
+  const layouts = new Set(["cover", "claim_visual", "comparison", "timeline", "data_table", "closing", "big_number", "side_by_side", "quote_highlight", "timeline_vertical", "image_left", "image_full"])
   const visualKinds = new Set(["none", "source_image", "web_image", "generated_visual"])
   const raw = value as {
     title?: unknown
@@ -266,7 +273,7 @@ export async function generateSlidesDeck({
       messages: [
         {
           role: "system",
-          content: `You generate structured presentation slides for Flowro Slides. Return JSON only with {"title","subtitle","theme":{"background","foreground","accent","muted"},"slides":[{"id","slideNumber","title","claim","body":["max 3 bullets"],"proof":{"type":"chart|image|comparison|timeline|diagram|table|source_backed_visual","chartType":"bar_horizontal|bar_vertical|line|area|donut|progress|scatter|funnel","title","description","data":[{"label","value","xValue":0,"numericValue":0,"group":"optional","tone":"accent|positive|warning|neutral|muted"}]},"speakerNotes","sourceIds":["..."],"evidenceIds":["..."],"layout":"cover|claim_visual|comparison|timeline|data_table|closing","visualTone","visualAsset":{"kind":"none|source_image|web_image|generated_visual","sourceId":"optional","evidenceId":"optional","url":"optional direct public image URL","query":"optional visual search direction","alt":"optional","rationale":"optional"}}]}.
+          content: `You generate structured presentation slides for Flowro Slides. Return JSON only with {"title","subtitle","theme":{"background","foreground","accent","muted"},"slides":[{"id","slideNumber","title","claim","body":["max 3 bullets"],"proof":{"type":"chart|image|comparison|timeline|diagram|table|source_backed_visual","chartType":"bar_horizontal|bar_vertical|line|area|donut|progress|scatter|funnel","title","description","data":[{"label","value","xValue":0,"numericValue":0,"group":"optional","tone":"accent|positive|warning|neutral|muted"}]},"speakerNotes","sourceIds":["..."],"evidenceIds":["..."],"layout":"cover|claim_visual|comparison|timeline|data_table|closing|big_number|side_by_side|quote_highlight|timeline_vertical|image_left|image_full","visualTone","visualAsset":{"kind":"none|source_image|web_image|generated_visual","sourceId":"optional","evidenceId":"optional","url":"optional direct public image URL","query":"optional visual search direction","alt":"optional","rationale":"optional"}}]}.
 
 TEXT RULES:
 Title: echo and amplify the claim in ≤8 words. Hard limit: 60 characters. Assertive, not a topic label.
@@ -301,8 +308,28 @@ Slide 1: always layout=cover. Last slide: always layout=closing.
 Middle slides: include at least one timeline or comparison when content supports it.
 Never more than 2 consecutive slides with layout=claim_visual.
 
+AVAILABLE LAYOUTS (use the right one for the content):
+cover            — title slide; hero treatment, bold headline
+claim_visual     — standard slide: left text column, right visual/proof panel
+comparison       — two-column before/after or option A vs B (use with proof.type=comparison)
+timeline         — horizontal step flow (4–5 steps, use with proof.type=timeline)
+data_table       — tabular data with multiple rows (use with proof.type=table)
+closing          — final recommendation/CTA slide
+big_number       — giant KPI or metric centered on slide; use when one number tells the story (e.g. "3× growth", "$12M ARR")
+side_by_side     — two equal columns each with a heading + 3 bullets; for dual-concept or feature-pair slides
+quote_highlight  — large pull quote with attribution; for testimonials, analyst quotes, or memorable sound-bites
+timeline_vertical— vertical stepped timeline for 5+ steps or roadmap/process with longer descriptions
+image_left       — full-bleed image on left 50%, content on right; use when proof.visualAsset has a strong image
+image_full       — full-bleed background image with centered overlay text; for section breaks or emotional beats
+
+LOGO RULES:
+logo (brand_asset source) appears ONLY on cover and closing slides — never on middle slides.
+Do not reference logoSourceId in visualAsset for middle slides.
+
 THEME RULES:
-Derive accent color from attached brand_asset or style_template_guide when available.
+When a source has brandColors (primary, accent, background), use those EXACT hex values for the deck theme — do not invent or approximate colors.
+If brandColors.primary and brandColors.accent differ, use primary for theme.accent and adjust foreground/background for contrast.
+If no brandColors are provided, derive accent from brand_asset or style_template_guide descriptions.
 Never use generic blue (#0066ff range) as accent unless the brand explicitly uses it.
 background + foreground must have contrast ratio ≥ 4.5:1.
 
@@ -322,6 +349,7 @@ IMAGE POLICY: Images are optional. Prefer charts, comparisons, timelines, tables
               hasRenderableImage: Boolean(source.dataUrl || source.url),
               width: source.width,
               height: source.height,
+              ...(source.brandColors ? { brandColors: source.brandColors } : {}),
             })),
             designSkillBrief: {
               intent: "Create distinctive, presentation-grade slides with varied layouts and no text-only slides.",
@@ -363,6 +391,312 @@ IMAGE POLICY: Images are optional. Prefer charts, comparisons, timelines, tables
     return fallbackSlidesDeck(story, sources, error instanceof Error
       ? `Slides AI deck generation failed (${error.message.slice(0, 120)}), so a deterministic visual fallback was rendered.`
       : "Slides AI deck generation failed, so a deterministic visual fallback was rendered.")
+  }
+}
+
+// ─── Path A: slideCode generation ─────────────────────────────────────────────
+// Replaces the JSON-shaped deck with LLM-emitted JS that builds slides via pptxgenjs primitives.
+// The legacy `generateSlidesDeck` / `slides[]` path stays in place for now so existing routes
+// keep working; once Path A is fully wired through the UI and exporter, the legacy path can be
+// deleted (Phase 3+ cleanup).
+
+const PRES_API_DECLARATION = `
+// AVAILABLE API (subset of pptxgenjs you may use)
+type Color = string                 // 6-hex, no '#': e.g. "0D1B3E"
+type Inches = number                // pptxgenjs canvas is 13.33 × 7.5 inches
+type Fill = { color: Color; transparency?: number /* 0–100 */ }
+type Line = { color: Color; transparency?: number; pt?: number; dashType?: "dash"|"solid" }
+type TextOpts = {
+  x: Inches; y: Inches; w: Inches; h: Inches
+  fontSize?: number; fontFace?: string; bold?: boolean; italic?: boolean
+  color?: Color; align?: "left"|"center"|"right"; valign?: "top"|"middle"|"bottom"
+  charSpacing?: number; fill?: Fill; paraSpaceAfter?: number
+}
+type ShapeOpts = { x: Inches; y: Inches; w: Inches; h: Inches; rectRadius?: number; fill?: Fill; line?: Line; rotate?: number }
+type ImageOpts = { x: Inches; y: Inches; w: Inches; h: Inches; data?: string; path?: string; altText?: string; rounding?: boolean }
+type ChartData = Array<{ name: string; labels: string[]; values: number[] }>
+type ChartOpts = { x: Inches; y: Inches; w: Inches; h: Inches; barDir?: "col"|"bar"; showLegend?: boolean; chartColors?: Color[]; catAxisLabelFontSize?: number; valAxisLabelFontSize?: number }
+
+interface Slide {
+  background: { color: Color }
+  addShape(shape: string, opts: ShapeOpts): void
+  addText(text: string, opts: TextOpts): void
+  addImage(opts: ImageOpts): void
+  addChart(chartType: string, data: ChartData, opts: ChartOpts): void
+  addNotes(text: string): void
+}
+
+interface Pres {
+  addSlide(): Slide
+  shapes: { OVAL: string; RECTANGLE: string; ROUNDED_RECTANGLE: string; LINE: string; TRIANGLE: string; DIAMOND: string }
+  charts: { BAR: string; LINE: string; DOUGHNUT: string; PIE: string; SCATTER: string; AREA: string }
+}
+`.trim()
+
+const PRES_API_EXAMPLES = `
+// EXAMPLE — Cover slide
+const C = { navy: "0D1B3E", accent: "00E5C3", white: "FFFFFF", muted: "DDE3EA" }
+{
+  const s = pres.addSlide()
+  s.background = { color: C.navy }
+  // Decorative blob — low-opacity oval at the corner
+  s.addShape(pres.shapes.OVAL, { x: 8.4, y: -1.6, w: 5.6, h: 5.6, fill: { color: C.accent, transparency: 78 }, line: { color: C.accent, transparency: 100 } })
+  // Brand mark + headline
+  if (assets.logo) s.addImage({ data: assets.logo, x: 0.6, y: 0.55, w: 0.6, h: 0.6 })
+  s.addText("Workflow Intelligence\\nThat Pays For Itself.", { x: 0.6, y: 2.0, w: 8.5, h: 2.0, fontSize: 44, bold: true, color: C.white, fontFace: "Trebuchet MS" })
+  s.addText("FLOWRO  ·  INVESTOR DECK  ·  2026", { x: 0.6, y: 6.4, w: 6.0, h: 0.3, fontSize: 9, bold: true, color: C.accent, charSpacing: 1.6, fontFace: "Aptos" })
+  s.addNotes("Open with the value prop.")
+}
+
+// EXAMPLE — Chart slide (real native chart, not rectangles)
+{
+  const s = pres.addSlide()
+  s.background = { color: "FFFFFF" }
+  s.addText("ARR ACCELERATION", { x: 0.6, y: 0.55, w: 4.0, h: 0.22, fontSize: 9, bold: true, color: "00E5C3", charSpacing: 1.4 })
+  s.addText("Revenue compounds as workspaces ship more decks per founder", { x: 0.6, y: 0.95, w: 12.0, h: 1.0, fontSize: 28, bold: true, color: "151515", fontFace: "Georgia" })
+  s.addChart(pres.charts.BAR, [{ name: "ARR ($M)", labels: ["Q1","Q2","Q3","Q4","Q1+1"], values: [1.2,2.0,3.1,4.6,6.4] }],
+    { x: 0.6, y: 2.2, w: 6.0, h: 4.6, barDir: "col", showLegend: false, chartColors: ["00E5C3"] })
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 6.95, y: 2.2, w: 6.0, h: 4.6, rectRadius: 0.1, fill: { color: "0D1B3E" }, line: { color: "0D1B3E" } })
+  s.addText("5.3×", { x: 7.2, y: 2.6, w: 5.5, h: 1.6, fontSize: 80, bold: true, color: "00E5C3", fontFace: "Trebuchet MS" })
+  s.addText("growth across the past 5 quarters", { x: 7.2, y: 4.1, w: 5.5, h: 0.6, fontSize: 16, color: "FFFFFF" })
+}
+
+// EXAMPLE — Comparison slide
+{
+  const s = pres.addSlide()
+  s.background = { color: "FFFFFF" }
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 0.6, y: 2.3, w: 6.0, h: 4.6, rectRadius: 0.1, fill: { color: "F4F6FB" }, line: { color: "D9DEE8" } })
+  s.addText("BEFORE", { x: 0.85, y: 2.55, w: 5.5, h: 0.3, fontSize: 10, bold: true, color: "5F6B7A", charSpacing: 1.2 })
+  s.addText("• Context lost between threads\\n• 4 hrs/week reporting", { x: 0.85, y: 3.7, w: 5.5, h: 2.8, fontSize: 12, color: "5F6B7A", paraSpaceAfter: 6 })
+  s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 6.95, y: 2.3, w: 6.0, h: 4.6, rectRadius: 0.1, fill: { color: "0D1B3E" }, line: { color: "0D1B3E" } })
+  s.addText("AFTER · WITH FLOWRO", { x: 7.2, y: 2.55, w: 5.5, h: 0.3, fontSize: 10, bold: true, color: "00E5C3", charSpacing: 1.2 })
+  s.addText("• Decision-grade artifacts\\n• 10 min/week reporting", { x: 7.2, y: 3.7, w: 5.5, h: 2.8, fontSize: 12, color: "FFFFFF", paraSpaceAfter: 6 })
+}
+`.trim()
+
+function slideCodeSystemPrompt(args: { assetManifest: string; theme: string; dataContext?: string }): string {
+  return `You are the slide-code emitter for Flowro Slides (Path A).
+
+Your job: emit a JavaScript snippet that, when executed against a pptxgenjs-compatible \`pres\` object,
+builds a designed presentation deck. Do NOT emit JSON. Do NOT emit prose. Emit ONE \`\`\`js code block whose
+contents are the body of an \`async function build(pres, assets) { ... }\` (you do not need to write the
+function declaration — just the body).
+
+${PRES_API_DECLARATION}
+
+ASSETS AVAILABLE TO YOU (reference as \`assets.<key>\`):
+${args.assetManifest || "  (no asset bag — use only shapes, text, and charts)"}
+${args.dataContext ? `\n${args.dataContext}\n` : ""}
+THEME GUIDANCE: ${args.theme}
+When a brand palette is provided above, you MUST use those exact hex values for backgrounds, accent bars,
+chart colors, and highlight text. Do not substitute or approximate.
+
+DESIGN RULES (non-negotiable):
+1. 6–10 slides total. First slide = cover. Last slide = closing/call-to-action.
+2. Every slide MUST have a unique composition. No two slides identical in layout.
+3. Vary backgrounds: alternate dark (navy or brand primary) and light (#FFFFFF or #F4F6FB) slides for rhythm.
+4. Every slide MUST include at least one decorative shape (oval, rounded rect, accent bar) that aids hierarchy.
+5. Use REAL pres.charts.BAR / LINE / DOUGHNUT / SCATTER / AREA when the slide is data-driven.
+   If real table data is provided above, use those exact numbers in chart values arrays.
+   NEVER simulate a chart with rectangles when a real chart is appropriate.
+6. assets.logo → ONLY on cover (top-left, w≈0.6, h≈0.6) and closing slide. NEVER on middle slides.
+   If assets.screenshot_1 exists, place it on a dedicated product slide inside a slightly inset frame.
+7. Pull real numbers from the brief, outline, and data tables; do not invent metrics.
+8. Use Aptos / Trebuchet MS / Georgia as fontFace. Default body 11–14pt; headings 24–44pt.
+9. Stay within the 13.33 × 7.5 canvas. Margins ≥ 0.5 in.
+10. Add \`s.addNotes("...")\` to every slide with the speaker intent (≤ 280 chars).
+
+QUALITY BAR: A viewer should identify the main claim of any slide in 3 seconds. The deck should visually
+rival a designer's deck in Keynote — not a templated SaaS deck.
+
+WORKED EXAMPLES (do not copy verbatim — vary the composition for the user's content):
+
+${PRES_API_EXAMPLES}
+
+OUTPUT FORMAT: a single \`\`\`js block. Nothing else. No prose before or after.`
+}
+
+function themeFromSources(sources: SlidesSource[]): { background: string; foreground: string; accent: string; muted: string; description: string } {
+  const brand = sources.find((s) => s.role === "brand_asset" && s.brandColors)
+  if (brand?.brandColors) {
+    return {
+      background: brand.brandColors.background,
+      foreground: "#151515",
+      accent: brand.brandColors.accent,
+      muted: "#5F6B7A",
+      description: `Use the user's brand palette. Primary ${brand.brandColors.primary}, accent ${brand.brandColors.accent}, background ${brand.brandColors.background}.`,
+    }
+  }
+  return {
+    background: "#FFFFFF",
+    foreground: "#151515",
+    accent: "#00E5C3",
+    muted: "#5F6B7A",
+    description: "No brand uploaded — use a default navy/teal palette: primary #0D1B3E, accent #00E5C3.",
+  }
+}
+
+// Phase 3: theme derived from vision-classified AssetRecord[] dominantColors.
+// Priority: intentRole=logo/brand brandColors > vision dominantColors > legacy SVG extraction > default.
+function themeFromAssetRecords(records: AssetRecord[]): { background: string; foreground: string; accent: string; muted: string; description: string } {
+  const logoRecord = records.find(
+    (r) => (r.role === "logo" || r.role === "brand_guideline") && r.brandColors,
+  )
+  if (logoRecord?.brandColors) {
+    const bc = logoRecord.brandColors
+    return {
+      background: bc.background,
+      foreground: isLightHex(bc.background) ? "#151515" : "#FFFFFF",
+      accent: bc.accent,
+      muted: "#5F6B7A",
+      description: `Brand palette from vision-classified asset. Primary ${bc.primary}, accent ${bc.accent}, background ${bc.background}. USE THESE EXACT HEX VALUES — do not approximate.`,
+    }
+  }
+  // Fall back to any record that has dominantColors with at least 2 chromatic colors
+  const withColors = records.find(
+    (r) => r.properties.dominantColors && r.properties.dominantColors.length >= 2,
+  )
+  if (withColors?.properties.dominantColors) {
+    const [primary, accent] = withColors.properties.dominantColors
+    const background = withColors.properties.dominantColors.find(isLightHex) ?? "#FFFFFF"
+    return {
+      background,
+      foreground: isLightHex(background) ? "#151515" : "#FFFFFF",
+      accent: accent ?? primary,
+      muted: "#5F6B7A",
+      description: `Brand colors extracted from uploaded asset via vision. Dominant: ${withColors.properties.dominantColors.slice(0, 3).join(", ")}. Use these hex values for the deck palette.`,
+    }
+  }
+  return {
+    background: "#FFFFFF",
+    foreground: "#151515",
+    accent: "#00E5C3",
+    muted: "#5F6B7A",
+    description: "No brand uploaded — use a default navy/teal palette: primary #0D1B3E, accent #00E5C3.",
+  }
+}
+
+function isLightHex(hex: string): boolean {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return (r + g + b) / 3 > 140
+}
+
+// Phase 3: build a data context block from AssetRecord extracted tables so the LLM
+// can reference real numbers when writing chart calls.
+function dataContextFromRecords(records: AssetRecord[]): string {
+  const dataRecords = records.filter((r) => r.extracted?.tables?.length)
+  if (!dataRecords.length) return ""
+  const lines: string[] = ["DATA AVAILABLE FOR CHARTS (use real numbers from these tables):"]
+  for (const r of dataRecords.slice(0, 3)) {
+    const t = r.extracted?.tables?.[0]
+    if (!t) continue
+    lines.push(`Table from ${r.filename}:`)
+    lines.push(`  Headers: ${t.headers.join(", ")}`)
+    lines.push(`  Rows (first ${t.rows.length}):`)
+    for (const row of t.rows.slice(0, 5)) {
+      lines.push(`    ${row.join(" | ")}`)
+    }
+  }
+  return lines.join("\n")
+}
+
+export async function generateSlidesDeckCode({
+  story,
+  sources,
+  evidence,
+  legacyDeck,
+  assetRecords,
+}: {
+  story: SlidesDeckStory
+  sources: SlidesSource[]
+  evidence?: SlidesEvidence[]
+  legacyDeck?: SlidesDeck
+  assetRecords?: AssetRecord[]
+}): Promise<{ slideCode: string; assets: SlidesAssetBag; theme: { background: string; foreground: string; accent: string; muted: string }; provider: "openrouter" | "deterministic"; diagnostics: { fallbackReason?: string; sandboxStage: "validate" | "ok"; sandboxError?: string } }> {
+  // Phase 3: prefer AssetRecord-derived theme (vision colors) over legacy SVG extraction
+  const theme = assetRecords?.length ? themeFromAssetRecords(assetRecords) : themeFromSources(sources)
+  const assets = await buildAssetBag({ sources, assetRecords, evidence: evidence ?? story.evidence ?? [] })
+  // Richer manifest when AssetRecord[] is available (includes role, description, usableAs)
+  const manifest = assetRecords?.length ? describeAssetRecords(assetRecords) : describeAssetBag(assets)
+  const dataContext = assetRecords?.length ? dataContextFromRecords(assetRecords) : ""
+  const fallbackTitle = story.outline[0]?.title || legacyDeck?.title || "Generated deck"
+  const fallbackSubtitle = story.brief.desiredOutcome || ""
+
+  const fallback = (reason?: string) => ({
+    slideCode: buildMinimalFallbackSlideCode({ title: fallbackTitle, subtitle: fallbackSubtitle, theme: { background: theme.background.replace(/^#/, ""), foreground: theme.foreground.replace(/^#/, ""), accent: theme.accent.replace(/^#/, ""), muted: theme.muted.replace(/^#/, "") } }),
+    assets,
+    theme,
+    provider: "deterministic" as const,
+    diagnostics: { fallbackReason: reason, sandboxStage: "ok" as const },
+  })
+
+  if (!process.env.OPENROUTER_API_KEY) {
+    return fallback("no OPENROUTER_API_KEY — using deterministic fallback")
+  }
+
+  try {
+    const response = await generateCompletion({
+      model: process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6",
+      reasoning: false,
+      maxTokens: 9000,
+      timeoutMs: 90000,
+      maxRetries: 0,
+      messages: [
+        { role: "system", content: slideCodeSystemPrompt({ assetManifest: manifest, theme: theme.description, dataContext }) },
+        {
+          role: "user",
+          content: JSON.stringify({
+            brief: story.brief,
+            outline: story.outline,
+            evidence: (evidence ?? story.evidence ?? []).map((e) => ({ id: e.id, query: e.query, summary: e.summary, citations: e.citations })),
+            legacySlideHints: legacyDeck?.slides?.map((s) => ({ title: s.title, claim: s.claim, layout: s.layout, proofType: s.proof.type })) ?? [],
+          }),
+        },
+      ],
+    })
+    const data = await response.json()
+    const content = data?.choices?.[0]?.message?.content
+    if (typeof content !== "string") return fallback("LLM returned no slideCode content")
+
+    const extracted = extractBuildBody(content)
+    if ("error" in extracted) {
+      // Retry once with the parse error embedded
+      const retry = await generateCompletion({
+        model: process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6",
+        reasoning: false,
+        maxTokens: 9000,
+        timeoutMs: 90000,
+        maxRetries: 0,
+        messages: [
+          { role: "system", content: slideCodeSystemPrompt({ assetManifest: manifest, theme: theme.description, dataContext }) },
+          {
+            role: "user",
+            content: JSON.stringify({
+              previousAttempt: content.slice(0, 4000),
+              error: extracted.error,
+              retryInstruction: "The previous emission could not be parsed. Emit ONLY the build body inside one ```js block.",
+              brief: story.brief,
+              outline: story.outline,
+            }),
+          },
+        ],
+      })
+      const retryData = await retry.json()
+      const retryContent = retryData?.choices?.[0]?.message?.content
+      if (typeof retryContent !== "string") return fallback("retry returned no content")
+      const retryExtracted = extractBuildBody(retryContent)
+      if ("error" in retryExtracted) return fallback(`could not parse: ${retryExtracted.error}`)
+      const retryValidated = validateSlideCode(retryExtracted.body)
+      if (!retryValidated.ok) return fallback(`gate rejected: ${retryValidated.reason}`)
+      return { slideCode: retryContent, assets, theme, provider: "openrouter", diagnostics: { sandboxStage: "ok" } }
+    }
+    const validated = validateSlideCode(extracted.body)
+    if (!validated.ok) return fallback(`static gate rejected slideCode: ${validated.reason}`)
+    return { slideCode: content, assets, theme, provider: "openrouter", diagnostics: { sandboxStage: "ok" } }
+  } catch (err) {
+    return fallback(err instanceof Error ? err.message.slice(0, 200) : "unknown error")
   }
 }
 

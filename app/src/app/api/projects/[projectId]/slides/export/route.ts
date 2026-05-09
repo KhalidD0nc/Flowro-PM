@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { isAuthError, unauthorizedResponse, verifyAuthToken } from "../../../../blueprints/auth"
 import { getProject, updateProject } from "@/lib/firebase/collections"
 import { logError } from "@/lib/logger"
-import { exportSlidesDeckToPdf, exportSlidesDeckToPptx } from "@/lib/slides/export"
+import { exportSlidesDeckCodeToPptx, exportSlidesDeckToPdf, exportSlidesDeckToPptx } from "@/lib/slides/export"
 
 function filenameFor(name: string, extension: string) {
   return `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flowro-slides"}.${extension}`
@@ -25,9 +25,22 @@ export async function GET(
 
     const format = request.nextUrl.searchParams.get("format") === "pdf" ? "pdf" : "pptx"
     await updateProject(projectId, { slidesStatus: "rendering" })
+    // Path A: prefer LLM-emitted slideCode for pptx export when present (real shapes/charts/text).
+    // Legacy JSON exporter is the fallback while the slideCode pipeline is still being validated.
+    const deck = project.slidesDeck
     const bytes = format === "pdf"
-      ? exportSlidesDeckToPdf(project.slidesDeck)
-      : await exportSlidesDeckToPptx(project.slidesDeck)
+      ? exportSlidesDeckToPdf(deck)
+      : deck.slideCode
+        ? await exportSlidesDeckCodeToPptx({
+            slideCode: deck.slideCode,
+            assets: deck.assets,
+            title: deck.title,
+            subtitle: deck.subtitle,
+          }).catch(async (err) => {
+            logError("slides_export_slidecode_fallback", { error: String(err) })
+            return await exportSlidesDeckToPptx(deck)
+          })
+        : await exportSlidesDeckToPptx(deck)
     await updateProject(projectId, { slidesStatus: "ready" })
 
     return new NextResponse(new Uint8Array(bytes), {
