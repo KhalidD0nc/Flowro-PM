@@ -1,6 +1,74 @@
 import { z } from "zod"
 
 export const projectTypeSchema = z.enum(["app", "slides"])
+
+// ─── AssetRecord — Phase 2b vision-classified asset ──────────────────────────
+
+export const assetRoleSchema = z.enum([
+  "logo", "brand_guideline", "product_screenshot", "photo",
+  "illustration", "icon", "chart_image", "diagram",
+  "reference_deck", "data_table", "document", "web_link",
+])
+export type AssetRole = z.infer<typeof assetRoleSchema>
+
+export const assetUsageSchema = z.enum([
+  "cover_logo", "closing_logo", "inline_icon",
+  "full_bleed_background", "framed_screenshot",
+  "inline_evidence", "color_palette_source",
+  "chart_source_data", "narrative_source",
+])
+export type AssetUsage = z.infer<typeof assetUsageSchema>
+
+export const assetRecordSchema = z.object({
+  id: z.string().min(1),
+  filename: z.string().min(1),
+  mimeType: z.string().optional(),
+  role: assetRoleSchema,
+  description: z.string().max(300).default(""),
+  usableAs: z.array(assetUsageSchema).default([]),
+  properties: z.object({
+    dominantColors: z.array(z.string()).optional(),
+    hasTransparency: z.boolean().optional(),
+    aspectRatio: z.number().optional(),
+    subjectFocus: z.object({ x: z.number(), y: z.number() }).optional(),
+    textInImage: z.string().optional(),
+    isMonochrome: z.boolean().optional(),
+    looksLikeLogo: z.boolean().optional(),
+    looksLikeScreenshot: z.boolean().optional(),
+  }).default({}),
+  extracted: z.object({
+    text: z.string().max(8000).optional(),
+    pageCount: z.number().optional(),
+    headings: z.array(z.string()).optional(),
+    tables: z.array(z.object({
+      headers: z.array(z.string()),
+      rows: z.array(z.array(z.string())),
+      rowCount: z.number().optional(),
+    })).optional(),
+    embeddedImages: z.array(z.object({
+      index: z.number(),
+      description: z.string(),
+    })).optional(),
+    referenceSlides: z.array(z.object({
+      index: z.number(),
+      thumbnail: z.string(),
+      title: z.string().optional(),
+      bullets: z.array(z.string()).optional(),
+      palette: z.array(z.string()).optional(),
+    })).optional(),
+  }).optional(),
+  userIntent: z.string().optional(),
+  intentRole: assetRoleSchema.optional(),
+  // Fields carried over from SlidesSource so assetBag.ts can work with both types
+  dataUrl: z.string().optional(),
+  url: z.string().optional(),
+  brandColors: z.object({
+    primary: z.string(),
+    accent: z.string(),
+    background: z.string(),
+  }).optional(),
+})
+export type AssetRecord = z.infer<typeof assetRecordSchema>
 export type ProjectType = z.infer<typeof projectTypeSchema>
 
 export const slidesSourceRoleSchema = z.enum([
@@ -29,6 +97,13 @@ export const SLIDES_SOURCE_ROLE_LABELS: Record<SlidesSourceRole, string> = {
 export const slidesSourceKindSchema = z.enum(["file", "image", "link"])
 export type SlidesSourceKind = z.infer<typeof slidesSourceKindSchema>
 
+export const brandColorsSchema = z.object({
+  primary: z.string().regex(/^#[0-9a-f]{6}$/i),
+  accent: z.string().regex(/^#[0-9a-f]{6}$/i),
+  background: z.string().regex(/^#[0-9a-f]{6}$/i),
+})
+export type BrandColors = z.infer<typeof brandColorsSchema>
+
 export const slidesSourceInputSchema = z.object({
   id: z.string().min(1),
   kind: slidesSourceKindSchema,
@@ -40,6 +115,7 @@ export const slidesSourceInputSchema = z.object({
   storagePath: z.string().min(1).max(500).optional(),
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
+  brandColors: brandColorsSchema.optional(),
 })
 export type SlidesSourceInput = z.infer<typeof slidesSourceInputSchema>
 
@@ -188,11 +264,33 @@ export const slidesStructuredSlideSchema = z.object({
   speakerNotes: z.string().min(1).max(700),
   sourceIds: z.array(z.string().min(1)).max(8),
   evidenceIds: z.array(z.string().min(1)).max(6),
-  layout: z.enum(["cover", "claim_visual", "comparison", "timeline", "data_table", "closing"]),
+  layout: z.enum([
+    "cover",
+    "claim_visual",
+    "comparison",
+    "timeline",
+    "data_table",
+    "closing",
+    "big_number",
+    "side_by_side",
+    "quote_highlight",
+    "timeline_vertical",
+    "image_left",
+    "image_full",
+  ]),
   visualTone: z.string().min(1).max(160),
   visualAsset: slidesVisualAssetSchema,
 })
 export type SlidesStructuredSlide = z.infer<typeof slidesStructuredSlideSchema>
+
+// AssetBag — pre-built collection of base64 PNGs the sandbox can use via `assets.<key>`.
+// Built by assetBag.ts before sandbox execution; consumed by both the LLM prompt (via key list) and
+// the runtime (via lookup). Keys are stable IDs; values are data URLs (data:image/...;base64,...).
+export const slidesAssetBagSchema = z.record(
+  z.string().min(1).max(80),
+  z.string().min(1).max(900_000),
+)
+export type SlidesAssetBag = z.infer<typeof slidesAssetBagSchema>
 
 export const slidesDeckSchema = z.object({
   title: z.string().min(1).max(160),
@@ -203,13 +301,22 @@ export const slidesDeckSchema = z.object({
     accent: z.string().min(1).max(40),
     muted: z.string().min(1).max(40),
   }),
+  // Legacy structured slides — kept while the JSON pipeline still drives most renderers/exports.
+  // Will be marked optional once Path A (slideCode) replaces it end-to-end. Keep until Phase 3 polish lands.
   slides: z.array(slidesStructuredSlideSchema).min(1).max(24),
+  // Path A — LLM-emitted JS that builds the deck against pptxgenjs primitives. Optional during transition.
+  slideCode: z.string().min(1).max(120_000).optional(),
+  assets: slidesAssetBagSchema.optional(),
   provider: z.enum(["openrouter", "deterministic"]),
   updatedAt: z.string().min(1),
   diagnostics: z.object({
     fallbackReason: z.string().min(1).max(240).optional(),
     webEvidenceStatus: z.enum(["none", "ready", "skipped", "failed"]).optional(),
     visualAssetKinds: z.array(z.enum(["none", "source_image", "web_image", "generated_visual"])).max(24).optional(),
+    sandboxStage: z.enum(["validate", "execute", "limit", "ok"]).optional(),
+    sandboxError: z.string().min(1).max(400).optional(),
+    sandboxDurationMs: z.number().int().nonnegative().optional(),
+    slideCodeProvider: z.enum(["openrouter", "deterministic"]).optional(),
   }).optional(),
 })
 export type SlidesDeck = z.infer<typeof slidesDeckSchema>
