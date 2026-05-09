@@ -11,7 +11,14 @@ function runSlidesSourceIntakeTests(): TestResult[] {
     { id: "pdf", kind: "file", name: "market-research.pdf", mimeType: "application/pdf", size: 1200 },
     { id: "deck", kind: "file", name: "board-update.pptx", size: 1200 },
     { id: "data", kind: "file", name: "revenue.csv", mimeType: "text/csv", size: 1200 },
-    { id: "brand", kind: "image", name: "brand-logo.svg", mimeType: "image/svg+xml", size: 1200 },
+    {
+      id: "brand",
+      kind: "image",
+      name: "brand-logo.svg",
+      mimeType: "image/svg+xml",
+      size: 1200,
+      dataUrl: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20fill%3D%22%23ffffff%22%2F%3E%3Cpath%20fill%3D%22%23ff3366%22%2F%3E%3Ccircle%20fill%3D%22%2300aa55%22%2F%3E%3C%2Fsvg%3E",
+    },
     { id: "shot", kind: "image", name: "product-screenshot.png", mimeType: "image/png", size: 1200, dataUrl: "data:image/png;base64,abc", width: 1440, height: 900 },
     { id: "link", kind: "link", name: "example.com", url: "https://example.com/report" },
   ]
@@ -35,6 +42,10 @@ function runSlidesSourceIntakeTests(): TestResult[] {
     {
       name: "classifies brand hints before generic images",
       passed: byId.get("brand")?.role === "brand_asset",
+    },
+    {
+      name: "extracts SVG brand colors during source intake",
+      passed: byId.get("brand")?.brandColors?.primary === "#ff3366" && byId.get("brand")?.brandColors?.accent === "#00aa55",
     },
     {
       name: "classifies screenshots separately from image libraries",

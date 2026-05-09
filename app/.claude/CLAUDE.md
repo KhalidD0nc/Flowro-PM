@@ -1,459 +1,504 @@
-# Flowro Slides — Quality Overhaul Roadmap
-
-> **Goal:** Make Flowro generate slides that rival Claude web, Genspark, and Gamma — premium visual quality, editorial content, brand-correct assets, and zero generic output.
-
----
-
-## Why Slides Are Bad Right Now
-
-Three layers of failure that compound each other:
-
-1. **Schema is too permissive** — allows 900+ words per slide; premium standard is 25–30 words
-2. **LLM prompts are vague** — say "concise" but never define it; AI fills every character limit it's given
-3. **One chart type for everything** — horizontal bars rendered regardless of whether the data is a trend, proportion, funnel, or comparison
-4. **Renderer has 6 static layouts** — Gamma has 20+, Genspark generates a unique visual per slide
-5. **No brand intelligence** — logo dropped randomly, no color extraction, no device frames on screenshots
-
-The architecture gap vs. Claude web: Claude generates raw HTML/CSS per slide (full visual control). Flowro cages Claude in a JSON schema rendered by a fixed template.
-
----
+      # Flowro Slides — Path A: Code-as-Design Architecture
+
+      > **Goal:** Match Claude.ai web slide quality. End the era of templated, generic-looking decks. Give the LLM full visual control by letting it emit executable design code, not fill-in-the-blank JSON.
 
-## Milestone 0 — Schema & Prompt Foundation
-**Status: `DONE`**
-**Impact: 🔴 Critical — every subsequent milestone depends on this**
-
-This milestone makes the AI produce better content before any visual changes. Fastest path to meaningful quality improvement.
-
-### 0.1 — Tighten Schema Limits
-File: `app/src/lib/slides/schema.ts`
+      ---
 
-| Field | Current | Target | Reason |
-|---|---|---|---|
-| `title` | 120 chars | **60 chars** | ~10 words max — assertion, not sentence |
-| `claim` | 280 chars | **110 chars** | One sharp sentence, ~16 words |
-| `body[]` count | 1–5 items | **1–3 items** | 3 bullets max per slide |
-| `body[]` per item | 180 chars | **72 chars** | ~10 words — fragment, not sentence |
-| `proof.title` | 160 chars | **80 chars** | Scannable headline only |
-| `proof.description` | 420 chars | **160 chars** | 25 words max — AI shouldn't write paragraphs here |
-| `proof.data.label` | 80 chars | **40 chars** | 5-word max label |
-| `proof.data.value` | 140 chars | **60 chars** | Number or short phrase |
-
-### 0.2 — Rewrite Story Generation Prompt
-File: `app/src/lib/slides/story.ts`
-
-Add these rules to the system prompt:
-- Titles are **assertive claims**, max 8 words. Not topic labels. BAD: "Q3 Results" → GOOD: "Revenue exceeded forecast by 12%"
-- Claims: one specific falsifiable sentence, max 16 words
-- Vary layouts: never more than 2 consecutive `claim_visual` slides
-- Always prefer `chart`, `comparison`, or `timeline` over `source_backed_visual`
-- Outline is a **designed argument** — each slide advances the story, none repeats the previous
-
-### 0.3 — Rewrite Deck Generation Prompt
-File: `app/src/lib/slides/deck.ts`
-
-**Text rules (add verbatim to system prompt):**
-```
-Body bullets: max 3 items, each under 10 words. Use fragments: "Revenue up 3× in Q4",
-not sentences. Cut every word that adds no signal.
-
-Claim: one sharp assertion, max 16 words. No hedging. No "we believe that".
-
-Title: echo and amplify the claim in ≤8 words.
-```
-
-**Chart data rules:**
-```
-Charts: every data point MUST have a numericValue (integer or decimal).
-Bar, line, area, donut, scatter, and funnel charts need at least 4 data points when the source supports it.
-Progress charts use 1 primary data point and may include 1 optional goal/context point.
-Scatter charts MUST include xValue for the x-axis and numericValue for the y-axis.
-Labels max 5 words. Values are real numbers or percentages.
-The highest bar tells the story — name it clearly.
-```
-
-**Comparison rules:**
-```
-Comparison: two sides MUST have named headers (e.g. "Without Flowro" / "With Flowro",
-"Old Way" / "New Way"). Each side max 3 items. Last item in the right column = the win.
-```
-
-**Timeline rules:**
-```
-Timeline: 4–5 steps. Each step = a verb phrase (action, not noun). Max 6 words per step.
-```
-
-**Layout variety enforcement:**
-```
-Slide 1: always layout=cover. Last slide: always layout=closing.
-Middle slides: include at least one timeline or comparison when content supports it.
-Never more than 2 consecutive slides with layout=claim_visual.
-```
-
-**Theme rules:**
-```
-Derive accent color from attached brand_asset or style_template_guide when available.
-Never use generic blue (#0066ff range) as accent unless the brand explicitly uses it.
-background + foreground must have contrast ratio ≥ 4.5:1.
-```
-
----
-
-## Milestone 1 — Chart System (Multiple Types, Context-Aware)
-**Status: `DONE`**
-**Impact: 🔴 Critical — charts are the most visible proof of quality**
-
-Files: `app/src/lib/slides/schema.ts`, `app/src/lib/slides/deck.ts`, `app/src/components/workspace/SlideRenderer.tsx`
-
-### Core Principle
-Charts are not one-size-fits-all. The chart type must match the **data story** being told. Currently Flowro renders every "chart" as horizontal bars regardless of context — that's wrong.
-
-### 1.1 — Add `chartType` to Schema
-File: `app/src/lib/slides/schema.ts`
-
-Add `chartType` field to `SlidesProofObject`:
-```typescript
-chartType?: "bar_horizontal" | "bar_vertical" | "line" | "area" | "donut" | "progress" | "scatter" | "funnel"
-```
-
-Default: `"bar_horizontal"` (existing behavior preserved as fallback).
-
-Scatter data also needs a real x-axis field:
-```typescript
-data: Array<{ label: string; value: string; xValue?: number; numericValue?: number }>
-```
-
-### 1.2 — Teach the AI When to Use Each Chart Type
-File: `app/src/lib/slides/deck.ts` — add to deck system prompt:
-
-```
-When proof.type is "chart", choose chartType based on the data story:
-
-bar_horizontal  — comparing discrete categories side by side (e.g. feature scores, market share by company)
-bar_vertical    — showing ranked values or distribution across categories with short labels (e.g. monthly revenue by quarter)
-line            — showing a trend over time with 5+ data points (e.g. weekly active users, churn rate over months)
-area            — same as line but emphasizing volume/cumulative growth (e.g. ARR growth, total signups over time)
-donut           — showing part-to-whole proportions, 2–5 segments (e.g. revenue by segment, traffic sources)
-progress        — showing progress toward a single goal or milestone (e.g. "78% of target reached")
-scatter         — showing correlation between two variables (e.g. deal size vs. close rate)
-funnel          — showing conversion drop-off through sequential stages (e.g. sign-up → activation → paid)
-
-Rules:
-- Use line/area for anything time-based with 5+ points
-- Use bar_horizontal for any comparison with long category labels
-- Use bar_vertical for short labels and ranked/sequential data
-- Use donut only for proportions — never for trend or comparison data
-- Use funnel only for conversion or pipeline data (stages must be sequential)
-- NEVER use bar_horizontal as a default for time-series data
-- Scatter points must include `xValue` for the x-axis and `numericValue` for the y-axis
-```
-
-### 1.3 — Build Each Chart Renderer
-File: `app/src/components/workspace/SlideRenderer.tsx`
-
-Render logic dispatches on `proof.chartType` (or infers from data shape if not set).
-
----
-
-#### `bar_horizontal` (redesigned — replaces current broken version)
-```
-WHO   ████████████████████ 47%    ← value label ON bar end
-WHAT  ████████████ 28%
-WHY   ████████ 19%
-HOW   ████ 6%
-```
-- Bar: `h-6`, `rounded-full`, accent color, opacity gradient (max = 100%, others = 65%)
-- Label: `w-28 shrink-0`, `0.8rem semibold`, right-aligned
-- Value: `0.72rem bold white`, inside bar at right edge
-- Background track: `bg-black/6 rounded-full` full width
-- Grid: 4 faint vertical lines at 25% intervals
-- Max 6 rows
-
----
-
-#### `bar_vertical`
-```
-     █
-  █  █  █
-  █  █  █  █
- Q1  Q2  Q3  Q4
-```
-- Equal-width columns, bars grow upward from baseline
-- Value label above each bar: `0.72rem bold`
-- Axis label below: `0.75rem muted`
-- Highlight tallest bar in full accent; others at 65%
-- Max 8 bars; label rotates -45° if > 5 items
-
----
-
-#### `line`
-- SVG polyline connecting data points
-- Points: `r=3` circles in accent color
-- Line: `stroke-width: 2`, accent color
-- X-axis: category labels (`0.7rem muted`)
-- Y-axis: auto-scaled min/max with 3 reference lines (`stroke-dasharray`)
-- Last point: larger circle + bold value label callout
-- Max 12 points
-
----
-
-#### `area`
-- Same as `line` but with `fill` polygon from line to baseline
-- Fill: accent at 15% opacity
-- Line: accent at 100%
-- Emphasizes cumulative volume vs. point-to-point trend
-
----
-
-#### `donut`
-- SVG arc segments, `stroke-width: 28`, `r: 40`
-- Each segment: accent family (full, 75%, 50%, 30%, 15% opacity) — no rainbow colors
-- Center text: largest segment value (big) + its label (small muted)
-- Legend: right of chart, dots + labels + values
-- Max 5 segments; extras collapsed into "Other"
-
----
-
-#### `progress`
-- Single thick horizontal bar (or circular gauge)
-- Large percentage number centered: `3rem bold`
-- Bar: accent fill, `h-3 rounded-full`
-- Goal label below: `0.75rem muted` ("of $2M ARR target")
-- Optional milestone markers on track
-
----
-
-#### `funnel`
-- Stacked trapezoid shapes narrowing downward
-- Each stage: label left + value right + conversion % badge between stages
-- Colors: accent at decreasing opacity (top = 100%, bottom = ~30%)
-- Drop-off arrow with `%` between each stage pair
-- Max 6 stages
-
----
-
-#### `scatter`
-- SVG dots on XY axes
-- X-axis label + Y-axis label
-- `xValue` controls x-position; `numericValue` controls y-position
-- Dot size: uniform or scaled by optional `group` weight
-- Color: accent for main cluster, muted for outliers
-- Optional trend line: `stroke-dasharray`, muted color
-- Max 20 points
-
----
-
-### 1.4 — Smart Chart Type Inference (Fallback)
-If `chartType` is missing or invalid, infer from data shape:
-```typescript
-function inferChartType(proof: SlidesProofObject): ChartType {
-  const items = proof.data ?? []
-  const hasTime = items.some(d => /\b(jan|feb|mar|q[1-4]|20\d\d|week|month|day)\b/i.test(d.label))
-  const isProportional = items.every(d => d.numericValue !== undefined) && sum(items) >= 95 && sum(items) <= 105
-  const isFunnel = items.every((d, i) => i === 0 || d.numericValue! <= items[i - 1].numericValue!) &&
-    /\b(visitor|signup|activated|paid|lead|pipeline|conversion|trial|demo)\b/i.test(items.map(d => d.label).join(" "))
-
-  if (isProportional && items.length <= 5) return "donut"
-  if (hasTime && items.length >= 5) return "line"
-  if (items.length === 1) return "progress"
-  if (isFunnel && items.length >= 3) return "funnel"
-  return "bar_horizontal"
-}
-```
-
----
-
-### 1.5 — Comparison, Timeline, Diagram (also redesigned)
-
-#### Comparison
-- Left column header: muted uppercase ("WITHOUT FLOWRO")
-- Right column header: accent uppercase ("WITH FLOWRO")
-- Left items: `—` prefix, muted text
-- Right items: `✓` prefix, accent text
-- Headers: `1rem bold uppercase tracking-wide`
-
-#### Timeline
-- Horizontal flow with connecting lines
-- Each step: accent pill number → bold title → short description
-- Connector: `border-t-2 border-accent/40`
-- Final step: full accent background fill
-
-#### Diagram
-- Each node: accent-bordered box, label max 4 words
-- Directional chevron arrows between nodes
-- Last node: filled accent background (= outcome)
-
----
-
-## Milestone 2 — Layout System Expansion
-**Status: `TODO`**
-**Impact: 🟠 High — eliminates the "all slides look the same" problem**
-
-File: `app/src/components/workspace/SlideRenderer.tsx`
-Supporting: `app/src/lib/slides/schema.ts`, `app/src/lib/slides/deck.ts`
-
-### Current: 6 layouts
-`cover`, `claim_visual`, `comparison`, `timeline`, `data_table`, `closing`
-
-### Target: 12+ layouts
-
-| New Layout | Description | When to Use |
-|---|---|---|
-| `big_number` | Giant metric centered, claim below, 1-2 supporting bullets | Stats, KPIs, market size |
-| `side_by_side` | Two equal columns, each with icon + title + 3 bullets | Feature comparison, dual concept |
-| `quote_highlight` | Large pull quote, source attribution, supporting context | Testimonials, analyst quotes |
-| `timeline_vertical` | Vertical stepped timeline (for 5+ steps) | Process, roadmap, history |
-| `image_left` | Full-bleed image left 50%, content right 50% | Product proof, real examples |
-| `image_full` | Full-bleed background image with overlay + centered text | Section breaks, emotional beats |
-
-### Cover Slide Improvements
-- Remove `max-w-[10ch]` constraint — title should breathe
-- Accent geometric shape (stripe or angular cutout) as right-panel background
-- Subtitle: `1.4rem`, light weight, max 12 words
-- Deck title feeds into large hero treatment: `clamp(2.5rem, 6vw, 7rem)`
-
----
-
-## Milestone 3 — Brand Intelligence
-**Status: `TODO`**
-**Impact: 🟠 High — makes every deck feel "made for this company"**
-
-### 3.1 — Automatic Color Extraction from Logo
-File: `app/src/lib/slides/sourceIntake.ts`
-
-When a `brand_asset` source is classified:
-- Extract dominant and accent colors from the image using canvas pixel analysis
-- Store as `brandColors: { primary, accent, background }` on the source
-- Pass `brandColors` to deck generation prompt
-- Deck prompt instructed: "Use these exact hex values for theme, do not invent colors"
-
-### 3.2 — Logo Placement Rules
-File: `app/src/components/workspace/SlideRenderer.tsx`
-File: `app/src/lib/slides/deck.ts`
-
-Professional logo rules (backed by brand guideline research):
-- **Cover slide**: Logo rendered prominently (15–25% visual presence), bottom-left or centered
-- **Closing slide**: Logo rendered at same position as cover
-- **All other slides**: NO logo — this is the standard (recurring logos = advertising, not design)
-- **Size enforcement**: Logo container = `h-12 w-auto` max on cover, `h-8` on closing
-- **Clear space**: Minimum padding equal to logo height on all sides
-- **Format priority**: SVG → PNG with transparency → fallback to text name
-
-Logo is passed as a special `brand_asset` source and the renderer must identify and handle it separately from evidence images.
-
-### 3.3 — Product Screenshot Treatment
-File: `app/src/components/workspace/SlideRenderer.tsx`
-
-When `proof.type === "image"` and source role is `product_screenshot`:
-- Wrap in a browser/laptop device frame (`rounded-t-lg bg-[#1a1a1a]` header bar with 3 dots)
-- Add subtle drop shadow: `shadow-2xl`
-- Never render raw screenshots without frame — looks like a bug report
-
-### 3.4 — Image Overlay Rule
-When a `visualAsset` with `kind=source_image` or `kind=web_image` is used as a background:
-- Apply `bg-black/50` overlay layer between image and text
-- `object-fit: cover`, `object-position: center` default
-- For images with a face or focal point: expose `object-position` from the visual asset metadata
-
----
-
-## Milestone 4 — Post-Generation Validation Pass
-**Status: `TODO`**
-**Impact: 🟡 Medium — catches layout failures before user sees them**
-
-Genspark's "Fix Layout" is the inspiration. After deck generation, run a validation pass:
-
-File: `app/src/lib/slides/deck.ts` (new `validateSlidesDeck()` function)
-
-Rules to enforce:
-- `body[]` items over 72 chars → truncate at last word boundary
-- Slides with `body.length > 3` → trim to 3 items
-- `claim` over 110 chars → trim to last sentence boundary
-- Charts with no `numericValue` → assign equally-spaced fallback values (1, 2, 3...) so bars render with width
-- Comparison with no left/right headers in `proof.data` → inject "Option A" / "Option B" labels
-- `layout=claim_visual` more than 2× in a row → flag in `deck.diagnostics` for prompt retry
-- No cover slide → inject one
-- No closing slide → inject one
-
----
-
-## Milestone 5 — Visual Polish & Typography
-**Status: `TODO`**
-**Impact: 🟡 Medium — makes good slides look great**
-
-File: `app/src/components/workspace/SlideRenderer.tsx`
-
-### Typography Scale Audit
-Current sizes are too small across the board:
-
-| Element | Current | Target |
-|---|---|---|
-| Chart labels | `0.65rem` | `0.8rem` |
-| Proof type badge | `0.62rem` | `0.72rem` |
-| Body bullets | `clamp(0.7rem, 0.92vw, 1.05rem)` | `clamp(0.85rem, 1vw, 1.1rem)` |
-| Claim (standard slide) | `clamp(0.95rem, 1.45vw, 1.65rem)` | `clamp(1.05rem, 1.6vw, 1.8rem)` |
-
-### Proof Panel Improvements
-- If `proof.description` is empty or < 20 chars: hide the description area, give space back to data rows
-- Proof type badge: change from `replace(/_/g, " ")` raw text → human-readable labels:
-  - `source_backed_visual` → `EVIDENCE`
-  - `chart` → `DATA`
-  - `comparison` → `COMPARISON`
-  - `timeline` → `TIMELINE`
-  - `diagram` → `FLOW`
-  - `table` → `TABLE`
-
-### Cover Slide Visual
-- Accent stripe on right panel: angular geometric shape via CSS `clip-path` or `border` trick
-- Right panel background: `accent` at 15% opacity as base, stripe at 100% accent as overlay element
-- Deck title line-height tightened: `leading-[0.9]` for big display type (looks intentional, not accidental)
-
----
-
-## Implementation Order
-
-Execute milestones in this order. Each one builds on the previous:
-
-```
-M0 (Prompt + Schema)  ← Start here. Highest ROI, zero visual work.
-      ↓
-M1 (Charts + Proofs)  ← Biggest visible quality jump.
-      ↓
-M3 (Brand: Logo + Screenshots + Colors)  ← Makes it feel "made for you".
-      ↓
-M2 (Layout Expansion)  ← Eliminates visual monotony.
-      ↓
-M4 (Validation Pass)  ← Catches failures before they ship.
-      ↓
-M5 (Typography Polish)  ← Final 10% that separates good from great.
-```
-
----
-
-## Definition of Done
-
-A Flowro slide deck is "great" when it passes all of these:
-
-- [ ] Body text across all slides ≤ 30 words per slide
-- [ ] Every chart uses the correct type for its data story (line for trends, donut for proportions, funnel for conversion, bar for comparisons)
-- [ ] Every non-progress chart has visible value labels and ≥ 4 data points with `numericValue`
-- [ ] Scatter charts use real `xValue` + `numericValue` pairs, not index-based positioning
-- [ ] No two consecutive slides share the same layout
-- [ ] Logo appears only on cover and closing slides, correctly sized
-- [ ] Product screenshots are wrapped in a device frame
-- [ ] Accent color derives from the uploaded brand asset (when provided)
-- [ ] Cover slide title fills its column without `max-width` clipping
-- [ ] 3-second test: the main claim is identifiable in 3 seconds on every slide
-- [ ] No `source_backed_visual` on more than 1 slide unless evidence is actually attached
-
----
-
-## Key Files
-
-```
-app/src/lib/slides/schema.ts              — M0: limits
-app/src/lib/slides/story.ts               — M0: story prompt
-app/src/lib/slides/deck.ts                — M0: deck prompt + M4: validation
-app/src/lib/slides/sourceIntake.ts        — M3: brand color extraction
-app/src/components/workspace/SlideRenderer.tsx  — M1, M2, M3, M5: renderer
-app/src/__tests__/slidesDeckTests.ts      — verification
-```
+      ## Why we are rewriting (root cause)
+
+      The current pipeline cages the LLM:
+
+      1. LLM emits JSON conforming to `slidesStructuredSlideSchema` ([schema.ts:189](app/src/lib/slides/schema.ts:189))
+      2. JSON has a fixed `layout` enum of 12 templates ([schema.ts:199-212](app/src/lib/slides/schema.ts:199))
+      3. `SlideRenderer.tsx` paints those templates with React
+      4. `export.ts` re-paints the same JSON via pptxgenjs (drawing rectangles where charts should be — [export.ts:159-195](app/src/lib/slides/export.ts:159))
+
+      The reference deck the user wants to match (`/Users/khalidr/Downloads/flowro_deck.js`) is built from **primitives at arbitrary coordinates**: low-opacity oval blobs for decoration, layered cards, accent bars, status pills, FontAwesome icons rendered to PNG, real `pres.charts.BAR` charts, mock UI dashboards composed from rectangles, alternating dark/light backgrounds per slide. The current schema cannot express any of that. There is no `shapes[]`, `icons[]`, `freeform`, per-slide `background`, or arbitrary x/y/w/h vocabulary. There never can be — every enum we add is another bar of the cage.
+
+      Templates do not produce designed slides. Composition produces designed slides. Only the LLM has the design judgment to compose. The current architecture takes that judgment away from it.
+
+      **Path A removes the cage entirely.** The LLM writes the code that builds the slide.
+
+      ---
+
+      ## What we want to achieve
+
+      A user types a prompt + uploads a brand asset. They get back a deck where:
+
+      - Every slide is uniquely composed — no two slides are visually identical "templates"
+      - Decorative elements (blobs, accent bars, geometric shapes) appear where they aid hierarchy
+      - Charts are real, native pptxgenjs charts with grids, axis labels, data labels — not rectangles pretending to be bars
+      - Icons appear inline, color-matched to the brand
+      - Backgrounds alternate (navy / light / dark) to create rhythm across the deck
+      - The exported `.pptx` is **editable in PowerPoint** — shapes are real shapes, charts are real charts, text is real text
+      - Browser preview is **pixel-faithful to the export** — what you see is what you get
+      - The deck visually rivals the reference deck at `/Users/khalidr/Downloads/flowro_deck.js`
+
+      The 3-second test: a viewer can identify the main claim of any slide in 3 seconds. The 30-second test: a viewer cannot tell whether the deck was made by Flowro or by a designer in Keynote.
+
+      ---
+
+      ## Architecture
+
+      ### Single source of truth: pptxgenjs as the slide IR
+
+      The LLM emits JavaScript that calls a constrained subset of `pptxgenjs`. That code is the slide. It is rendered two ways from the same source:
+
+      ```
+                        ┌─────────────────────────────────────┐
+                        │  LLM (Claude / GPT)                 │
+                        │  emits: pres.addSlide() + shapes +  │
+                        │  charts + images + text             │
+                        └────────────────┬────────────────────┘
+                                    │
+                        slideCode.js (per slide, sandboxed)
+                                    │
+                  ┌──────────────────┴──────────────────┐
+                  │                                     │
+            ┌───────▼────────┐                  ┌─────────▼────────┐
+            │ Browser preview │                  │  pptx export    │
+            │ pptx-to-DOM     │                  │  pptxgenjs      │
+            │ interpreter →   │                  │  writeFile()    │
+            │ HTML/SVG/CSS    │                  │  → .pptx        │
+            └─────────────────┘                  └──────────────────┘
+      ```
+
+      Why pptxgenjs as the IR and not raw HTML/CSS:
+      - The user's deliverable is `.pptx`. If we use HTML and rasterize to images for export, we get an unmaintainable deck that is just screenshots — uneditable, blurry, large file size.
+      - pptxgenjs primitives map naturally to PowerPoint shapes. Native shapes are editable, scalable, accessible.
+      - The reference deck the user pasted is *already* pptxgenjs code. The LLM has clearly seen and is good at this format.
+      - We only need to write **one** preview interpreter; the export is free (pptxgenjs already does it).
+
+      ### What the LLM emits
+
+      A plain JS module per deck, exporting an async `build(pres, assets)` function:
+
+      ```js
+      // slide source emitted by the LLM
+      export async function build(pres, assets) {
+      const C = { navy: "0D1B3E", accent: "00E5C3", /* ... */ }
+
+      // Slide 1 - Cover
+      {
+      const s = pres.addSlide()
+      s.background = { color: C.navy }
+      s.addShape(pres.shapes.OVAL, { x: 6.8, y: -1.2, w: 4.8, h: 4.8,
+            fill: { color: C.blue, transparency: 82 }, line: { color: C.blue, width: 0 } })
+      s.addImage({ data: assets.logo, x: 0.65, y: 0.55, w: 0.52, h: 0.52 })
+      s.addText("Workflow Intelligence\nThat Pays for Itself.", {
+            x: 0.65, y: 1.95, w: 6.5, h: 1.6,
+            fontSize: 36, bold: true, color: C.white, fontFace: "Trebuchet MS",
+      })
+      s.addChart(pres.charts.BAR, [...], { /* real chart options */ })
+      // ...
+      }
+      // Slide 2 ...
+      }
+      ```
+
+      `assets` is a pre-built bag of base64 PNGs the host prepares before execution: brand logo, requested icons, evidence images. The LLM never reaches the network or filesystem — it consumes only what the host provides.
+
+      ### Sandboxed execution
+
+      This is the obvious risk: arbitrary LLM code. Mitigations:
+
+      1. **Static AST gate.** Parse the emitted JS with `acorn`. Reject the module if it contains: `import` / `require`, function declarations outside the exported `build`, `eval`, `new Function`, property access matching `__proto__|constructor|prototype`, any `await` other than on the provided `pres` API, any global identifier other than the allowlist (`pres`, `assets`, `Math`, `Number`, `String`, `Array`, `Object.{keys,values,entries}`, `console.log` mapped to a buffered logger).
+      2. **VM execution.** Run the validated module in `node:vm` with an empty context. Inject only `pres` (a wrapped pptxgenjs instance) and `assets`. No `process`, no `globalThis` leakage.
+      3. **Resource limits.** Wall clock 8 s. Slide count cap 24 (already enforced). Per-slide shape count cap (e.g. 60). Total addImage data cap 6 MB. Hard kill on overflow.
+      4. **No filesystem write inside the sandbox.** The wrapped `pres` does not expose `writeFile`; the host calls `pres.write({ outputType: "nodebuffer" })` after `build` returns.
+
+      A failed gate or runtime error falls back to a single retry with the error embedded in the prompt ("the previous attempt threw X — fix it"). After two failures we fall back to a deterministic minimal deck and surface a `needs_attention` status.
+
+      ### Browser preview: the interpreter
+
+      Preview is a small JS module that takes the same `slideCode.js` and renders it to DOM/SVG instead of pptx. We write a `PreviewPres` shim with the same surface (`addSlide`, `addShape`, `addText`, `addImage`, `addChart`, `shapes.{OVAL,RECTANGLE,LINE,ROUNDED_RECTANGLE}`, `charts.{BAR,LINE,DOUGHNUT,SCATTER,AREA}`). Each call pushes a primitive into a per-slide list; the preview component renders the list as absolutely-positioned divs and inline SVG.
+
+      Coordinates: pptxgenjs uses inches on a 10×5.625 canvas. Preview multiplies by a px-per-inch scale (configurable for the editor's current zoom). Fonts, colors, transparency, line weight all map directly.
+
+      Charts: render as `<svg>` using a tiny renderer (~200 LOC) that handles BAR / LINE / DOUGHNUT / SCATTER / AREA from the same `chartData` the LLM passed.
+
+      This interpreter is the only new significant code we own. Everything else is delegation to pptxgenjs.
+
+      ### What gets deleted
+
+      - `app/src/lib/slides/schema.ts` — the `slidesStructuredSlideSchema`, `slidesProofObjectSchema`, layout enum, `chartType` enum, visual asset enum. Story-level types stay (brief, outline, evidence). Deck-level becomes `{ title, theme, slideCode: string, assets: AssetBag, diagnostics }`.
+      - `app/src/lib/slides/export.ts` — entire file. Replaced by ~40 lines that load the sandbox, run `build`, and call `pres.writeFile`.
+      - `app/src/components/workspace/SlideRenderer.tsx` — the 1100-line layout switch. Replaced by `<SlideCanvas slide={previewPrimitives} />` (~250 lines including the chart sub-renderers).
+      - `app/src/__tests__/slidesDeckTests.ts` schema-shape tests. Replaced with sandbox-execution tests + visual-regression snapshots.
+
+      This deletion is the point. The cage is the bug.
+
+      ---
+
+      ## Implementation status (2026-05-10)
+
+      | Phase | Status | Notes |
+      |---|---|---|
+      | **Phase 1 — Sandbox + IR + preview** | ✅ **Done** | `sandbox.ts`, `previewPres.ts`, `SlideCanvas.tsx`, `sampleDecks.ts`, 19 tests passing (`slidesSandboxTests.ts`). Static gate rejects `import`, `require`, `eval`, `Function`, `process`, `__proto__`, `fetch`, `XMLHttpRequest`. `node:vm` for server execution, `new Function` for browser preview. Wall-clock timeout enforced. |
+      | **Phase 2a — slideCode generation + assets (core)** | ✅ **Done** | `generateSlidesDeckCode()` in `deck.ts` with full pptxgenjs-teaching prompt (API declaration + 3 worked examples + design rules). `assetBag.ts` builds logo/screenshot/icon PNG bag. Generation route attaches `slideCode` + `assets` to the deck; export route prefers slideCode → real native pptx shapes/charts. Schema extended additively (`slideCode?`, `assets?`, sandbox diagnostics). Legacy JSON pipeline still runs in parallel as fallback. |
+      | **Phase 2b — Vision-driven asset intake** | ✅ **Done** | Full multi-stage pipeline: `visionClassify.ts` (multimodal OpenRouter call → role + dominantColors + looksLikeLogo + usableAs), `documentExtract.ts` (TXT/MD/PDF heuristic text extraction), `dataExtract.ts` (manual CSV/TSV parser → typed table schema), `deckExtract.ts` (stub; LibreOffice/hosted converter deferred), `intentParse.ts` (regex intent matcher: "use this as logo" etc.). `sourceIntake.ts` rewritten as `analyzeAssets()` running all passes in parallel with intent-reconcile at the end. `AssetRecord` type added to `schema.ts`. XLSX, full-fidelity PDF, and PPTX→PNG remain pending (no pdfjs-dist/mammoth/LibreOffice). |
+      | **Phase 3 — Brand intelligence** | ✅ **Done** | Vision `dominantColors` drive the deck theme via `themeFromAssetRecords()` — exact hex values propagated into the slideCode prompt. Logo placement hardened: `assets.logo` restricted to cover + closing via prompt rule. Product screenshots wrapped in SVG browser-chrome device frame (`addBrowserChrome()` in `assetBag.ts`). Real CSV chart data injected into the prompt via `dataContextFromRecords()`. `colorExtract.ts` gains `extractBrandColorsFromDominant()`. |
+      | **Phase 4** | ⏳ Pending | Validation/retry loop on captured primitives. |
+      | **Phase 5** | ⏳ Pending | Theme presets, speaker-note plumbing, deck-navigator thumbnails from preview primitives. |
+
+      ### Files added in Phase 1 + 2a
+      ```
+      app/src/lib/slides/sandbox.ts          — AST-style gate + node:vm + browser Function executor
+      app/src/lib/slides/previewPres.ts      — pptxgenjs API shim that records primitives
+      app/src/lib/slides/sampleDecks.ts      — hand-written reference slideCode (cover, chart, comparison) + minimal fallback
+      app/src/lib/slides/assetBag.ts         — logo/screenshot/evidence/icon SVG bag builder
+      app/src/components/workspace/SlideCanvas.tsx — DOM/SVG renderer for PreviewPres primitives
+      app/src/__tests__/slidesSandboxTests.ts — 19 sandbox + preview + sample-deck tests, all passing
+      ```
+
+      ### Files added in Phase 2b + 3
+      ```
+      app/src/lib/slides/visionClassify.ts   — multimodal OpenRouter call: role + dominantColors + looksLikeLogo + usableAs
+      app/src/lib/slides/documentExtract.ts  — TXT/MD/PDF text + heading extraction (no external deps)
+      app/src/lib/slides/dataExtract.ts      — manual CSV/TSV parser → typed table schema (no external deps)
+      app/src/lib/slides/deckExtract.ts      — PPTX slide extraction stub (LibreOffice deferred)
+      app/src/lib/slides/intentParse.ts      — regex intent matcher ("use this as logo", "this is our dashboard", etc.)
+      ```
+
+      ### Files modified in Phase 1 + 2a
+      ```
+      app/src/lib/slides/schema.ts           — added slideCode?, assets?, sandbox diagnostics fields (additive)
+      app/src/lib/slides/deck.ts             — added generateSlidesDeckCode() with pptxgenjs-teaching prompt + retry
+      app/src/lib/slides/export.ts           — added exportSlidesDeckCodeToPptx() that runs sandbox
+      app/src/app/api/projects/[projectId]/slides/generate/route.ts — attaches slideCode + assets to deck
+      app/src/app/api/projects/[projectId]/slides/export/route.ts   — prefers slideCode export, falls back to legacy
+      ```
+
+      ### Files modified in Phase 2b + 3
+      ```
+      app/src/lib/slides/schema.ts           — AssetRecord, AssetRole, AssetUsage types added; tables.rowCount added
+      app/src/lib/slides/sourceIntake.ts     — new analyzeAssets() multi-stage pipeline (vision+doc+data+intent); legacy exports kept
+      app/src/lib/slides/assetBag.ts         — AssetRecord[] path (usableAs-based key selection); addBrowserChrome() SVG device frame
+      app/src/lib/slides/colorExtract.ts     — new extractBrandColorsFromDominant() for vision-extracted hex arrays
+      app/src/lib/slides/deck.ts             — themeFromAssetRecords() uses vision dominantColors; dataContextFromRecords() injects CSV data; assetRecords? param on generateSlidesDeckCode
+      app/src/app/api/projects/[projectId]/slides/generate/route.ts — calls analyzeAssets() with story.brief.objective as intent; passes assetRecords to generateSlidesDeckCode
+      ```
+
+      ### Known gaps remaining after Phase 2b
+      - **XLSX parsing**: requires `xlsx` package (not installed). CSV works; XLSX returns null.
+      - **DOCX/DOC parsing**: requires `mammoth` (not installed). Returns empty extraction.
+      - **PPTX → PNG slide thumbnails**: requires LibreOffice or a hosted converter. `deckExtract.ts` returns empty.
+      - **Full-fidelity PDF parsing**: the heuristic regex extracts text from simple PDFs; complex PDFs with embedded fonts need `pdfjs-dist`.
+
+      ### Outstanding work to take Path A end-to-end (Phase 2c)
+      - Wire `SlideCanvas` into `SlidesWorkspace.tsx` so the editor shows the slideCode-driven preview when `deck.slideCode` is set, instead of the legacy `SlideRenderer`. Right now Path A only drives the `.pptx` export — the in-app preview still uses the legacy `slides[]` renderer. This is purely a UI swap; the data is already present on the deck.
+      - Once `SlideCanvas` is the default preview, delete `SlideRenderer.tsx` and the JSON-driven exporter branches in `export.ts` per the original plan ("two parallel pipelines is worse than one. Commit.").
+      - Add a `/api/projects/[projectId]/slides/regenerate-code` endpoint so users can re-roll slideCode without re-running the whole story → outline → web-evidence pipeline.
+
+      ## Implementation phases
+
+      ### Phase 1 — Sandbox + IR + preview parity (foundation) ✅ DONE
+      **Why first:** without a working sandbox and preview, nothing else can be tested. This is the technical risk concentration; clear it before touching prompts.
+
+      - New file `app/src/lib/slides/sandbox.ts` — AST gate, vm execution, resource limits.
+      - New file `app/src/lib/slides/previewPres.ts` — `PreviewPres` shim mirroring the pptxgenjs subset we accept.
+      - New file `app/src/components/workspace/SlideCanvas.tsx` — renders preview primitives. Includes inline SVG renderers for BAR / LINE / DOUGHNUT / SCATTER / AREA.
+      - Hand-write 3 reference decks as `slideCode.js` files (cover, chart, comparison). Verify pptx export and preview match pixel-for-pixel.
+      - Visual regression test: render preview to canvas, hash it, compare across runs.
+
+      **Done when:** a hand-authored `slideCode.js` produces an identical-looking preview and `.pptx`.
+
+      ### Phase 2 — LLM emits slideCode.js  ✅ Phase 2a DONE  ✅ Phase 2b DONE
+      **Why second:** until Phase 1 works, we cannot evaluate prompt quality.
+
+      Phase 2a (slideCode prompt + asset bag) shipped 2026-05-09. Phase 2b (vision-driven asset
+      intake) shipped 2026-05-10 — `analyzeAssets()` runs vision classification, document extraction,
+      CSV parsing, and intent override in parallel for every uploaded asset. See status table for
+      remaining gaps (XLSX, DOCX, PPTX→PNG).
+
+      - Replace `deck.ts` system prompt. The new prompt:
+      - Shows the LLM the exact `pres` API surface as TypeScript declarations (the only contract).
+      - Provides 4 worked examples (cover / chart / comparison / closing) lifted from the reference deck.
+      - Instructs: emit a single ES module exporting `async function build(pres, assets)`. No imports. Use only the documented API.
+      - Embeds `assets` keys (`logo`, `icon_check`, `icon_x`, `icon_arrow`, evidence images) so the LLM knows what is available.
+      - Hard rules: 6–10 slides; first slide = cover; last slide = closing; vary backgrounds; use real charts not rectangles; one decorative shape per slide minimum.
+      - Pre-build the asset bag at request time:
+      - Brand logo: extract from uploaded brand_asset, render to PNG at 256px.
+      - Icon set: render a fixed FontAwesome subset (`check`, `x`, `arrow-right`, `rocket`, `chart-line`, `users`, `shield`, `star`, `cog`, `layer-group`, `bolt`, `circle-check`) via `react-icons` + `sharp` to PNG once at startup, cached.
+      - Evidence images: pre-fetched and base64'd as today.
+      - Story stage (`story.ts`) keeps its current shape — outline + evidence + brief — but no longer constrains layouts. Output is fed verbatim into the deck prompt as research input.
+
+      **Done when:** the LLM-emitted `slideCode.js` compiles through the sandbox on ≥95% of test prompts and the rendered output is recognizably "designed."
+
+      ### Phase 3 — Brand intelligence  ✅ Done (2026-05-10)
+      **Why third:** quality gain per unit work is high once the codepath works.
+
+      - Vision `dominantColors` from `visionClassify.ts` drive theme via `themeFromAssetRecords()` in `deck.ts`. Exact hex values injected into the slideCode prompt with instruction to use them verbatim.
+      - Logo placement enforced in the prompt: `assets.logo` must only appear on cover (top-left, w≈0.6) and closing slides.
+      - Product screenshots wrapped in SVG browser-chrome device frame via `addBrowserChrome()` in `assetBag.ts` (gray title bar + traffic lights). Applied to all `framed_screenshot` assets.
+      - Real CSV chart data injected into the prompt via `dataContextFromRecords()` so the LLM uses actual numbers.
+
+      **Done when:** a deck generated from an uploaded brand asset uses that brand's exact accent color across charts, accent bars, and status pills.
+
+      ### Phase 4 — Validation & retry loop
+      **Why fourth:** catches the long-tail failures that prompt-only fixes miss.
+
+      - After sandbox execution, walk the captured primitives:
+      - Reject if any text element overflows its bounding box (rough metric: chars × fontSize / w).
+      - Reject if total decorative shapes < 1 per slide.
+      - Reject if any slide has zero text or zero shapes.
+      - One retry with rejection reasons fed back to the LLM. Then accept or fall back.
+
+      **Done when:** rejection rate on a 50-prompt eval set is <5% after one retry.
+
+      ### Phase 5 — Polish
+      - Theme presets (navy / forest / mono / warm) the LLM picks from when no brand asset is provided.
+      - Speaker notes preserved (passed through `pres.addNotes`).
+      - Slide thumbnails for the deck navigator generated from preview primitives at low resolution.
+
+      ---
+
+      ## File-by-file change map
+
+      | File | Action |
+      |---|---|
+      | `app/src/lib/slides/schema.ts` | **Reduce.** Keep brief / outline / evidence / source schemas. Replace `slidesStructuredSlideSchema` and `slidesDeckSchema` with `slidesDeckSchema = { title, theme, slideCode: string, assets: AssetBag, diagnostics }`. |
+      | `app/src/lib/slides/deck.ts` | **Rewrite prompt.** New system prompt teaches the pptxgenjs API + provides 4 worked examples. Output parsing becomes "read first ```js block." |
+      | `app/src/lib/slides/story.ts` | **Trim.** Drop layout/proofType signals. Keep argument structure (brief + outline + evidence) as research input only. |
+      | `app/src/lib/slides/sourceIntake.ts` | **Keep.** Brand color extraction is more valuable than ever now that the LLM can use the colors freely. |
+      | `app/src/lib/slides/sandbox.ts` | **New.** AST gate + vm execution + resource limits. |
+      | `app/src/lib/slides/previewPres.ts` | **New.** PreviewPres shim that records pptxgenjs calls as primitives. |
+      | `app/src/lib/slides/assetBag.ts` | **New.** Pre-builds logo + icon PNGs + evidence images. |
+      | `app/src/lib/slides/export.ts` | **Delete.** Replace with `runSandbox(slideCode, assets, "pptx")` (~40 lines). |
+      | `app/src/components/workspace/SlideRenderer.tsx` | **Delete.** Replace with `SlideCanvas.tsx` that renders preview primitives. |
+      | `app/src/components/workspace/SlideCanvas.tsx` | **New.** Reads preview primitives, renders DOM + inline SVG charts. |
+      | `app/src/__tests__/slidesDeckTests.ts` | **Rewrite.** Sandbox safety tests + visual regression. |
+
+      ---
+
+      ## What we are deliberately NOT doing
+
+      - **Not** emitting raw HTML/CSS — this would force `.pptx` export to be a screenshot, killing editability.
+      - **Not** keeping the JSON schema "as a fallback layer." Two parallel pipelines is worse than one. Commit.
+      - **Not** trying to make `SlideRenderer.tsx`'s 12 layouts work in parallel with the new system. Delete it.
+      - **Not** building a visual editor that lets users drag shapes. The LLM is the designer; the user edits via prompt.
+      - **Not** continuing the M0–M5 roadmap. Word-count tightening and typography polish are irrelevant in a primitive-composition pipeline.
+
+      ---
+
+      ## Definition of done
+
+      A Flowro deck is shippable under Path A when:
+
+      - [ ] Side-by-side blind test against the reference deck (`/Users/khalidr/Downloads/flowro_deck.js`): designers cannot consistently identify which is Flowro
+      - [ ] Generated `.pptx` opens in PowerPoint with shapes, text, and charts as native editable objects (not images)
+      - [ ] Preview is pixel-faithful to the export (≤2% pixel diff at 1× zoom)
+      - [ ] Sandbox rejects 100% of a static-analysis attack corpus (arbitrary import / eval / prototype mutation / fs / network)
+      - [ ] Median generation time ≤ 25 s for a 6-slide deck on the production model
+      - [ ] Brand-asset upload visibly drives the deck's color system across ≥80% of slides
+      - [ ] No two consecutive slides share the same background color or composition skeleton
+
+      ---
+
+      ## Asset intake — deep vision analysis, not filename guessing
+
+      ### Why this matters
+
+      The current intake ([sourceIntake.ts:24-38](app/src/lib/slides/sourceIntake.ts:24)) classifies by filename and extension only. `BRAND_HINTS = ["brand", "logo", ...]` is a substring check. The OpenRouter classifier ([sourceIntake.ts:80-96](app/src/lib/slides/sourceIntake.ts:80)) sends `JSON.stringify({ sources })` — metadata only, never the pixels. Consequences:
+
+      - A logo uploaded as `IMG_3429.png` → classified as `image_library`, treated as evidence, never used as the brand mark.
+      - A user message saying "use this as the logo" is ignored — the upload pipeline does not read user intent.
+      - A dashboard screenshot named `Untitled.png` → `image_library` instead of `product_screenshot`, so it never gets a device frame.
+      - A reference deck PDF → only its filename is read; slide content, palette, layout cues, fonts are invisible to the deck generator.
+      - A CSV gets `data_file` role but its actual columns/rows/units are never extracted, so the LLM can't build a real chart from it.
+
+      **This must change.** With Path A the LLM is composing slides freely — it needs to know what every asset *actually contains*, not what its filename says.
+
+      ### What we want
+
+      For each attached file the pipeline produces a rich `AssetRecord` that downstream stages (deck prompt, asset bag, retry loop) can reason over:
+
+      ```ts
+      type AssetRecord = {
+        id: string
+        filename: string
+        mimeType: string
+        // What the asset IS (vision-decided, not filename-guessed)
+        role: "logo" | "brand_guideline" | "product_screenshot" | "photo"
+             | "illustration" | "icon" | "chart_image" | "diagram"
+             | "reference_deck" | "data_table" | "document" | "web_link"
+        // Free-form description from vision LLM — what it depicts, in plain English
+        description: string                    // 1–3 sentences, max ~280 chars
+        // Where in a deck this asset is appropriate
+        usableAs: Array<"cover_logo" | "closing_logo" | "inline_icon"
+                      | "full_bleed_background" | "framed_screenshot"
+                      | "inline_evidence" | "color_palette_source"
+                      | "chart_source_data" | "narrative_source">
+        // Vision-extracted properties
+        properties: {
+          dominantColors?: string[]            // hex, ordered by area
+          hasTransparency?: boolean
+          aspectRatio?: number
+          subjectFocus?: { x: number; y: number }   // 0–1 normalized — for object-position
+          textInImage?: string                 // OCR'd text if present
+          isMonochrome?: boolean
+          looksLikeLogo?: boolean              // small, simple, transparent bg, high contrast
+          looksLikeScreenshot?: boolean        // browser/app chrome detected
+        }
+        // For documents / decks / data files
+        extracted?: {
+          text?: string                        // up to 8000 chars, body content
+          pageCount?: number
+          headings?: string[]
+          tables?: Array<{ headers: string[]; rows: string[][] }>
+          embeddedImages?: Array<{ index: number; description: string }>
+          referenceSlides?: Array<{            // for reference_deck only
+            index: number
+            thumbnail: string                  // base64 PNG
+            title?: string
+            bullets?: string[]
+            palette?: string[]
+          }>
+        }
+        // User-stated intent overrides everything
+        userIntent?: string                    // raw user instruction tied to this asset
+        intentRole?: AssetRole                 // parsed from userIntent if assertive
+      }
+      ```
+
+      ### Pipeline
+
+      ```
+      upload  ──┬──► metadata sniff (cheap, deterministic)
+                │       extension, mime, size, dimensions, transparency
+                │
+                ├──► vision pass (image files)        ──► role + description + properties
+                │       single multimodal call per image
+                │       prompts vary by sniff result for sharper output
+                │
+                ├──► document pass (pdf / docx / pptx / md / txt)
+                │       extract text + tables + embedded images
+                │       embedded images each get their own vision pass
+                │
+                ├──► data pass (csv / tsv / xlsx / json)
+                │       parse → schema (column names, types, sample rows, units)
+                │
+                ├──► deck pass (ppt / pptx / key)
+                │       render each slide to PNG → vision describe each
+                │       extract palette + recurring fonts
+                │
+                ├──► link pass (url)
+                │       fetch og:image + readable text, then vision on og:image
+                │
+                └──► user-intent reconciliation (last)
+                        parse the prompt for "use X as logo / background / data"
+                        override role + intentRole when explicit
+      ```
+
+      ### Vision call shape
+
+      One multimodal call per image, model: a strong vision model (Claude 3.5 Sonnet or GPT-4o-class — configurable via env). Returns strict JSON.
+
+      ```
+      You are classifying an asset for a slide deck. Examine the image carefully.
+      Return JSON only:
+      {
+        "role": "logo|brand_guideline|product_screenshot|photo|illustration|icon|chart_image|diagram|reference_deck|data_table|document",
+        "description": "what this image depicts, in 1–3 sentences",
+        "looksLikeLogo": boolean,             // simple mark, transparent or solid bg, high contrast, small text
+        "looksLikeScreenshot": boolean,       // app/browser chrome, UI elements, dashboard
+        "subjectFocus": { "x": 0..1, "y": 0..1 } | null,
+        "dominantColors": ["#RRGGBB", ...]    // up to 5, ordered by area
+        "textInImage": "..."                  // OCR if any meaningful text
+        "usableAs": [...],                    // from the enum above
+        "warnings": ["low_resolution"|"watermark"|"contains_pii"|"distorted"|...]
+      }
+      ```
+
+      When vision says `looksLikeLogo: true` the role is `logo` regardless of filename. When `looksLikeScreenshot: true` and the user's prompt mentions "our product" / "our app" → role is `product_screenshot`. Filename is a tiebreaker, never the primary signal.
+
+      ### User intent — the decisive override
+
+      The user's message accompanying the upload (or any prior message) is parsed for assertive intent. Patterns:
+
+      - "use this as (the )?logo" → bind to that upload, force `role = logo`
+      - "this is our brand colors" → `role = brand_guideline`, mine `dominantColors` for theme
+      - "use this image as the cover background" → `usableAs += "full_bleed_background"`, prioritized for slide 1
+      - "this screenshot is our dashboard" → `role = product_screenshot`, `usableAs += "framed_screenshot"`
+
+      Implementation: a small intent parser runs over the user message after vision classification. When intent maps cleanly to one upload (only one image attached, or filename matches), we override `role` to `intentRole` and store the raw `userIntent` for the deck prompt.
+
+      When ambiguous (multiple uploads, intent says "the logo" but two images both look like logos), we **do not guess** — we surface a `needs_attention` step asking the user which one is the logo.
+
+      ### Documents and data — extract, don't just label
+
+      - **PDF / DOCX / TXT / MD:** extract text via `pdfjs-dist` or `mammoth`, hold up to 8 000 chars in `extracted.text`, plus the headings list. Every embedded image runs through the same vision pass.
+      - **CSV / XLSX:** parse via `papaparse` / `xlsx`, store column headers + first 10 rows + inferred numeric/date/string types in `extracted.tables`. The deck prompt can then write a real chart against real numbers instead of inventing values.
+      - **PPT / PPTX / KEY:** convert each slide to a PNG (via `libreoffice --headless --convert-to png` or a hosted converter). Each thumbnail goes through vision for title + bullets + palette. The deck prompt can then say "match the palette and tone of slide 3 of the reference."
+      - **URL:** fetch og:image + first 4 000 chars of readable text via Readability. og:image runs through the vision pass.
+
+      ### What this enables in the Path A prompt
+
+      The deck-generation prompt now receives a structured asset manifest:
+
+      ```
+      ASSETS AVAILABLE:
+      - assets.logo       (logo, transparent, dominant #1F7FEC, intent: "use as logo")
+      - assets.dashboard  (product_screenshot, browser chrome detected, focus 0.45/0.32)
+      - assets.headshot   (photo, single subject, focus 0.5/0.35, monochrome bg)
+      - assets.metrics    (data_table, 8 columns: month, arr, churn, ...) ← real numbers
+      - assets.refDeck.s3 (reference_slide, palette ["#0D1B3E","#00E5C3"], "investor cover")
+
+      USER INTENT NOTES:
+      - assets.logo: explicitly designated as the brand logo by the user.
+      - assets.dashboard: requested for the product walkthrough slide.
+      ```
+
+      The LLM, freed from templates, can now compose: cover slide uses `assets.logo` at corner + brand color from `dominantColors[0]`; product slide places `assets.dashboard` inside a device frame; chart slide pulls real numbers from `assets.metrics`.
+
+      ### Files
+
+      | File | Action |
+      |---|---|
+      | `app/src/lib/slides/sourceIntake.ts` | **Rewrite.** Becomes a multi-stage analyzer (sniff → vision/extract → intent reconcile) returning `AssetRecord[]`. |
+      | `app/src/lib/slides/visionClassify.ts` | **New.** Single-image vision call, returns the JSON above, with retry + safe fallback. |
+      | `app/src/lib/slides/documentExtract.ts` | **New.** PDF / DOCX / TXT / MD text + heading extraction; embedded image enumeration. |
+      | `app/src/lib/slides/dataExtract.ts` | **New.** CSV / XLSX → typed table schema. |
+      | `app/src/lib/slides/deckExtract.ts` | **New.** Slide-by-slide PNG conversion + per-slide vision pass for reference decks. |
+      | `app/src/lib/slides/intentParse.ts` | **New.** Reads the user prompt, finds asset-intent statements, maps to upload IDs. |
+      | `app/src/lib/slides/assetBag.ts` | **Updated.** Consumes `AssetRecord[]`, exposes pre-prepared base64 PNGs to the sandbox. |
+      | `app/src/lib/slides/schema.ts` | **Updated.** `AssetRecord` replaces `SlidesSource`; old role enum widened. |
+      | `app/src/lib/slides/colorExtract.ts` | **Updated.** Pixel-based extraction (canvas / sharp) takes priority over the SVG-only path. |
+
+      ### Ordering vs. Path A phases
+
+      Asset intake lands as part of **Phase 2** — once the sandbox + preview exist, but before the LLM prompt rewrite finalizes. The deck prompt cannot be authored until we know the shape of the asset manifest it will receive. Run intake rewrite and prompt rewrite in lockstep.
+
+      ### Done when
+
+      - [ ] Uploading `IMG_3429.png` of a logo + saying "use this as the logo" → it's bound as `assets.logo` and appears on the cover slide
+      - [ ] Uploading a CSV with monthly revenue → the chart slide uses those exact numbers, not invented values
+      - [ ] Uploading a reference deck → at least one new slide adopts its palette and a layout idea from a specific source slide
+      - [ ] Filename is `Untitled.png` and the image is a dashboard screenshot → role = `product_screenshot`, framed in a device chrome on the slide
+      - [ ] User intent override beats vision when assertive ("use this image as background" → `full_bleed_background`)
+      - [ ] Ambiguous intent surfaces a clarifying question instead of guessing
+
+      ---
+
+      ## Open questions to resolve before Phase 1
+
+      1. **Model choice.** Which model emits the slide code? Claude is best at this format; budget vs. quality trade-off.
+      2. **Streaming.** Do we stream slides one at a time (better UX, simpler retry) or whole-deck in one call (more coherent design, harder to recover)?
+      3. **Editing primitive.** Once a deck is generated, how does the user edit a single slide? Re-prompt that slide only? Edit the emitted JS in a code-aware editor? (Phase 5 question — defer.)
+      4. **Deterministic fallback.** What does the minimal fallback deck look like when both LLM attempts fail? Probably a single hand-authored "we couldn't generate, here's your brief" slide.
+
+      ---
+
+      ## Key files at a glance
+
+      ```
+      app/src/lib/slides/sandbox.ts         — NEW: AST gate + vm execution
+      app/src/lib/slides/previewPres.ts     — NEW: pptxgenjs API shim that records primitives
+      app/src/lib/slides/assetBag.ts        — NEW: builds logo + icons + images
+      app/src/lib/slides/deck.ts            — REWRITTEN: prompt teaches pptxgenjs API
+      app/src/lib/slides/story.ts           — TRIMMED: drops layout/proof signals
+      app/src/lib/slides/schema.ts          — REDUCED: deck schema is now { title, theme, slideCode, assets }
+      app/src/lib/slides/export.ts          — DELETED, replaced by 40-line wrapper
+      app/src/components/workspace/SlideCanvas.tsx     — NEW: preview primitive renderer
+      app/src/components/workspace/SlideRenderer.tsx   — DELETED
+      ```

@@ -1,5 +1,7 @@
 import { fallbackSlidesDeck, normalizeSlidesDeckJson } from "../lib/slides/deck"
 import { fallbackStory } from "../lib/slides/story"
+import { classifySlidesSources } from "../lib/slides/sourceIntake"
+import { extractBrandColorsFromSvg } from "../lib/slides/colorExtract"
 import { inferSlidesChartType, slidesDeckSchema, type SlidesSource } from "../lib/slides/schema"
 
 interface TestResult {
@@ -84,6 +86,42 @@ function runSlidesDeckTests(): TestResult[] {
   }], [])
   const chartFallback = fallbackSlidesDeck(dataStory).slides.find((slide) => slide.proof.type === "chart")
 
+  // ── M3.1 — Brand color extraction ───────────────────────────────────────────
+  const SVG_WITH_COLORS = `data:image/svg+xml;base64,${Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg"><rect fill="#0f766e"/><rect fill="#f59e0b"/><rect fill="#ffffff"/></svg>`
+  ).toString("base64")}`
+  const extractedColors = extractBrandColorsFromSvg(SVG_WITH_COLORS)
+
+  const brandSource = classifySlidesSources([{
+    id: "logo-1",
+    kind: "image",
+    name: "company-logo.svg",
+    mimeType: "image/svg+xml",
+    dataUrl: SVG_WITH_COLORS,
+  }])
+  const logoClassified = brandSource[0]
+
+  // ── M2 — New layout schema validation ────────────────────────────────────────
+  const newLayoutDeck = normalizeSlidesDeckJson({
+    title: "Layout test deck",
+    theme: { background: "#ffffff", foreground: "#111111", accent: "#7c3aed", muted: "#6b7280" },
+    slides: [
+      { id: "s1", slideNumber: 1, layout: "cover", title: "Cover slide", claim: "Opening.", body: ["Intro."], proof: { type: "chart", title: "T", description: "D", data: [{ label: "A", value: "1", numericValue: 1 }] }, speakerNotes: "N", sourceIds: [], evidenceIds: [], visualTone: "bold", visualAsset: { kind: "none" } },
+      { id: "s2", slideNumber: 2, layout: "big_number", title: "Big KPI", claim: "3× growth.", body: ["Q4 result."], proof: { type: "chart", title: "T", description: "D", data: [{ label: "Growth", value: "3×", numericValue: 300 }] }, speakerNotes: "N", sourceIds: [], evidenceIds: [], visualTone: "bold", visualAsset: { kind: "none" } },
+      { id: "s3", slideNumber: 3, layout: "side_by_side", title: "Compare", claim: "Two options.", body: ["Option A.", "Option B."], proof: { type: "comparison", title: "T", description: "D", data: [] }, speakerNotes: "N", sourceIds: [], evidenceIds: [], visualTone: "bold", visualAsset: { kind: "none" } },
+      { id: "s4", slideNumber: 4, layout: "quote_highlight", title: "Quote", claim: "Testimonial.", body: ["Context."], proof: { type: "source_backed_visual", title: "T", description: "D", data: [{ label: "CEO, Acme", value: "CFO" }] }, speakerNotes: "N", sourceIds: [], evidenceIds: [], visualTone: "bold", visualAsset: { kind: "none" } },
+      { id: "s5", slideNumber: 5, layout: "timeline_vertical", title: "Roadmap", claim: "Five phases.", body: ["Phase detail."], proof: { type: "timeline", title: "T", description: "D", data: [{ label: "Phase 1", value: "Q1" }, { label: "Phase 2", value: "Q2" }] }, speakerNotes: "N", sourceIds: [], evidenceIds: [], visualTone: "bold", visualAsset: { kind: "none" } },
+      { id: "s6", slideNumber: 6, layout: "image_left", title: "Product shot", claim: "Visual proof.", body: ["Screenshot."], proof: { type: "image", title: "T", description: "D", data: [] }, speakerNotes: "N", sourceIds: [], evidenceIds: [], visualTone: "bold", visualAsset: { kind: "none" } },
+      { id: "s7", slideNumber: 7, layout: "image_full", title: "Section break", claim: "Transition.", body: ["Next chapter."], proof: { type: "source_backed_visual", title: "T", description: "D", data: [] }, speakerNotes: "N", sourceIds: [], evidenceIds: [], visualTone: "bold", visualAsset: { kind: "none" } },
+      { id: "s8", slideNumber: 8, layout: "closing", title: "Recommendation", claim: "Action item.", body: ["Next step."], proof: { type: "chart", title: "T", description: "D", data: [{ label: "A", value: "1", numericValue: 1 }] }, speakerNotes: "N", sourceIds: [], evidenceIds: [], visualTone: "bold", visualAsset: { kind: "none" } },
+    ],
+  }, [])
+  const newLayoutValidated = slidesDeckSchema.safeParse({
+    ...newLayoutDeck,
+    provider: "openrouter",
+    updatedAt: "2026-05-09T00:00:00.000Z",
+  })
+
   return [
     {
       name: "validates normalized deck JSON",
@@ -134,6 +172,46 @@ function runSlidesDeckTests(): TestResult[] {
       passed: chartFallback?.proof.chartType === "bar_horizontal" &&
         chartFallback.proof.data.length >= 4 &&
         chartFallback.proof.data.every((item) => typeof item.numericValue === "number"),
+    },
+
+    // ── M3.1 — Brand color extraction ─────────────────────────────────────────
+    {
+      name: "M3.1 extracts chromatic colors from SVG data URL",
+      passed: extractedColors !== null && /^#[0-9a-f]{6}$/i.test(extractedColors.primary),
+      detail: extractedColors ? `primary=${extractedColors.primary} accent=${extractedColors.accent}` : "null",
+    },
+    {
+      name: "M3.1 primary color is from SVG fill (not white/black)",
+      passed: extractedColors?.primary === "#0f766e" || extractedColors?.primary === "#f59e0b",
+    },
+    {
+      name: "M3.1 classifySlidesSources attaches brandColors to brand_asset",
+      passed: logoClassified?.role === "brand_asset" && logoClassified?.brandColors !== undefined,
+      detail: logoClassified?.brandColors ? JSON.stringify(logoClassified.brandColors) : "missing",
+    },
+
+    // ── M2 — New layout schema validation ──────────────────────────────────────
+    {
+      name: "M2 schema accepts all 6 new layout types",
+      passed: newLayoutValidated.success,
+      detail: newLayoutValidated.success
+        ? undefined
+        : newLayoutValidated.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+    },
+    {
+      name: "M2 big_number layout preserved through normalize",
+      passed: newLayoutValidated.success &&
+        newLayoutValidated.data.slides.find((s) => s.id === "s2")?.layout === "big_number",
+    },
+    {
+      name: "M2 quote_highlight layout preserved through normalize",
+      passed: newLayoutValidated.success &&
+        newLayoutValidated.data.slides.find((s) => s.id === "s4")?.layout === "quote_highlight",
+    },
+    {
+      name: "M2 image_full layout preserved through normalize",
+      passed: newLayoutValidated.success &&
+        newLayoutValidated.data.slides.find((s) => s.id === "s7")?.layout === "image_full",
     },
   ]
 }
