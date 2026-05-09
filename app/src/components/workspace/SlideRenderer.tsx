@@ -211,12 +211,11 @@ function ChartDonut({ data }: { data: ProofDatum[] }) {
   const CX = 55
   const CY = 55
   const opacities = [1, 0.72, 0.5, 0.32, 0.18]
-  let cumulative = 0
   const segments = items.map((item, i) => {
     const pct = values[i] / total
+    const cumulative = values.slice(0, i).reduce((sum, value) => sum + value / total, 0)
     const dash = pct * C
     const dashOffset = C * 0.25 - cumulative * C
-    cumulative += pct
     return { item, dash, dashOffset, opacity: opacities[i] ?? 0.15 }
   })
   const largestIdx = values.indexOf(Math.max(...values))
@@ -556,15 +555,68 @@ function ProofRows({ slide }: { slide: SlidesStructuredSlide }) {
   )
 }
 
-// ─── Visual panel ─────────────────────────────────────────────────────────────
+// ─── M3.3 — Product screenshot device frame ───────────────────────────────────
 
-function VisualPanel({ slide, sources }: { slide: SlidesStructuredSlide; sources: SlidesSource[] }) {
+function DeviceFrame({ src, alt }: { src: string; alt: string }) {
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg shadow-2xl">
+      {/* Browser chrome bar */}
+      <div className="flex items-center gap-1.5 bg-[#1a1a1a] px-3 py-2">
+        <div className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+        <div className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
+        <div className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
+        <div className="mx-3 flex-1 rounded bg-white/10 px-2 py-0.5">
+          <div className="h-1.5 w-16 rounded-full bg-white/20" />
+        </div>
+      </div>
+      <div className="relative min-h-0 flex-1 bg-white">
+        <Image src={src} alt={alt} fill sizes="45vw" className="object-cover object-top" unoptimized />
+      </div>
+    </div>
+  )
+}
+
+// ─── Visual panel (M3.3 device frame + M3.4 image overlay) ───────────────────
+
+function VisualPanel({
+  slide,
+  sources,
+  overlay = false,
+}: {
+  slide: SlidesStructuredSlide
+  sources: SlidesSource[]
+  overlay?: boolean
+}) {
   const image = visualUrl(slide, sources)
+
+  // Detect product screenshot to apply device frame (M3.3)
+  const sourceId = slide.visualAsset.sourceId
+  const sourceRecord = sourceId ? sources.find((s) => s.id === sourceId) : undefined
+  const isProductScreenshot = sourceRecord?.role === "product_screenshot"
+
   if (image) {
+    if (isProductScreenshot) {
+      return (
+        <figure className="flex h-full min-h-0 flex-col overflow-hidden">
+          <div className="relative min-h-0 flex-1">
+            <DeviceFrame src={image} alt={slide.visualAsset.alt || slide.proof.title} />
+          </div>
+          {slide.visualAsset.rationale && (
+            <figcaption className="mt-2 text-[0.65rem] leading-snug text-[color:var(--slide-muted)]">
+              {slide.visualAsset.rationale}
+            </figcaption>
+          )}
+        </figure>
+      )
+    }
+
+    // Standard image with optional overlay (M3.4) — used for background-style images
+    const needsOverlay = overlay && (slide.visualAsset.kind === "source_image" || slide.visualAsset.kind === "web_image")
     return (
       <figure className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-black/10 bg-white/80">
         <div className="relative min-h-0 flex-1">
           <Image src={image} alt={slide.visualAsset.alt || slide.proof.title} fill sizes="45vw" className="object-cover" unoptimized />
+          {needsOverlay && <div className="absolute inset-0 bg-black/50" />}
         </div>
         <figcaption className="border-t border-black/10 px-3 py-2 text-[0.65rem] leading-snug text-[color:var(--slide-muted)]">
           {slide.visualAsset.rationale || slide.proof.description}
@@ -589,6 +641,339 @@ function VisualPanel({ slide, sources }: { slide: SlidesStructuredSlide; sources
   )
 }
 
+// ─── M3.2 — Logo badge (cover + closing only) ────────────────────────────────
+
+function LogoBadge({ sources, size }: { sources: SlidesSource[]; size: "cover" | "closing" }) {
+  const logo = sources.find((s) => s.role === "brand_asset" && (s.dataUrl || s.url))
+  if (!logo) return null
+  const src = logo.dataUrl || logo.url
+  if (!src) return null
+  const h = size === "cover" ? 48 : 32
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={logo.name}
+      style={{ height: h, width: "auto", maxWidth: 160, objectFit: "contain", objectPosition: "left" }}
+    />
+  )
+}
+
+// ─── Standard content column (left side of claim_visual layout) ───────────────
+
+function ContentColumn({ slide }: { slide: SlidesStructuredSlide }) {
+  return (
+    <section className="flex min-w-0 flex-col">
+      <p className="text-[clamp(0.55rem,0.72vw,0.78rem)] font-bold uppercase text-[color:var(--slide-accent)]">Slide {slide.slideNumber}</p>
+      <h3 className="mt-4 text-[clamp(1.45rem,3.2vw,4.25rem)] font-black leading-[0.98] text-[color:var(--slide-fg)]">{slide.title}</h3>
+      <p className="mt-4 text-[clamp(1.05rem,1.6vw,1.8rem)] leading-snug text-[color:var(--slide-muted)]">{slide.claim}</p>
+      <div className="mt-auto space-y-2 pt-4">
+        {slide.body.slice(0, 3).map((item) => (
+          <p key={item} className="border-l-2 border-[color:var(--slide-accent)] pl-3 text-[clamp(0.85rem,1vw,1.1rem)] leading-snug text-[color:var(--slide-fg)]/85">{item}</p>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ─── M2 — New layout components ───────────────────────────────────────────────
+
+function BigNumberLayout({ slide, sources }: { slide: SlidesStructuredSlide; sources: SlidesSource[] }) {
+  const primary = slide.proof.data[0]
+  const supporting = slide.proof.data.slice(1, 3)
+  const image = visualUrl(slide, sources)
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
+      <p className="text-[clamp(0.55rem,0.72vw,0.78rem)] font-bold uppercase tracking-widest text-[color:var(--slide-accent)]">
+        {slide.proof.title || "Key Metric"}
+      </p>
+      {primary ? (
+        <div>
+          <p className="text-[clamp(4rem,12vw,11rem)] font-black leading-none text-[color:var(--slide-accent)]">
+            {primary.value}
+          </p>
+          <p className="mt-2 text-[clamp(1rem,2vw,2rem)] font-semibold text-[color:var(--slide-fg)]">
+            {primary.label}
+          </p>
+        </div>
+      ) : (
+        <p className="text-[clamp(4rem,12vw,11rem)] font-black leading-none text-[color:var(--slide-accent)]">
+          {slide.title}
+        </p>
+      )}
+      <p className="max-w-xl text-[clamp(1rem,1.5vw,1.6rem)] leading-snug text-[color:var(--slide-muted)]">{slide.claim}</p>
+      {supporting.length > 0 && (
+        <div className="flex gap-8">
+          {supporting.map((item, i) => (
+            <div key={i} className="text-center">
+              <p className="text-[clamp(1.5rem,3vw,3rem)] font-black text-[color:var(--slide-fg)]">{item.value}</p>
+              <p className="text-[0.78rem] text-[color:var(--slide-muted)]">{item.label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      {image && (
+        <div className="absolute inset-0 -z-10 opacity-5">
+          <Image src={image} alt="" fill className="object-cover" unoptimized />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SideBySideLayout({ slide }: { slide: SlidesStructuredSlide }) {
+  const rows = slide.proof.data.slice(0, 8)
+  const groups = [...new Set(rows.map((r) => r.group).filter(Boolean))]
+  let leftItems: ProofDatum[]
+  let rightItems: ProofDatum[]
+
+  if (groups.length >= 2) {
+    leftItems = rows.filter((r) => r.group === groups[0])
+    rightItems = rows.filter((r) => r.group === groups[1])
+  } else {
+    const mid = Math.ceil(rows.length / 2)
+    leftItems = rows.slice(0, mid)
+    rightItems = rows.slice(mid)
+  }
+
+  // Fallback to body bullets split into 2 columns
+  const leftBullets: ProofDatum[] = leftItems.length ? leftItems : slide.body.slice(0, 2).map((b) => ({ label: b, value: "" }))
+  const rightBullets: ProofDatum[] = rightItems.length ? rightItems : slide.body.slice(2).map((b) => ({ label: b, value: "" }))
+  const leftTitle = leftBullets[0]?.group ? String(leftBullets[0].group) : (leftBullets[0]?.label ?? "Option A")
+  const rightTitle = rightBullets[0]?.group ? String(rightBullets[0].group) : (rightBullets[0]?.label ?? "Option B")
+
+  return (
+    <div className="flex h-full flex-col gap-4">
+      <div>
+        <p className="text-[clamp(0.55rem,0.72vw,0.78rem)] font-bold uppercase text-[color:var(--slide-accent)]">Slide {slide.slideNumber}</p>
+        <h3 className="mt-2 text-[clamp(1.2rem,2.5vw,3rem)] font-black leading-tight text-[color:var(--slide-fg)]">{slide.title}</h3>
+      </div>
+      <div className="grid flex-1 grid-cols-2 gap-6">
+        {/* Left column */}
+        <div className="rounded-xl border border-black/10 bg-white/60 p-5">
+          <p className="mb-4 text-[0.85rem] font-bold uppercase tracking-wide text-[color:var(--slide-muted)]">{leftTitle}</p>
+          <div className="space-y-3">
+            {leftBullets.slice(1, 4).map((item, i) => (
+              <div key={i} className="flex items-start gap-2.5">
+                <div className="mt-1 h-5 w-5 shrink-0 rounded-full border-2 border-[color:var(--slide-muted)]/30 bg-[color:var(--slide-muted)]/10 text-center text-[0.6rem] font-bold leading-4 text-[color:var(--slide-muted)]">
+                  {i + 1}
+                </div>
+                <p className="text-[0.78rem] leading-snug text-[color:var(--slide-fg)]">
+                  {item.label}{item.value ? `: ${item.value}` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Right column */}
+        <div className="rounded-xl border border-[color:var(--slide-accent)]/30 bg-[color:var(--slide-accent)]/5 p-5">
+          <p className="mb-4 text-[0.85rem] font-bold uppercase tracking-wide text-[color:var(--slide-accent)]">{rightTitle}</p>
+          <div className="space-y-3">
+            {rightBullets.slice(1, 4).map((item, i) => (
+              <div key={i} className="flex items-start gap-2.5">
+                <div className="mt-1 h-5 w-5 shrink-0 rounded-full border-2 border-[color:var(--slide-accent)]/40 bg-[color:var(--slide-accent)]/15 text-center text-[0.6rem] font-bold leading-4 text-[color:var(--slide-accent)]">
+                  {i + 1}
+                </div>
+                <p className="text-[0.78rem] font-medium leading-snug text-[color:var(--slide-fg)]">
+                  {item.label}{item.value ? `: ${item.value}` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function QuoteHighlightLayout({ slide }: { slide: SlidesStructuredSlide }) {
+  const quoteText = slide.proof.title || slide.claim
+  const attribution = slide.proof.data[0]
+  const context = slide.proof.description || slide.body[0]
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-8 px-6 text-center">
+      <svg viewBox="0 0 40 32" className="h-8 w-10 text-[color:var(--slide-accent)] opacity-40" fill="currentColor">
+        <path d="M0 32V20C0 8.333 5.333 2 16 0l2.667 4C13.111 5.556 10.222 8.778 10 14H18V32H0ZM22 32V20C22 8.333 27.333 2 38 0l2.667 4C35.111 5.556 32.222 8.778 32 14H40V32H22Z" />
+      </svg>
+
+      <blockquote className="max-w-3xl text-[clamp(1.4rem,3.5vw,4rem)] font-black leading-[1.1] text-[color:var(--slide-fg)]">
+        &ldquo;{quoteText}&rdquo;
+      </blockquote>
+
+      {attribution && (
+        <div className="flex flex-col items-center gap-1">
+          <div className="h-px w-12 bg-[color:var(--slide-accent)]/40" />
+          <p className="text-[0.85rem] font-bold text-[color:var(--slide-fg)]">{attribution.label}</p>
+          {attribution.value && (
+            <p className="text-[0.78rem] text-[color:var(--slide-muted)]">{attribution.value}</p>
+          )}
+        </div>
+      )}
+
+      {context && (
+        <p className="max-w-2xl text-[clamp(0.85rem,1.2vw,1.2rem)] leading-relaxed text-[color:var(--slide-muted)]">
+          {context}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function TimelineVerticalLayout({ slide }: { slide: SlidesStructuredSlide }) {
+  const steps = slide.proof.data.slice(0, 7)
+
+  return (
+    <div className="flex h-full gap-8">
+      <div className="flex flex-col justify-center">
+        <p className="text-[clamp(0.55rem,0.72vw,0.78rem)] font-bold uppercase text-[color:var(--slide-accent)]">Slide {slide.slideNumber}</p>
+        <h3 className="mt-2 text-[clamp(1.2rem,2.4vw,3.2rem)] font-black leading-tight text-[color:var(--slide-fg)]">{slide.title}</h3>
+        <p className="mt-3 text-[clamp(0.85rem,1.2vw,1.4rem)] leading-snug text-[color:var(--slide-muted)]">{slide.claim}</p>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0">
+        {steps.map((step, i) => {
+          const isLast = i === steps.length - 1
+          return (
+            <div key={i} className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <div
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
+                    isLast ? "bg-[color:var(--slide-accent)]" : "bg-[color:var(--slide-accent)]/60"
+                  }`}
+                >
+                  {i + 1}
+                </div>
+                {!isLast && <div className="my-0.5 w-px flex-1 bg-[color:var(--slide-accent)]/20" style={{ minHeight: "1.5rem" }} />}
+              </div>
+              <div className="pb-3 pt-0.5">
+                <p className={`text-[0.8rem] font-bold ${isLast ? "text-[color:var(--slide-accent)]" : "text-[color:var(--slide-fg)]"}`}>
+                  {step.label}
+                </p>
+                {step.value && (
+                  <p className="mt-0.5 text-[0.7rem] leading-snug text-[color:var(--slide-muted)]">{step.value}</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ImageLeftLayout({ slide, sources }: { slide: SlidesStructuredSlide; sources: SlidesSource[] }) {
+  const image = visualUrl(slide, sources)
+  const sourceId = slide.visualAsset.sourceId
+  const sourceRecord = sourceId ? sources.find((s) => s.id === sourceId) : undefined
+  const isProductScreenshot = sourceRecord?.role === "product_screenshot"
+
+  return (
+    <div className="grid h-full grid-cols-2 gap-0 overflow-hidden">
+      {/* Left — full-bleed image */}
+      <div className="relative overflow-hidden">
+        {image ? (
+          <>
+            <Image src={image} alt={slide.visualAsset.alt || slide.title} fill sizes="50vw" className="object-cover" unoptimized />
+            {isProductScreenshot && (
+              <div className="absolute inset-x-4 inset-y-4 overflow-hidden rounded-lg shadow-2xl">
+                <div className="flex items-center gap-1.5 bg-[#1a1a1a] px-3 py-2">
+                  <div className="h-2 w-2 rounded-full bg-[#ff5f57]" />
+                  <div className="h-2 w-2 rounded-full bg-[#febc2e]" />
+                  <div className="h-2 w-2 rounded-full bg-[#28c840]" />
+                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={image} alt="" className="block w-full object-cover object-top" />
+              </div>
+            )}
+            {!isProductScreenshot && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[color:var(--slide-bg)]/20" />
+            )}
+          </>
+        ) : (
+          <div className="flex h-full items-center justify-center bg-[color:var(--slide-accent)]/10">
+            <div className="h-20 w-20 rounded-2xl bg-[color:var(--slide-accent)]/20" />
+          </div>
+        )}
+      </div>
+
+      {/* Right — content */}
+      <div className="flex flex-col justify-center px-8 py-6">
+        <p className="text-[clamp(0.55rem,0.72vw,0.78rem)] font-bold uppercase text-[color:var(--slide-accent)]">Slide {slide.slideNumber}</p>
+        <h3 className="mt-3 text-[clamp(1.3rem,2.8vw,3.8rem)] font-black leading-[0.98] text-[color:var(--slide-fg)]">{slide.title}</h3>
+        <p className="mt-4 text-[clamp(0.95rem,1.3vw,1.5rem)] leading-snug text-[color:var(--slide-muted)]">{slide.claim}</p>
+        <div className="mt-6 space-y-2.5">
+          {slide.body.slice(0, 3).map((item) => (
+            <p key={item} className="border-l-2 border-[color:var(--slide-accent)] pl-3 text-[clamp(0.82rem,0.95vw,1.05rem)] leading-snug text-[color:var(--slide-fg)]/85">{item}</p>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ImageFullLayout({ slide, sources }: { slide: SlidesStructuredSlide; sources: SlidesSource[] }) {
+  const image = visualUrl(slide, sources)
+
+  return (
+    <div className="relative flex h-full flex-col items-center justify-center text-center">
+      {/* Full-bleed background */}
+      {image && (
+        <>
+          <Image src={image} alt={slide.visualAsset.alt || slide.title} fill sizes="100vw" className="object-cover" unoptimized />
+          <div className="absolute inset-0 bg-black/55" />
+        </>
+      )}
+      {!image && (
+        <div className="absolute inset-0 bg-[color:var(--slide-accent)]" style={{ opacity: 0.12 }} />
+      )}
+
+      {/* Centered overlay content */}
+      <div className="relative z-10 max-w-3xl px-8">
+        <p className={`text-[clamp(0.55rem,0.72vw,0.78rem)] font-bold uppercase tracking-widest ${image ? "text-white/70" : "text-[color:var(--slide-accent)]"}`}>
+          Slide {slide.slideNumber}
+        </p>
+        <h3 className={`mt-4 text-[clamp(2rem,5vw,6rem)] font-black leading-[0.95] ${image ? "text-white" : "text-[color:var(--slide-fg)]"}`}>
+          {slide.title}
+        </h3>
+        <p className={`mt-6 text-[clamp(1rem,1.8vw,2rem)] leading-snug ${image ? "text-white/80" : "text-[color:var(--slide-muted)]"}`}>
+          {slide.claim}
+        </p>
+        {slide.body[0] && (
+          <p className={`mt-4 text-[clamp(0.85rem,1.1vw,1.2rem)] ${image ? "text-white/60" : "text-[color:var(--slide-muted)]"}`}>
+            {slide.body[0]}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Cover / Closing accent stripe ────────────────────────────────────────────
+
+function AccentStripe() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div
+        className="absolute right-0 top-0 h-full w-2/5"
+        style={{
+          background: "var(--slide-accent)",
+          clipPath: "polygon(18% 0%, 100% 0%, 100% 100%, 0% 100%)",
+          opacity: 0.07,
+        }}
+      />
+      <div
+        className="absolute right-0 top-0 h-full w-1/5"
+        style={{
+          background: "var(--slide-accent)",
+          clipPath: "polygon(30% 0%, 100% 0%, 100% 100%, 0% 100%)",
+          opacity: 0.12,
+        }}
+      />
+    </div>
+  )
+}
+
 // ─── Main renderer ────────────────────────────────────────────────────────────
 
 export default function SlideRenderer({ deck, slide, sources = [], variant = "panel" }: SlideRendererProps) {
@@ -607,39 +992,133 @@ export default function SlideRenderer({ deck, slide, sources = [], variant = "pa
     )
   }
 
-  return (
-    <article
-      className={`h-full w-full overflow-hidden bg-[color:var(--slide-bg)] text-[color:var(--slide-fg)] ${isFull ? "p-[clamp(1.35rem,3vw,4rem)] pb-[clamp(5.5rem,8vw,7rem)]" : "p-6"}`}
-      style={themeVars(deck)}
-      data-provider={deck.provider}
-      data-visual-kind={slide.visualAsset.kind}
-    >
-      {isCover || isClosing ? (
-        <div className="grid h-full grid-cols-[minmax(0,1fr)_minmax(10rem,0.42fr)] gap-6">
+  const padding = isFull ? "p-[clamp(1.35rem,3vw,4rem)] pb-[clamp(5.5rem,8vw,7rem)]" : "p-6"
+
+  // ── Cover & Closing ──────────────────────────────────────────────────────────
+  if (isCover || isClosing) {
+    return (
+      <article
+        className={`relative h-full w-full overflow-hidden bg-[color:var(--slide-bg)] text-[color:var(--slide-fg)] ${padding}`}
+        style={themeVars(deck)}
+        data-provider={deck.provider}
+        data-layout={slide.layout}
+      >
+        <AccentStripe />
+        <div className="relative grid h-full grid-cols-[minmax(0,1fr)_minmax(10rem,0.42fr)] gap-6">
           <div className="flex min-w-0 flex-col justify-between">
             <div>
-              <p className="text-[clamp(0.55rem,0.75vw,0.78rem)] font-bold uppercase text-[color:var(--slide-accent)]">{isClosing ? "Recommendation" : `Slide ${slide.slideNumber}`}</p>
-              <h3 className="mt-5 text-[clamp(2rem,5vw,5.9rem)] font-black leading-[0.95] text-[color:var(--slide-fg)]">{slide.title}</h3>
+              <p className="text-[clamp(0.55rem,0.75vw,0.78rem)] font-bold uppercase text-[color:var(--slide-accent)]">
+                {isClosing ? "Recommendation" : deck.title}
+              </p>
+              <h3 className="mt-5 text-[clamp(2.5rem,6vw,7rem)] font-black leading-[0.9] text-[color:var(--slide-fg)]">{slide.title}</h3>
             </div>
-            <p className="max-w-2xl text-[clamp(0.95rem,1.5vw,1.7rem)] leading-snug text-[color:var(--slide-muted)]">{slide.claim}</p>
+            <div className="flex flex-col gap-4">
+              <p className="text-[clamp(1rem,1.4vw,1.4rem)] font-light leading-snug text-[color:var(--slide-muted)]">{slide.claim}</p>
+              {/* M3.2 — Logo on cover/closing only */}
+              <LogoBadge sources={sources} size={isCover ? "cover" : "closing"} />
+            </div>
           </div>
-          <VisualPanel slide={slide} sources={sources} />
+          <VisualPanel slide={slide} sources={sources} overlay />
         </div>
-      ) : (
-        <div className={`grid h-full gap-6 ${slide.layout === "timeline" || slide.layout === "data_table" ? "grid-rows-[auto_minmax(0,1fr)]" : "grid-cols-[minmax(0,0.92fr)_minmax(14rem,1.08fr)]"}`}>
-          <section className="flex min-w-0 flex-col">
-            <p className="text-[clamp(0.55rem,0.72vw,0.78rem)] font-bold uppercase text-[color:var(--slide-accent)]">Slide {slide.slideNumber}</p>
-            <h3 className="mt-4 text-[clamp(1.45rem,3.2vw,4.25rem)] font-black leading-[0.98] text-[color:var(--slide-fg)]">{slide.title}</h3>
-            <p className="mt-4 text-[clamp(1.05rem,1.6vw,1.8rem)] leading-snug text-[color:var(--slide-muted)]">{slide.claim}</p>
-            <div className="mt-auto space-y-2 pt-4">
-              {slide.body.slice(0, 3).map((item) => (
-                <p key={item} className="border-l-2 border-[color:var(--slide-accent)] pl-3 text-[clamp(0.85rem,1vw,1.1rem)] leading-snug text-[color:var(--slide-fg)]/85">{item}</p>
-              ))}
-            </div>
-          </section>
-          <VisualPanel slide={slide} sources={sources} />
-        </div>
-      )}
+      </article>
+    )
+  }
+
+  // ── New layouts (M2) ─────────────────────────────────────────────────────────
+  if (slide.layout === "image_full") {
+    return (
+      <article
+        className={`relative h-full w-full overflow-hidden bg-[color:var(--slide-bg)] text-[color:var(--slide-fg)]`}
+        style={themeVars(deck)}
+        data-provider={deck.provider}
+        data-layout={slide.layout}
+      >
+        <ImageFullLayout slide={slide} sources={sources} />
+      </article>
+    )
+  }
+
+  if (slide.layout === "image_left") {
+    return (
+      <article
+        className={`relative h-full w-full overflow-hidden bg-[color:var(--slide-bg)] text-[color:var(--slide-fg)]`}
+        style={themeVars(deck)}
+        data-provider={deck.provider}
+        data-layout={slide.layout}
+      >
+        <ImageLeftLayout slide={slide} sources={sources} />
+      </article>
+    )
+  }
+
+  if (slide.layout === "big_number") {
+    return (
+      <article
+        className={`relative h-full w-full overflow-hidden bg-[color:var(--slide-bg)] text-[color:var(--slide-fg)] ${padding}`}
+        style={themeVars(deck)}
+        data-provider={deck.provider}
+        data-layout={slide.layout}
+      >
+        <BigNumberLayout slide={slide} sources={sources} />
+      </article>
+    )
+  }
+
+  if (slide.layout === "side_by_side") {
+    return (
+      <article
+        className={`relative h-full w-full overflow-hidden bg-[color:var(--slide-bg)] text-[color:var(--slide-fg)] ${padding}`}
+        style={themeVars(deck)}
+        data-provider={deck.provider}
+        data-layout={slide.layout}
+      >
+        <SideBySideLayout slide={slide} />
+      </article>
+    )
+  }
+
+  if (slide.layout === "quote_highlight") {
+    return (
+      <article
+        className={`relative h-full w-full overflow-hidden bg-[color:var(--slide-bg)] text-[color:var(--slide-fg)] ${padding}`}
+        style={themeVars(deck)}
+        data-provider={deck.provider}
+        data-layout={slide.layout}
+      >
+        <QuoteHighlightLayout slide={slide} />
+      </article>
+    )
+  }
+
+  if (slide.layout === "timeline_vertical") {
+    return (
+      <article
+        className={`relative h-full w-full overflow-hidden bg-[color:var(--slide-bg)] text-[color:var(--slide-fg)] ${padding}`}
+        style={themeVars(deck)}
+        data-provider={deck.provider}
+        data-layout={slide.layout}
+      >
+        <TimelineVerticalLayout slide={slide} />
+      </article>
+    )
+  }
+
+  // ── Standard layouts (claim_visual, comparison, timeline, data_table) ────────
+  return (
+    <article
+      className={`h-full w-full overflow-hidden bg-[color:var(--slide-bg)] text-[color:var(--slide-fg)] ${padding}`}
+      style={themeVars(deck)}
+      data-provider={deck.provider}
+      data-layout={slide.layout}
+    >
+      <div className={`grid h-full gap-6 ${
+        slide.layout === "timeline" || slide.layout === "data_table"
+          ? "grid-rows-[auto_minmax(0,1fr)]"
+          : "grid-cols-[minmax(0,0.92fr)_minmax(14rem,1.08fr)]"
+      }`}>
+        <ContentColumn slide={slide} />
+        <VisualPanel slide={slide} sources={sources} />
+      </div>
     </article>
   )
 }

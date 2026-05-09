@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/components/Providers";
 import { authPost } from "@/lib/authFetch";
+import { extractBrandColorsFromImage } from "@/lib/slides/colorExtract";
 import type { ProjectType, SlidesSourceInput } from "@/lib/slides/schema";
 import { AppWindow, ArrowUp, Globe2, Hourglass, LinkIcon, Mic, Paperclip, Presentation, X } from "lucide-react";
 
@@ -33,6 +34,7 @@ const CREATION_MODES = [
 const MAX_PREVIEW_IMAGE_BYTES = 8_000_000;
 const MAX_INLINE_IMAGE_CHARS = 900_000;
 const MAX_IMAGE_EDGE = 1280;
+const BRAND_ASSET_HINTS = ["brand", "logo", "identity", "guideline", "style guide", "brandbook"];
 
 function createClientId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -41,6 +43,11 @@ function createClientId() {
 
 function sourceKindForFile(file: File): SlidesSourceInput["kind"] {
   return file.type.startsWith("image/") ? "image" : "file";
+}
+
+function isLikelyBrandAsset(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return BRAND_ASSET_HINTS.some((hint) => name.includes(hint));
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -243,11 +250,15 @@ export default function VisionInput({ onProjectCreated, defaultProjectType = "ap
         const dataUrl = await previewDataUrlForImage(file);
         if (!dataUrl) return base;
         const dimensions = await imageDimensions(dataUrl);
+        const brandColors = isLikelyBrandAsset(file)
+          ? await extractBrandColorsFromImage(dataUrl) ?? undefined
+          : undefined;
         return {
           ...base,
           dataUrl,
           ...(dimensions.width > 0 ? { width: dimensions.width } : {}),
           ...(dimensions.height > 0 ? { height: dimensions.height } : {}),
+          ...(brandColors ? { brandColors } : {}),
         };
       } catch {
         return base;
