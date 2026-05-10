@@ -1,14 +1,21 @@
-<p align="center">
-  <img src="app/public/logo.png" alt="Flowro logo" width="120" />
-</p>
-
-<h1 align="center">Flowro</h1>
-
-<p align="center">
-  <strong>Build apps and slides from one prompt.</strong>
-  <br />
-  Flowro turns rough ideas into project plans, generated app workspaces, polished slide decks, previews, edits, and publish-ready output.
-</p>
+<table>
+  <tr>
+    <td width="58%" valign="middle">
+      <p align="center">
+        <img src="app/public/logo.png" alt="Flowro logo" width="120" />
+      </p>
+      <h1 align="center">Flowro</h1>
+      <p align="center">
+        <strong>Build apps and slides from one prompt.</strong>
+        <br />
+        Flowro turns rough ideas into project plans, generated app workspaces, polished slide decks, previews, edits, and publish-ready output.
+      </p>
+    </td>
+    <td width="42%" valign="top">
+      <img src="Docs/images/home-view.png" alt="Flowro home prompt interface" width="100%" />
+    </td>
+  </tr>
+</table>
 
 <p align="center">
   <a href="https://flowro.app">Website</a> -
