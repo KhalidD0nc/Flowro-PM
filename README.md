@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="app/public/logo.png" alt="Flowro logo" width="120" />
+  <img src="Docs/images/home-view.png" alt="Flowro home prompt interface" width="100%" />
 </p>
 
 <h1 align="center">Flowro</h1>
 
 <p align="center">
-  <strong>Open-source, self-hosted plan-to-app builder</strong>
+  <strong>Build apps and slides from one prompt.</strong>
   <br />
-  Turn messy ideas into approved plans, local build runs, and previewable apps.
+  Flowro turns rough ideas into project plans, generated app workspaces, polished slide decks, previews, edits, and publish-ready output.
 </p>
 
 <p align="center">
@@ -25,115 +25,80 @@
 
 ---
 
-## What Changed
+## Why Flowro
 
-Flowro is no longer positioned as a hosted SaaS signup funnel.
+AI can generate code fast. The hard part is making the work usable: clear scope, real data models, guarded build steps, readable previews, and a human who can steer the result before it becomes a mess.
 
-- `https://flowro.app` is a public landing page only.
-- No hosted auth, no hosted dashboard, no cloud-only workflow.
-- The actual product is open-source and self-hosted.
-- Users bring their own Firebase, OpenRouter, and monitoring keys.
-- The app pipeline is now:
+Flowro gives creative builders one workspace for the full path:
+
+- Start with a natural prompt.
+- Turn the idea into an approved project plan.
+- Generate apps or slide decks from that plan.
+- Preview the result inside the workspace.
+- Ask for edits in plain language.
+- Keep the work self-hosted and connected to your own keys.
 
 ```text
-Idea -> Project Plan -> Approve Plan -> Local Build Worker -> Preview
+Prompt -> Plan -> Generate -> Preview -> Edit -> Publish or Export
 ```
 
-The goal is simple: give AI design and coding agents a real execution contract before they start generating files.
+## What You Can Build
 
-## Why Flowro Exists
+### Apps
 
-AI coding tools are fast enough to create an app from a paragraph. That is useful until the paragraph becomes a database schema, three modals, a billing system, and a button nobody can explain.
+Flowro turns product ideas into generated app workspaces with routes, UI, data models, build tasks, and local preview support. It is designed for builders who want AI speed without skipping the planning and verification layer.
 
-Flowro adds structure before generation:
+### Slides
 
-- It turns vague product ideas into staged project plans.
-- It keeps humans in the approval loop.
-- It runs build work locally, where your files and keys already live.
-- It turns approved plans into guarded local build runs and previewable apps.
-- It keeps the cloud out of the critical path unless you choose otherwise.
+Flowro also creates structured slide decks from a prompt, source material, or a strategic brief. It can generate the story, outline, designed slides, previews, edits, and exportable deck files.
 
-## Product Flow
+<p align="center">
+  <img src="Docs/images/slides-preview.png" alt="Flowro slides generation preview" width="100%" />
+</p>
+
+## Product Highlights
+
+| Capability | What it means |
+| --- | --- |
+| One prompt entry | Choose Apps or Slides from the same creative starting point. |
+| Project plan engine | Converts vague ideas into scope, phases, screens, routes, data models, risks, and acceptance checks. |
+| Human approval loop | Flowro asks for approval before moving from plan to build. |
+| Local build worker | Generated app files are applied, installed, checked, and previewed from your local/self-hosted environment. |
+| Slides workspace | Generates brief, outline, visual deck, preview, edits, and exportable presentation files. |
+| Source-aware generation | Slides can use uploaded/source context and web evidence where configured. |
+| Share and collaboration | Projects, blueprints, share links, and collaborators are part of the workspace model. |
+| Bring your own stack | Firebase, OpenRouter, OpenAI, Supabase, monitoring, and deployment keys stay under your control. |
+
+## How It Works
 
 ```mermaid
 flowchart LR
-    A[Messy idea] --> B[Flowro chat]
-    B --> C[Project plan]
-    C --> D[Human approval]
-    D --> E[Local build worker]
-    E --> F[Generated app workspace]
-    F --> G[Local preview]
+    A[Idea] --> B[Flowro prompt]
+    B --> C{Mode}
+    C --> D[App plan]
+    C --> E[Slide story]
+    D --> F[Local build worker]
+    F --> G[Generated app preview]
+    E --> H[Designed deck preview]
+    G --> I[Edit or publish]
+    H --> J[Edit or export]
 ```
 
-## Key Capabilities
-
-### Project Plan Engine
-
-Flowro converts user intent into a structured project plan with scope, routes, screens, data models, build tasks, and acceptance checks. The plan is the execution contract for downstream agents.
-
-### Unified Blueprint and Versioning
-
-Flowro still supports the Unified Blueprint (UBP) model for structured product thinking:
-
-1. Product vision
-2. Scope
-3. Actors
-4. Behaviors
-5. Constraints and risks
-6. Technology decisions
-7. Implementation phases
-8. Integration points
-9. Change log
-
-Blueprints can be saved, versioned, shared, exported, and refined through chat.
-
-### Local Build Worker
-
-The build worker applies generated files into a local target workspace, runs install/build/check commands, streams logs, and records build status. This is designed for self-hosted usage, not opaque hosted generation.
-
-### Agent-Ready Export
-
-Flowro exports specs as Markdown, JSON, Cursor-ready context, and visual diagrams so external agents can use the same source of truth.
-
-### Collaboration and Sharing
-
-Flowro includes public share links, collaborators, project history, and workspace primitives for teams that self-host it.
-
-## Public Landing Page
-
-The root route `/` is now a static public landing page for `flowro.app`.
-
-It intentionally does not:
-
-- initialize Firebase auth,
-- redirect signed-in users,
-- link to hosted `/auth` or `/app`,
-- present pricing,
-- pretend Flowro is cloud-only.
-
-The self-hosted product routes still exist in the app for local/private deployments:
-
-- `/auth`
-- `/app`
-- `/settings`
-- `/demo`
-- `/share/[token]`
-
-Auth is mounted at route level for product routes instead of globally.
+Flowro is intentionally not a black-box hosted generator. The public site introduces the product, while the real workspace is designed for self-hosted and local/private deployments.
 
 ## Tech Stack
 
-| Layer | Technology | Notes |
-| --- | --- | --- |
-| Framework | Next.js 16.1 App Router | Full-stack React app |
-| Language | TypeScript 5 | Strict typing and runtime validation |
-| UI | React 19 + Tailwind CSS 4 | Responsive app and public landing page |
-| Auth | Firebase Auth | For self-hosted product routes |
-| Database | Firebase Firestore | Projects, plans, blueprints, workspaces |
-| AI | OpenRouter + LangChain | Structured AI generation and intent handling |
-| Diagrams | Mermaid.js 11 | Blueprint and flow visualization |
-| Validation | Zod 4 | Runtime schemas for plans and responses |
-| Monitoring | Vercel Analytics / Sentry optional | Configured by env vars |
+| Layer | Technology |
+| --- | --- |
+| Framework | Next.js 16 App Router |
+| Language | TypeScript 5 |
+| UI | React 19, Tailwind CSS 4, lucide-react |
+| Auth and data | Firebase Auth, Firestore, Firebase Admin |
+| AI orchestration | OpenRouter, LangChain, OpenAI for Slides web search |
+| Generated app backend | Supabase provisioning and schema generation |
+| Slides export | pptxgenjs, jszip |
+| Validation | Zod, targeted TypeScript test scripts |
+| Monitoring | Optional Vercel Analytics, Sentry, GA |
 
 ## Getting Started
 
@@ -142,7 +107,9 @@ Auth is mounted at route level for product routes instead of globally.
 - Node.js 20+
 - Firebase project with Firestore enabled
 - OpenRouter API key
-- Optional: Sentry and GA keys for monitoring
+- OpenAI API key for Slides web search
+- Supabase personal access token for generated Supabase apps
+- Optional Sentry or GA keys for monitoring
 
 ### Install
 
@@ -158,7 +125,7 @@ cp env.example .env.local
 
 ### Configure Environment
 
-Create `app/.env.local`:
+Create `app/.env.local` from `app/env.example`.
 
 ```env
 # Firebase Client SDK
@@ -176,141 +143,114 @@ FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----E
 
 # OpenRouter
 OPENROUTER_API_KEY=sk-or-your-api-key-here
-OPENROUTER_MODEL=deepseek/deepseek-v3.2
+OPENROUTER_MODEL=openai/gpt-oss-120b:free
+OPENROUTER_MODEL_BUILD=moonshotai/kimi-k2
+OPENROUTER_MODEL_PROMPT_ENHANCER=google/gemini-3-flash-preview
+OPENROUTER_MODEL_CLARIFICATION=google/gemini-3-flash-preview
+OPENROUTER_MODEL_PRD=openai/gpt-5.4-mini
+
+# OpenAI for Slides web search
+OPENAI_API_KEY=sk-your-openai-api-key-here
+OPENAI_SEARCH_TIMEOUT_MS=30000
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+FLOWRO_GENERATED_APPS_PATH=/Users/YOUR_USERNAME/Desktop/Flowro-Apps
 
-# Optional AI rollout controls
-USE_LANGCHAIN=false
-LANGCHAIN_ROLLOUT_PERCENT=0
-INTENT_LLM_ENABLED=true
-
-# Optional analytics / monitoring
-NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
-NEXT_PUBLIC_SENTRY_DSN=https://xxxx@o0.ingest.sentry.io/0
-SENTRY_DSN=https://xxxx@o0.ingest.sentry.io/0
-
-# Optional admin API guard
-ADMIN_USER_ID=your-firebase-uid
+# Supabase Management API
+SUPABASE_ACCESS_TOKEN=sbp_your-personal-access-token
+SUPABASE_ORG_ID=
+SUPABASE_ORG_SLUG=
+SUPABASE_PROJECT_REGION=us-east-1
 ```
 
 ### Run
 
-From `app/`:
+From the repository root:
 
 ```bash
+npm run dev
+```
+
+Or from `app/`:
+
+```bash
+cd app
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
-The public landing page is at `/`. The self-hosted app entry is at `/app` after authentication.
+- `/` is the public landing page.
+- `/app` is the authenticated Flowro workspace.
+- `/share/[token]` is the public shared project view.
 
-Root scripts proxy to the app scripts, so these also work from the repository root:
+## Useful Commands
 
 ```bash
+# Start development server
 npm run dev
+
+# Build production app
 npm run build
+
+# Run lint
+npm run lint
+
+# Inspect Supabase organizations
+cd app
+npm run supabase:orgs
 ```
 
-## Quality Checks
+Targeted checks are often better than broad checks while feature work is moving. For Slides changes, the focused sandbox/deck tests are the strongest signal.
 
 ```bash
 cd app
-npm run lint
-npm run build
+npx tsx src/__tests__/slidesSandboxTests.ts
 ```
 
-Current expected state:
-
-- `npm run lint` exits successfully, with existing warning backlog.
-- `npm run build` exits successfully.
-- `/` builds as a static route.
-
-## API Surface
+## API Map
 
 Most product APIs require Firebase auth.
 
-### Projects
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/projects` | `GET` | List user projects |
-| `/api/projects` | `POST` | Create a project |
-| `/api/projects/[projectId]` | `GET` | Get project details |
-| `/api/projects/[projectId]` | `PATCH` | Update project metadata or messages |
-| `/api/projects/[projectId]` | `DELETE` | Delete a project |
-| `/api/projects/[projectId]/messages` | `GET` | Fetch project messages |
-| `/api/projects/[projectId]/messages` | `POST` | Add a project message |
-| `/api/projects/[projectId]/prd` | `GET/PATCH` | Read or replace PRD data |
-| `/api/projects/[projectId]/plan/approve` | `POST` | Approve a project plan |
-
-### Build
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/projects/[projectId]/build/start` | `POST` | Start a local build run |
-| `/api/projects/[projectId]/build/status` | `GET` | Get build status |
-| `/api/projects/[projectId]/build/logs` | `GET` | Stream or fetch build logs |
-| `/api/projects/[projectId]/build/cancel` | `POST` | Cancel active build work |
-
-### Blueprints and AI
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/blueprints?projectId=xxx` | `GET` | List blueprints for a project |
-| `/api/blueprints` | `POST` | Create a blueprint version |
-| `/api/blueprints` | `PATCH` | Update, lock, or save a blueprint |
-| `/api/blueprints/[blueprintId]/history` | `GET` | Fetch version history |
-| `/api/generate` | `POST` | Generate AI response and update project state |
-| `/api/generate/stream` | `POST` | Stream AI response over SSE |
-| `/api/enhance-prd` | `POST` | Enhance PRD content |
-
-### Sharing, Workspaces, Admin
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/share` | `POST/DELETE` | Create or revoke share links |
-| `/api/share/[token]` | `GET` | Public read-only shared content |
-| `/api/projects/[projectId]/share` | `GET/POST/DELETE` | Manage project sharing |
-| `/api/collaborations` | `GET` | List collaborative projects |
-| `/api/collaborations/accept` | `POST` | Accept collaboration invite |
-| `/api/workspaces` | `GET/POST` | List or create workspaces |
-| `/api/account` | `DELETE` | Delete account and owned data |
-| `/api/admin/logs` | `GET/PATCH` | Admin logs and cost config |
+| Area | Endpoints |
+| --- | --- |
+| Projects | `/api/projects`, `/api/projects/[projectId]`, `/api/projects/[projectId]/messages` |
+| Plans | `/api/projects/[projectId]/prd`, `/api/projects/[projectId]/plan/approve` |
+| Generation | `/api/generate`, `/api/generate/stream`, `/api/enhance-prd` |
+| Build worker | `/api/projects/[projectId]/build/start`, `/api/projects/[projectId]/build/status`, `/api/projects/[projectId]/build/logs`, `/api/projects/[projectId]/build/cancel` |
+| Blueprints | `/api/blueprints`, `/api/blueprints/[blueprintId]/history` |
+| Sharing | `/api/share`, `/api/share/[token]`, `/api/projects/[projectId]/share` |
+| Collaboration | `/api/collaborations`, `/api/collaborations/accept` |
+| Account and admin | `/api/account`, `/api/admin/logs` |
 
 ## Project Structure
 
 ```text
 Flowro-PM/
 ├── Docs/                         # Product and architecture docs
+├── Docs/images/                  # README and public documentation images
 ├── app/                          # Next.js app
 │   ├── public/                   # Static assets
-│   ├── templates/nextjs-app/     # First supported build template
-│   ├── next.config.ts            # Security headers and Next config
+│   ├── templates/nextjs-app/     # Generated app template
 │   ├── env.example               # Environment template
 │   └── src/
 │       ├── app/
 │       │   ├── page.tsx          # Public landing page
-│       │   ├── app/              # Authenticated Command Center
+│       │   ├── app/              # Authenticated workspace
 │       │   ├── auth/             # Self-hosted auth routes
-│       │   ├── api/              # API routes
-│       │   ├── demo/             # Demo routes
-│       │   ├── share/            # Public shared blueprints
-│       │   ├── settings/         # User settings
-│       │   ├── privacy/          # Privacy page
-│       │   └── terms/            # Terms page
-│       ├── components/           # App and UI components
+│       │   ├── api/              # Product APIs
+│       │   ├── share/            # Shared project routes
+│       │   └── settings/         # User settings
+│       ├── components/           # App and workspace UI
 │       ├── lib/
-│       │   ├── build-worker/     # Local build worker logic
+│       │   ├── build-worker/     # Local app generation worker
 │       │   ├── firebase/         # Firestore collections and schema
-│       │   ├── langchain/        # AI chains and intent detection
-│       │   ├── prd/              # PRD schema and editor logic
+│       │   ├── langchain/        # AI chains and intent handling
 │       │   ├── project-plan/     # Project plan schema
-│       │   ├── stitch/           # Legacy integration code pending cleanup
-│       │   └── rag/              # RAG helpers
-│       └── __tests__/            # Internal phase tests
+│       │   ├── slides/           # Slides generation, preview, validation, export
+│       │   └── rag/              # Retrieval helpers
+│       └── __tests__/            # Focused implementation tests
 ├── firebase.json
 ├── firestore.rules
 ├── firestore.indexes.json
@@ -319,52 +259,48 @@ Flowro-PM/
 
 ## Security Notes
 
-- Root landing page does not initialize Firebase auth.
-- Product routes mount auth providers at route level.
+- Secrets live in environment files and should never be committed.
+- Product routes mount auth at the route level.
 - API routes validate Firebase ID tokens where required.
 - Firestore access is controlled by security rules and server-side ownership checks.
+- Generated app provisioning uses explicit Supabase management credentials.
 - CSP, HSTS, X-Frame-Options, X-Content-Type-Options, and Referrer-Policy are configured.
-- Rate limiting is applied to API routes.
-- Secrets are environment-based and should never be committed.
-
-> Note: some rate-limiting, logging, and cache behavior is currently in-memory and resets on process restart. Use persistent infrastructure before heavy production use.
+- Some rate limiting, logging, and cache behavior is in-memory. Use persistent infrastructure before heavy production use.
 
 ## Roadmap
 
-### Done
+### Ready
 
-- Public OSS landing page for `flowro.app`
-- Route-level auth boundary for self-hosted product routes
-- Project planning and UBP generation
-- Versioned blueprints
-- Share links and collaboration APIs
-- Local build worker foundation
-- Next.js app template support
+- One-prompt home experience for Apps and Slides
+- Project planning and approval workflow
+- Generated app workspace flow
+- Supabase-backed generated app path
+- Slides brief, story, deck preview, edits, and export
+- Share links, collaboration APIs, and workspace history
+- Self-hosted deployment path
 
-### In Progress
+### Next
 
 - Stronger build repair loop
-- More template coverage beyond `nextjs-app`
+- More generated app templates
 - Persistent queues and operational storage for worker jobs
-- Better collaboration UX
-- README/docs cleanup for self-hosted operators
+- Richer Slides source ingestion
+- More polished public landing page examples
 
 ## Contributing
-
-Contributions are welcome.
 
 1. Fork the repository.
 2. Create a branch: `git checkout -b feature/your-change`.
 3. Make the change.
-4. Run `npm run lint` and `npm run build` from `app/`.
-5. Open a pull request with a clear description.
+4. Run the focused checks for the area you touched.
+5. Open a pull request with a clear description and screenshots when the UI changes.
 
 ## Philosophy
 
-Flowro is for builders who want AI speed without turning their codebase into a haunted improv show.
+Flowro is for builders who want the speed of AI generation with the taste, control, and verification of a real product workflow.
 
-Start with a plan. Approve the plan. Build locally. Check the preview.
+Start with an idea. Shape the plan. Build the app. Design the deck. Keep editing until it feels ready.
 
 <p align="center">
-  <strong>Bring your keys. Run your stack. Keep the cloud out of it.</strong>
+  <strong>Bring your keys. Run your stack. Turn the prompt into something worth shipping.</strong>
 </p>

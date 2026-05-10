@@ -21,11 +21,6 @@ export default function CommandCenter({ onProjectCreated, defaultProjectType = "
       <div className="relative flex min-h-full flex-1 flex-col overflow-hidden rounded-[1.65rem] bg-[#1b1b1b] shadow-[0_34px_120px_-72px_rgba(0,0,0,0.95)]">
         <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 pb-24 pt-16 sm:px-6">
           <div className="mb-7 hidden items-center gap-2 rounded-full border border-white/[0.08] bg-[#20242d]/80 px-3.5 py-2 text-sm font-semibold text-white/88 shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:flex">
-            <span className="flex -space-x-2">
-              <span className="flex size-7 items-center justify-center rounded-full bg-[#ff7144] text-[13px]">🔥</span>
-              <span className="flex size-7 items-center justify-center rounded-full bg-[#58a6ff] text-[13px]">✦</span>
-              <span className="flex size-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#191919]">Ⅱ</span>
-            </span>
             <span>Build apps and slides from one prompt</span>
             <span className="material-symbols-outlined text-[18px] text-white/65">arrow_forward</span>
           </div>
