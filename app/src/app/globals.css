@@ -214,8 +214,8 @@
 /* Command center focused dark shell */
 .command-center-bg {
   background:
-    linear-gradient(180deg, rgba(47, 143, 255, 0.08) 0%, rgba(47, 143, 255, 0) 28rem),
-    linear-gradient(135deg, #0b0f17 0%, #080a0f 52%, #0a0d13 100%);
+    radial-gradient(90rem 38rem at 50% 33%, rgba(88, 115, 230, 0.76) 0%, rgba(117, 126, 238, 0.52) 22%, transparent 52%),
+    linear-gradient(180deg, #1c1c1d 0%, #1c1d20 19%, #5878dd 41%, #e07ee1 57%, #ec3b82 75%, #f34c43 100%);
 }
 
 .command-center-bg::before {
@@ -223,11 +223,9 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent 68%);
+  background:
+    radial-gradient(48rem 24rem at 50% 2%, rgba(255, 255, 255, 0.05), transparent 72%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.36) 0%, rgba(0, 0, 0, 0.02) 38%, rgba(0, 0, 0, 0.04) 100%);
 }
 
 /* Phase 3.A — Glass Panel Effect */

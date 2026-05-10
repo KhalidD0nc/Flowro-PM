@@ -1,0 +1,48 @@
+import { NextRequest, NextResponse } from "next/server"
+import { isAuthError, unauthorizedResponse, verifyAuthToken } from "../../../../blueprints/auth"
+import { getProject, updateProject } from "@/lib/firebase/collections"
+import { logError } from "@/lib/logger"
+import { attachSlideCodeToDeck } from "@/lib/slides/codeDeck"
+import { generateSlidesDeck } from "@/lib/slides/deck"
+
+async function verifySlidesProject(projectId: string, userId: string) {
+  const project = await getProject(projectId)
+  if (!project) throw new Error("Project not found")
+  if (project.userId !== userId) throw new Error("Access denied: you do not own this project")
+  if ((project.projectType ?? "app") !== "slides") throw new Error("Project is not a Slides workspace")
+  if (!project.slidesDeckStory) throw new Error("Slides story is required before slide generation")
+  return project
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  let projectIdForStatus: string | null = null
+  try {
+    const authResult = await verifyAuthToken(request)
+    if (isAuthError(authResult)) return unauthorizedResponse(authResult)
+
+    const { projectId } = await params
+    projectIdForStatus = projectId
+    const project = await verifySlidesProject(projectId, authResult.userId)
+
+    await updateProject(projectId, { slidesStatus: "drafting" })
+    const story = project.slidesDeckStory!
+    const sources = project.slidesSources ?? []
+
+    const deck = await generateSlidesDeck({ story, sources })
+    const enrichedDeck = await attachSlideCodeToDeck({ deck, story, sources })
+    await updateProject(projectId, { slidesDeck: enrichedDeck, slidesStatus: "ready" })
+
+    return NextResponse.json({ success: true, slidesDeck: enrichedDeck, slidesStatus: "ready" })
+  } catch (error) {
+    logError("slides_generate", { error: String(error) })
+    if (projectIdForStatus) {
+      await updateProject(projectIdForStatus, { slidesStatus: "failed" }).catch(() => undefined)
+    }
+    const message = error instanceof Error ? error.message : "Failed to generate Slides deck"
+    const status = message.includes("Access denied") ? 403 : message.includes("not found") ? 404 : 400
+    return NextResponse.json({ error: message }, { status })
+  }
+}

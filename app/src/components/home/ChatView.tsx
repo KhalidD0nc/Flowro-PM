@@ -5,6 +5,7 @@ import type { User } from "firebase/auth"
 import { authGet, authPost } from "@/lib/authFetch"
 import type { BuildRun } from "@/lib/project-plan/schema"
 import type { ClarificationAnswerState, ProjectView } from "@/lib/types/views"
+import type { ProjectType } from "@/lib/slides/schema"
 import { getLatestClarificationResponse, type ClarificationQuestion } from "@/lib/prd/schema"
 import {
   buildClarificationAnswerMessage,
@@ -21,11 +22,13 @@ import type { ChatMessage, SelectionContext } from "@/components/chat/types"
 import WorkspaceTabs, { type WorkspaceTabKey } from "@/components/workspace/WorkspaceTabs"
 import { BuilderWorkspace, EmptyTab, type PlanView } from "@/components/workspace/BuilderWorkspace"
 import GeneratedAppExplorer from "@/components/workspace/GeneratedAppExplorer"
+import SlidesWorkspace from "@/components/workspace/SlidesWorkspace"
 import { mergeBuildRun, isBuildRunning, shouldPollBuildRun } from "@/components/workspace/BuildMissionControl"
 
 interface ChatViewProps {
   projectId: string
   initialMessage: string
+  projectType?: ProjectType
   user: User
   onBack: () => void
   onProjectSelect?: (projectId: string) => void
@@ -47,7 +50,7 @@ function deriveSeedMessage(project: ProjectView, initialMessage: string): string
   return latestUserMessage?.content.trim() || project.description?.trim() || project.projectName.trim()
 }
 
-export default function ChatView({ projectId, initialMessage, user, onBack, onProjectSelect }: ChatViewProps) {
+export default function ChatView({ projectId, initialMessage, projectType, user, onBack, onProjectSelect }: ChatViewProps) {
   const [project, setProject] = useState<ProjectView | null>(null)
   const [draftPlan, setDraftPlan] = useState<PlanView | null>(null)
   const [buildRuns, setBuildRuns] = useState<BuildRun[]>([])
@@ -71,8 +74,10 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
   const hasInitialized = useRef(false)
   const hasBootstrappedSeed = useRef(false)
 
-  const latestClarification = project && !draftPlan ? getLatestClarificationResponse(project.chatHistory) ?? null : null
-  const clarificationQuestions = !draftPlan ? latestClarification?.questions ?? null : null
+  const effectiveProjectType = project?.projectType ?? projectType ?? "app"
+  const isSlidesProject = effectiveProjectType === "slides"
+  const latestClarification = project && !isSlidesProject && !draftPlan ? getLatestClarificationResponse(project.chatHistory) ?? null : null
+  const clarificationQuestions = !isSlidesProject && !draftPlan ? latestClarification?.questions ?? null : null
   const clarificationProgress = clarificationQuestions
     ? getClarificationProgress(clarificationQuestions, clarificationAnswers)
     : { activeQuestion: null, activeQuestionIndex: -1, answeredSummaries: [], isReady: false }
@@ -81,7 +86,8 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
   const latestBuild = buildRuns[0] ?? null
   const latestBuildId = latestBuild?.id
   const shouldPollBuild = shouldPollBuildRun(latestBuild)
-  const hasWorkspaceContent = Boolean(draftPlan)
+  const hasPreparedSlides = isSlidesProject && Boolean(project?.slidesDeck)
+  const hasWorkspaceContent = isSlidesProject || Boolean(draftPlan)
 
   useEffect(() => {
     if (!clarificationQuestions?.length) {
@@ -105,8 +111,14 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
         const nextProject: ProjectView = {
           id: data.id,
           projectName: data.projectName || data.name || "Untitled Project",
+          projectType: data.projectType || projectType || "app",
           description: data.description,
           stage: data.stage || "planning",
+          slidesSources: data.slidesSources || [],
+          slidesWebSearchEnabled: Boolean(data.slidesWebSearchEnabled),
+          slidesStatus: data.slidesStatus,
+          slidesDeckStory: data.slidesDeckStory,
+          slidesDeck: data.slidesDeck,
           chatHistory: data.chatHistory || [],
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
@@ -126,15 +138,24 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
     }
 
     void initializeWorkspace()
-  }, [projectId, user])
+  }, [projectId, projectType, user])
 
   useEffect(() => {
-    if (!project || draftPlan || hasBootstrappedSeed.current) return
+    if (!project || isSlidesProject || draftPlan || hasBootstrappedSeed.current) return
     if (project.chatHistory.length > 0) return
     const seedMessage = deriveSeedMessage(project, initialMessage)
     if (!seedMessage) return
     hasBootstrappedSeed.current = true
     void handleSendMessage(seedMessage)
+  })
+
+  useEffect(() => {
+    if (!project || !isSlidesProject || hasBootstrappedSeed.current) return
+    if (project.chatHistory.length > 0) return
+    const seedMessage = deriveSeedMessage(project, initialMessage)
+    if (!seedMessage) return
+    hasBootstrappedSeed.current = true
+    void submitSlidesMessage(seedMessage)
   })
 
   useEffect(() => {
@@ -279,7 +300,89 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
     }
   }
 
+  async function submitSlidesMessage(messageToSend: string) {
+    if (!project || isChatSubmitting) return
+    const isEdit = Boolean(project.slidesDeck)
+
+    const optimisticUserMessage: ChatMessage = {
+      id: createTemporaryMessageId(),
+      role: "user",
+      content: messageToSend,
+      intent: "discussion",
+      timestamp: new Date().toISOString(),
+    }
+    const optimisticAssistantMessage: ChatMessage = {
+      id: createTemporaryMessageId(),
+      role: "assistant",
+      content: isEdit
+        ? "I am applying that edit to the generated deck and preserving source references."
+        : project.slidesSources?.length
+        ? "I am reading the attached sources, gathering evidence where needed, and building a claim-led outline."
+        : "I am building the internal brief and claim-led outline from your prompt.",
+      intent: "discussion",
+      timestamp: new Date().toISOString(),
+    }
+
+    try {
+      setChatRequestState("submitting")
+      setLastSubmittedMessage(messageToSend)
+      setLastFailedSubmission(null)
+      setMessage("")
+      setChatError(null)
+      setWorkspaceError(null)
+      setProject((prev) => prev
+        ? { ...prev, chatHistory: [...prev.chatHistory, optimisticUserMessage, optimisticAssistantMessage] }
+        : prev)
+
+      const response = isEdit
+        ? await authPost(`/api/projects/${projectId}/slides/edit`, user, { instruction: messageToSend })
+        : await authPost(`/api/projects/${projectId}/slides/story`, user, {
+            prompt: messageToSend,
+            appendChat: [
+              { role: "user", content: messageToSend, intent: "discussion" },
+              { role: "assistant", content: optimisticAssistantMessage.content, intent: "discussion" },
+            ],
+          })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Failed to update slides chat")
+      setProject((prev) => {
+        if (!prev) return prev
+        const persistedMessages = Array.isArray(data.messages) && data.messages.length
+          ? data.messages
+          : [
+              optimisticUserMessage,
+              { ...optimisticAssistantMessage, content: data.assistantContent || optimisticAssistantMessage.content },
+            ]
+        return {
+          ...prev,
+          chatHistory: prev.chatHistory
+            .filter((chatMessage) => chatMessage.id !== optimisticUserMessage.id && chatMessage.id !== optimisticAssistantMessage.id)
+            .concat(persistedMessages),
+          slidesStatus: data.slidesStatus || prev.slidesStatus,
+          slidesDeckStory: data.slidesDeckStory || prev.slidesDeckStory,
+          slidesDeck: data.slidesDeck || prev.slidesDeck,
+        }
+      })
+      setChatRequestState("idle")
+      setMobilePane("workspace")
+    } catch (error) {
+      setProject((prev) => prev
+        ? { ...prev, chatHistory: prev.chatHistory.filter((chatMessage) => chatMessage.id !== optimisticUserMessage.id && chatMessage.id !== optimisticAssistantMessage.id) }
+        : prev)
+      setChatRequestState("error")
+      setChatError(error instanceof Error ? error.message : "Failed to send message")
+      setLastFailedSubmission(messageToSend)
+    }
+  }
+
   async function handleSendMessage(customMessage?: string) {
+    if (isSlidesProject) {
+      const messageToSend = (customMessage ?? message).trim()
+      if (!messageToSend) return
+      await submitSlidesMessage(messageToSend)
+      return
+    }
+
     const isPrePlanConversation = !draftPlan
     const messageToSend = isPrePlanConversation && clarificationQuestions?.length
       ? buildClarificationAnswerMessage(clarificationQuestions, clarificationAnswers)
@@ -431,7 +534,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
             Chat
           </button>
           <button onClick={() => setMobilePane("workspace")} className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold ${mobilePane === "workspace" ? "bg-[#2f2f2d] text-white shadow-[0_10px_26px_-18px_rgba(0,0,0,0.95)]" : "text-[#8f8f8b]"}`}>
-            Builder
+            {isSlidesProject ? "Slides" : "Builder"}
           </button>
         </div>
       ) : null}
@@ -456,6 +559,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
             onSendMessage={() => { void handleSendMessage() }}
             actionMode={composerActionMode}
             onActionModeChange={setComposerActionMode}
+            workflow={effectiveProjectType}
             onOpenBlueprint={() => {
               if (hasWorkspaceContent) setMobilePane("workspace")
             }}
@@ -492,7 +596,18 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
             />
 
             <div className={`min-h-0 flex-1 bg-[#111111] ${mobilePane === "chat" ? "hidden" : "block"} lg:block`}>
-              <WorkspaceTabs
+              {isSlidesProject ? (
+                <div className={`h-full min-h-0 ${hasPreparedSlides ? "overflow-hidden" : "overflow-y-auto p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}`}>
+                  <SlidesWorkspace
+                    project={project}
+                    user={user}
+                    isWorking={isChatSubmitting}
+                    onProjectChange={(updates) => setProject((prev) => prev ? { ...prev, ...updates } : prev)}
+                    previewOnly={hasPreparedSlides}
+                  />
+                </div>
+              ) : (
+                <WorkspaceTabs
                 previewRoutes={draftPlan?.plan.routes}
                 selectedPreviewPath={selectedPreviewPath}
                 onPreviewPathChange={setSelectedPreviewPath}
@@ -535,6 +650,7 @@ export default function ChatView({ projectId, initialMessage, user, onBack, onPr
                   )
                 }}
               />
+              )}
             </div>
           </>
         ) : null}

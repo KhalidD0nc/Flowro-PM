@@ -6,6 +6,8 @@ import {
     getUserProjects,
 } from "@/lib/firebase/collections"
 import { timestampToISO } from "@/lib/firebase/schema"
+import { normalizeProjectType, slidesSourceInputSchema } from "@/lib/slides/schema"
+import { classifySlidesSourcesWithOpenRouter } from "@/lib/slides/sourceIntake"
 
 /**
  * GET /api/projects - List user's projects (fast, no chat history)
@@ -58,7 +60,15 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { name: rawName, projectName: rawProjectName, lastMessage: rawLastMessage } = body
+        const {
+            name: rawName,
+            projectName: rawProjectName,
+            lastMessage: rawLastMessage,
+            projectType: rawProjectType,
+            slidesSources: rawSlidesSources,
+            slidesWebSearchEnabled: rawSlidesWebSearchEnabled,
+        } = body
+        const projectType = normalizeProjectType(rawProjectType)
 
         // Validate and sanitize name: must be non-empty string after trimming
         let name: string
@@ -77,10 +87,28 @@ export async function POST(request: NextRequest) {
         }
         // If rawLastMessage is not a string, leave lastMessage as undefined
 
+        const parsedSlidesSources = projectType === "slides" && Array.isArray(rawSlidesSources)
+            ? rawSlidesSources
+                .map((source) => slidesSourceInputSchema.safeParse(source))
+                .filter((result) => result.success)
+                .map((result) => result.data)
+                .slice(0, 12)
+            : []
+        const slidesSources = projectType === "slides"
+            ? await classifySlidesSourcesWithOpenRouter(parsedSlidesSources)
+            : undefined
+        const slidesWebSearchEnabled = projectType === "slides"
+            ? Boolean(rawSlidesWebSearchEnabled)
+            : undefined
+
         const project = await createProject({
             userId: authResult.userId,
             name,
+            projectType,
             lastMessage,
+            ...(slidesSources ? { slidesSources } : {}),
+            ...(slidesWebSearchEnabled !== undefined ? { slidesWebSearchEnabled } : {}),
+            ...(projectType === "slides" ? { slidesStatus: "reading_sources" as const } : {}),
         })
 
         // Return project with ISO string timestamps for client
@@ -89,7 +117,12 @@ export async function POST(request: NextRequest) {
             userId: project.userId,
             name: project.name,
             projectName: project.name,
+            projectType: project.projectType ?? "app",
             lastMessage: project.lastMessage,
+            slidesSources: project.slidesSources ?? [],
+            slidesWebSearchEnabled: project.slidesWebSearchEnabled ?? false,
+            slidesStatus: project.slidesStatus ?? "reading_sources",
+            slidesDeckStory: project.slidesDeckStory,
             createdAt: timestampToISO(project.createdAt),
             updatedAt: timestampToISO(project.updatedAt),
         })

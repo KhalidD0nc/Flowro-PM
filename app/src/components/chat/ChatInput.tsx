@@ -10,6 +10,7 @@ export default function ChatInput({
   onSend,
   actionMode = "build",
   onActionModeChange,
+  workflow = "app",
   isGenerating,
   selectionContext,
   onClearContext,
@@ -60,8 +61,9 @@ export default function ChatInput({
   const defaultPlaceholder = selectionContext
     ? "Describe how to change this..."
     : placeholder ? placeholder.replace("Ask Flowro to refine the project plan...", "Ask Flowro...").replace("Describe your product idea...", "Ask Flowro...") : "Ask Flowro...";
+  const showActionMode = workflow !== "slides";
 
-  const hasClarificationFlow = Boolean(activeClarificationQuestion || clarificationSummaries?.length);
+  const hasClarificationFlow = workflow !== "slides" && Boolean(activeClarificationQuestion || clarificationSummaries?.length);
   const activeAnswer = activeClarificationQuestion
     ? clarificationAnswers?.[activeClarificationQuestion.id]
     : undefined;
@@ -259,6 +261,7 @@ export default function ChatInput({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
+                {showActionMode ? (
                 <div className="relative hidden sm:block" ref={actionMenuRef}>
                   <button
                     type="button"
@@ -304,6 +307,7 @@ export default function ChatInput({
                     </div>
                   ) : null}
                 </div>
+                ) : null}
                 <button
                   type="button"
                   disabled={isGenerating}

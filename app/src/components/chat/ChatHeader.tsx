@@ -22,6 +22,7 @@ interface RecentProject {
 }
 
 function statusForProject(project: ProjectView): { label: string; tone: "draft" | "active" | "approved" | "built" } {
+  if (project.projectType === "slides") return { label: "Slides", tone: "active" };
   if (project.buildRuns?.some((run) => run.status === "success")) return { label: "Built", tone: "built" };
   if (project.latestPlan?.status === "approved") return { label: "Plan approved", tone: "approved" };
   if (project.latestPlan) return { label: "Plan draft", tone: "active" };

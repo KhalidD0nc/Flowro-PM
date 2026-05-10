@@ -153,6 +153,7 @@ export async function createProject(data: Omit<ProjectCreateData, "createdAt" | 
     const now = Timestamp.now()
     const projectData: ProjectCreateData = {
         ...data,
+        projectType: data.projectType ?? "app",
         stage: data.stage ?? "planning",
         collaboratorUserIds: [], // Initialize empty for Firestore security rules
         createdAt: now,
@@ -201,6 +202,7 @@ export async function getUserProjects(userId: string): Promise<ProjectListItem[]
         return {
             id: doc.id,
             name: data.name,
+            projectType: data.projectType ?? "app",
             lastMessage: data.lastMessage,
             createdAt: timestampToISO(data.createdAt),
             updatedAt: timestampToISO(data.updatedAt),
@@ -213,7 +215,7 @@ export async function getUserProjects(userId: string): Promise<ProjectListItem[]
  */
 export async function updateProject(
     projectId: string,
-    updates: Partial<Pick<ProjectDocument, "name" | "lastMessage" | "stage">>
+    updates: Partial<Pick<ProjectDocument, "name" | "lastMessage" | "stage" | "slidesSources" | "slidesWebSearchEnabled" | "slidesStatus" | "slidesDeckStory" | "slidesDeck">>
 ): Promise<void> {
     const db = getDb()
     await db.collection(COLLECTIONS.PROJECTS).doc(projectId).update({
@@ -1205,6 +1207,7 @@ export async function getAccessibleProjects(userId: string): Promise<ProjectList
         projectMap.set(doc.id, {
             id: doc.id,
             name: data.name,
+            projectType: data.projectType ?? "app",
             lastMessage: data.lastMessage,
             createdAt: timestampToISO(data.createdAt),
             updatedAt: timestampToISO(data.updatedAt),
@@ -1223,6 +1226,7 @@ export async function getAccessibleProjects(userId: string): Promise<ProjectList
                 projectMap.set(doc.id, {
                     id: doc.id,
                     name: data.name,
+                    projectType: data.projectType ?? "app",
                     lastMessage: data.lastMessage,
                     createdAt: timestampToISO(data.createdAt),
                     updatedAt: timestampToISO(data.updatedAt),
