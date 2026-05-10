@@ -14,11 +14,13 @@ import { useAuth } from "@/components/Providers";
 import Sidebar from "@/components/home/Sidebar";
 import CommandCenter from "@/components/home/CommandCenter";
 import ChatView from "@/components/home/ChatView";
+import type { ProjectType } from "@/lib/slides/schema";
 
 // Active session state for seamless transitions
 interface ActiveSession {
   projectId: string;
   initialMessage: string;
+  projectType?: ProjectType;
   isExisting?: boolean; // true when loading an existing project from sidebar
 }
 
@@ -30,6 +32,7 @@ function AppHomeContent() {
   // Active session state - when set, shows ChatView instead of CommandCenter
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const defaultProjectType: ProjectType = searchParams.get("mode") === "slides" ? "slides" : "app";
 
   // Redirect unauthenticated users to auth
   useEffect(() => {
@@ -39,7 +42,7 @@ function AppHomeContent() {
   }, [user, loading, router]);
 
   // Handle project creation - seamless transition to chat
-  const handleProjectCreated = useCallback((projectId: string, initialMessage: string) => {
+  const handleProjectCreated = useCallback((projectId: string, initialMessage: string, projectType: ProjectType) => {
     setIsTransitioning(true);
 
     // Update URL without navigation (for bookmarking/sharing)
@@ -47,7 +50,7 @@ function AppHomeContent() {
 
     // Small delay for smooth transition
     setTimeout(() => {
-      setActiveSession({ projectId, initialMessage });
+      setActiveSession({ projectId, initialMessage, projectType });
       setIsTransitioning(false);
     }, 150);
   }, []);
@@ -143,7 +146,7 @@ function AppHomeContent() {
   }
 
   return (
-    <div className="flex h-screen w-full flex-row overflow-hidden bg-[#080a0f] font-sans text-slate-900 selection:bg-blue-200 selection:text-slate-900">
+    <div className="flex h-screen w-full flex-row overflow-hidden bg-[#090909] font-sans text-slate-900 selection:bg-[#6f82ff]/40 selection:text-white">
       {!activeSession ? (
         <Sidebar
           onProjectSelect={handleProjectSelect}
@@ -156,7 +159,7 @@ function AppHomeContent() {
       <div className="relative flex-1 flex flex-col overflow-hidden bg-transparent">
         {/* Transition overlay */}
         <div
-          className={`pointer-events-none absolute inset-0 z-50 bg-[#080a0f] transition-opacity duration-150 ${isTransitioning ? "opacity-100" : "opacity-0"
+          className={`pointer-events-none absolute inset-0 z-50 bg-[#090909] transition-opacity duration-150 ${isTransitioning ? "opacity-100" : "opacity-0"
             }`}
         />
 
@@ -166,13 +169,14 @@ function AppHomeContent() {
             key={activeSession.projectId}
             projectId={activeSession.projectId}
             initialMessage={activeSession.initialMessage}
+            projectType={activeSession.projectType}
             user={user}
             onBack={handleBackToCommandCenter}
             onProjectSelect={handleProjectSelect}
             isExisting={activeSession.isExisting}
           />
         ) : (
-          <CommandCenter onProjectCreated={handleProjectCreated} />
+          <CommandCenter onProjectCreated={handleProjectCreated} defaultProjectType={defaultProjectType} />
         )}
       </div>
     </div>

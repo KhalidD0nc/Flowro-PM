@@ -115,7 +115,7 @@ export async function generateCompletion(options: GenerateOptions) {
     maxRetries = CONFIG.maxRetries,
     signal,
   } = options
-  const model = options.model || process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat"
+  const model = options.model || process.env.OPENROUTER_MODEL || "openai/gpt-mini-latest"
 
   let lastError: Error | null = null
 

@@ -8,49 +8,36 @@
 "use client";
 
 import VisionInput from "./VisionInput";
+import type { ProjectType } from "@/lib/slides/schema";
 
 interface CommandCenterProps {
-  onProjectCreated?: (projectId: string, initialMessage: string) => void;
+  onProjectCreated?: (projectId: string, initialMessage: string, projectType: ProjectType) => void;
+  defaultProjectType?: ProjectType;
 }
 
-const TEMPLATE_PREVIEWS = [
-  "Landing page",
-  "SaaS dashboard",
-  "Marketplace",
-  "Internal tool",
-];
-
-export default function CommandCenter({ onProjectCreated }: CommandCenterProps) {
+export default function CommandCenter({ onProjectCreated, defaultProjectType = "app" }: CommandCenterProps) {
   return (
-    <main className="command-center-bg relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-8 text-white sm:px-6">
-      <div className="relative z-10 flex w-full max-w-4xl flex-col items-center gap-7">
-        <h1 className="text-center font-[family-name:var(--font-display)] text-3xl font-semibold text-white sm:text-5xl">
-          What are we building today?
-        </h1>
-
-        <VisionInput onProjectCreated={onProjectCreated} />
-
-        <section className="w-full rounded-[1.5rem] border border-white/[0.08] bg-white/[0.035] p-4 shadow-[0_24px_70px_-48px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-medium text-white/88">Templates</h2>
-            <span className="rounded-full border border-[#2f8fff]/25 bg-[#2f8fff]/10 px-2.5 py-1 text-[11px] font-medium text-[#8fc1ff]">
-              Coming soon
+    <main className="command-center-bg relative flex flex-1 flex-col overflow-hidden p-3 text-white sm:p-4">
+      <div className="relative flex min-h-full flex-1 flex-col overflow-hidden rounded-[1.65rem] bg-[#1b1b1b] shadow-[0_34px_120px_-72px_rgba(0,0,0,0.95)]">
+        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 pb-24 pt-16 sm:px-6">
+          <div className="mb-7 hidden items-center gap-2 rounded-full border border-white/[0.08] bg-[#20242d]/80 px-3.5 py-2 text-sm font-semibold text-white/88 shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:flex">
+            <span className="flex -space-x-2">
+              <span className="flex size-7 items-center justify-center rounded-full bg-[#ff7144] text-[13px]">🔥</span>
+              <span className="flex size-7 items-center justify-center rounded-full bg-[#58a6ff] text-[13px]">✦</span>
+              <span className="flex size-7 items-center justify-center rounded-full bg-white text-sm font-black text-[#191919]">Ⅱ</span>
             </span>
+            <span>Build apps and slides from one prompt</span>
+            <span className="material-symbols-outlined text-[18px] text-white/65">arrow_forward</span>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {TEMPLATE_PREVIEWS.map((template) => (
-              <button
-                key={template}
-                type="button"
-                disabled
-                className="min-h-20 cursor-not-allowed rounded-2xl border border-white/[0.07] bg-white/[0.035] px-3 py-4 text-left text-sm font-medium text-white/42 opacity-80"
-              >
-                {template}
-              </button>
-            ))}
+          <div className="relative z-10 flex w-full max-w-4xl flex-col items-center gap-8">
+            <h1 className="text-center font-[family-name:var(--font-display)] text-[2.15rem] font-semibold leading-[1.08] tracking-[-0.02em] text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.22)] sm:text-5xl">
+              What&apos;s on your mind?
+            </h1>
+
+            <VisionInput onProjectCreated={onProjectCreated} defaultProjectType={defaultProjectType} />
           </div>
-        </section>
+        </div>
       </div>
     </main>
   );

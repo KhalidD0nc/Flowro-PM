@@ -1,5 +1,6 @@
 import type { PRDConfig, ProposedPrdChanges } from "@/lib/prd/schema"
 import type { BuildRun, ProjectPlan, ProjectStage } from "@/lib/project-plan/schema"
+import type { ProjectType, SlidesDeck, SlidesDeckStory, SlidesGenerationStatus, SlidesSource } from "@/lib/slides/schema"
 
 /**
  * Firebase Schema Definitions
@@ -190,8 +191,14 @@ export interface ProjectDocument {
     id: string
     userId: string // Owner's Firebase UID
     name: string
+    projectType?: ProjectType
     lastMessage?: string // Preview for Command Center list
     stage?: ProjectStage
+    slidesSources?: SlidesSource[]
+    slidesWebSearchEnabled?: boolean
+    slidesStatus?: SlidesGenerationStatus
+    slidesDeckStory?: SlidesDeckStory
+    slidesDeck?: SlidesDeck
     collaborators?: ProjectCollaborator[] // Team members with access
     collaboratorUserIds?: string[] // Flat array of collaborator UIDs for efficient Firestore queries
     publishStatus?: "idle" | "pushing" | "deploying" | "live" | "failed"
@@ -213,8 +220,14 @@ export interface ProjectDocument {
 export interface ProjectCreateData {
     userId: string
     name: string
+    projectType?: ProjectType
     lastMessage?: string
     stage?: ProjectStage
+    slidesSources?: SlidesSource[]
+    slidesWebSearchEnabled?: boolean
+    slidesStatus?: SlidesGenerationStatus
+    slidesDeckStory?: SlidesDeckStory
+    slidesDeck?: SlidesDeck
     collaborators?: ProjectCollaborator[]
     collaboratorUserIds?: string[] // Flat array of collaborator UIDs for efficient Firestore queries
     createdAt: FirestoreTimestamp
@@ -352,6 +365,7 @@ export interface BlueprintHistoryCreateData {
 export interface ProjectListItem {
     id: string
     name: string
+    projectType?: ProjectType
     lastMessage?: string
     createdAt: string // ISO string
     updatedAt: string // ISO string

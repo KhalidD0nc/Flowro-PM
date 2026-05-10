@@ -3,20 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FileText,
+  Home,
   LogOut,
-  Moon,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
+  Presentation,
   Sparkles,
-  Sun,
   Trash2,
   UserRound,
 } from "lucide-react";
 import { useAuth } from "@/components/Providers";
-import { useTheme } from "@/components/ThemeProvider";
 import { signOutUser } from "@/app/auth/actions";
 import { authDelete, authGet, authPatch } from "@/lib/authFetch";
 import PricingModal from "@/components/PricingModal";
@@ -28,6 +26,7 @@ const SIDEBAR_COLLAPSED_KEY = "flowro_sidebar_collapsed";
 interface RecentProject {
   id: string;
   name: string;
+  projectType?: "app" | "slides";
   updatedAt: string;
 }
 
@@ -40,7 +39,6 @@ interface SidebarProps {
 export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }: SidebarProps) {
   const router = useRouter();
   const { user } = useAuth();
-  const { theme, toggleTheme } = useTheme();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
@@ -180,17 +178,17 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
 
   const sidebarWidth = isCollapsed ? "md:w-[76px]" : "md:w-[292px]";
   const iconButton =
-    "flex size-11 items-center justify-center rounded-2xl text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#2f8fff]/55";
+    "flex size-10 items-center justify-center rounded-xl text-[#aaa6a1] transition-colors hover:bg-white/[0.07] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#6f82ff]/55";
 
   return (
     <aside
-      className={`relative z-20 hidden shrink-0 flex-col justify-between border-r border-white/[0.07] bg-[#090b10]/96 px-3 py-4 text-white shadow-[24px_0_70px_-60px_rgba(0,0,0,0.95)] backdrop-blur-xl transition-[width] duration-300 md:flex ${sidebarWidth}`}
+      className={`relative z-20 hidden shrink-0 flex-col justify-between border-r border-white/[0.045] bg-[#090909] px-3 py-4 text-white shadow-[24px_0_70px_-60px_rgba(0,0,0,0.95)] transition-[width] duration-300 md:flex ${sidebarWidth}`}
     >
       <div className="min-h-0 flex-1">
         <div className={`flex items-center gap-3 ${isCollapsed ? "justify-center" : "justify-between"}`}>
           <button
             onClick={goHome}
-            className={`flex min-w-0 items-center gap-3 rounded-2xl text-left focus:outline-none focus:ring-2 focus:ring-[#2f8fff]/55 ${isCollapsed ? "justify-center" : ""}`}
+            className={`flex min-w-0 items-center gap-3 rounded-2xl text-left focus:outline-none focus:ring-2 focus:ring-[#6f82ff]/55 ${isCollapsed ? "justify-center" : ""}`}
             aria-label="Go to app home"
           >
             <img src="/logo.svg" alt="Flowro" className="h-9 w-9 shrink-0 object-contain" />
@@ -215,112 +213,112 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
         ) : null}
 
         {!isCollapsed ? (
-          <section className="mt-6 min-h-0 rounded-[1.35rem] border border-white/[0.07] bg-white/[0.035] p-2">
-            <div className="flex items-center justify-between px-2.5 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Recents</p>
-              <span className="rounded-full bg-white/[0.06] px-2 py-1 text-[11px] text-slate-400">
-                {recentProjects.length}
-              </span>
-            </div>
+          <>
+            <nav className="mt-5">
+              <button
+                type="button"
+                onClick={goHome}
+                className="flex h-11 w-full items-center gap-3 rounded-lg bg-[#3c3c39] px-3 text-left text-[15px] font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#6f82ff]/55"
+              >
+                <Home size={18} strokeWidth={1.8} />
+                <span>Home</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/slides")}
+                className="mt-1 flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-[15px] font-medium text-[#d7d3cd] transition-colors hover:bg-white/[0.055] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#6f82ff]/55"
+              >
+                <Presentation size={18} strokeWidth={1.8} />
+                <span>Slides</span>
+              </button>
+            </nav>
 
-            <div className="mt-1 max-h-[calc(100vh-290px)] space-y-1 overflow-y-auto pr-1">
-              {isLoadingProjects ? (
-                <div className="px-3 py-4 text-sm text-slate-500">Loading projects...</div>
-              ) : recentProjects.length > 0 ? (
-                recentProjects.map((project) => {
-                  const isActive = activeProjectId === project.id;
-                  const isMenuOpen = openProjectMenuId === project.id;
+            <section className="mt-7 min-h-0">
+              <div className="flex items-center justify-between px-3 py-2">
+                <p className="text-[15px] font-semibold text-[#9c9892]">Recents</p>
+              </div>
 
-                  return (
-                    <div key={project.id} className="group relative" ref={isMenuOpen ? projectMenuRef : null}>
-                      <button
-                        onClick={() => {
-                          if (onProjectSelect) {
-                            onProjectSelect(project.id);
-                          } else {
-                            router.push(`/app/${project.id}`);
-                          }
-                        }}
-                        className={`flex min-h-14 w-full items-center gap-2.5 rounded-2xl border px-2.5 py-2 text-left text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#2f8fff]/55 ${
-                          isActive
-                            ? "border-[#2f8fff]/35 bg-[#2f8fff]/12 text-white"
-                            : "border-transparent text-slate-400 hover:bg-white/[0.055] hover:text-white"
-                        }`}
-                      >
-                        <span
-                          className={`flex size-8 shrink-0 items-center justify-center rounded-xl ${
-                            isActive ? "bg-[#2f8fff]/16 text-[#8fc1ff]" : "bg-white/[0.055] text-slate-500"
+              <div className="mt-1 max-h-[calc(100vh-340px)] space-y-1 overflow-y-auto pr-1">
+                {isLoadingProjects ? (
+                  <div className="px-3 py-4 text-sm text-[#716d67]">Loading projects...</div>
+                ) : recentProjects.length > 0 ? (
+                  recentProjects.map((project) => {
+                    const isActive = activeProjectId === project.id;
+                    const isMenuOpen = openProjectMenuId === project.id;
+
+                    return (
+                      <div key={project.id} className="group relative" ref={isMenuOpen ? projectMenuRef : null}>
+                        <button
+                          onClick={() => {
+                            if (onProjectSelect) {
+                              onProjectSelect(project.id);
+                            } else {
+                              router.push(`/app/${project.id}`);
+                            }
+                          }}
+                          className={`flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#6f82ff]/55 ${
+                            isActive ? "bg-[#31312f] text-white" : "text-[#d7d3cd] hover:bg-white/[0.055] hover:text-white"
                           }`}
                         >
-                          <FileText size={16} />
-                        </span>
-                        <span className="min-w-0 flex-1 pr-7">
-                          <span className="block truncate font-medium leading-tight">{project.name}</span>
-                          <span className="mt-1 block text-[11px] text-slate-600">
-                            {new Date(project.updatedAt).toLocaleDateString()}
+                          <span className="flex size-6 shrink-0 items-center justify-center text-[#8b8782]">
+                            {project.projectType === "slides" ? <Presentation size={15} /> : <Home size={15} />}
                           </span>
-                        </span>
-                      </button>
+                          <span className="min-w-0 flex-1 pr-7">
+                            <span className="block truncate font-medium leading-tight">{project.name}</span>
+                          </span>
+                        </button>
 
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setOpenProjectMenuId(isMenuOpen ? null : project.id);
-                        }}
-                        className={`absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-white/[0.08] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#2f8fff]/55 ${
-                          isMenuOpen ? "bg-white/[0.08] opacity-100" : "opacity-0 group-hover:opacity-100"
-                        }`}
-                        title="Project options"
-                        aria-label="Project options"
-                      >
-                        <MoreHorizontal size={18} />
-                      </button>
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setOpenProjectMenuId(isMenuOpen ? null : project.id);
+                          }}
+                          className={`absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-[#8b8782] transition-colors hover:bg-white/[0.08] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#6f82ff]/55 ${
+                            isMenuOpen ? "bg-white/[0.08] opacity-100" : "opacity-0 group-hover:opacity-100"
+                          }`}
+                          title="Project options"
+                          aria-label="Project options"
+                        >
+                          <MoreHorizontal size={18} />
+                        </button>
 
-                      {isMenuOpen ? (
-                        <div className="absolute right-0 top-12 z-50 w-44 overflow-hidden rounded-2xl border border-white/[0.09] bg-[#151922] shadow-[0_26px_60px_-28px_rgba(0,0,0,0.9)]">
-                          <button
-                            onClick={() => openRenameModal(project)}
-                            className="flex w-full items-center gap-2 px-4 py-3 text-sm text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white"
-                          >
-                            <Pencil size={15} />
-                            Rename
-                          </button>
-                          <button
-                            onClick={() => openDeleteModal(project.id)}
-                            className="flex w-full items-center gap-2 px-4 py-3 text-sm text-red-300 transition-colors hover:bg-red-500/10 hover:text-red-200"
-                          >
-                            <Trash2 size={15} />
-                            Delete
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="px-3 py-4 text-sm leading-6 text-slate-500">
-                  No projects yet. Start a new chat to generate your first project plan.
-                </div>
-              )}
-            </div>
-          </section>
+                        {isMenuOpen ? (
+                          <div className="absolute right-0 top-12 z-50 w-44 overflow-hidden rounded-2xl border border-white/[0.09] bg-[#191918] shadow-[0_26px_60px_-28px_rgba(0,0,0,0.9)]">
+                            <button
+                              onClick={() => openRenameModal(project)}
+                              className="flex w-full items-center gap-2 px-4 py-3 text-sm text-[#d7d3cd] transition-colors hover:bg-white/[0.06] hover:text-white"
+                            >
+                              <Pencil size={15} />
+                              Rename
+                            </button>
+                            <button
+                              onClick={() => openDeleteModal(project.id)}
+                              className="flex w-full items-center gap-2 px-4 py-3 text-sm text-red-300 transition-colors hover:bg-red-500/10 hover:text-red-200"
+                            >
+                              <Trash2 size={15} />
+                              Delete
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="px-3 py-4 text-sm leading-6 text-[#716d67]">
+                    No projects yet. Start a new chat to generate your first project plan.
+                  </div>
+                )}
+              </div>
+            </section>
+          </>
         ) : null}
       </div>
 
       <div className="space-y-3 pt-4">
-        <button
-          onClick={toggleTheme}
-          className={`flex h-11 w-full items-center gap-2 rounded-2xl px-3 text-sm text-slate-400 transition-colors hover:bg-white/[0.055] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#2f8fff]/55 ${isCollapsed ? "justify-center px-0" : ""}`}
-          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-        >
-          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-          {!isCollapsed ? <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span> : null}
-        </button>
-
         <div className="relative" ref={profileMenuRef}>
           {isProfileMenuOpen && user ? (
             <div
-              className="absolute bottom-full left-0 z-50 mb-3 w-64 overflow-hidden rounded-[1.35rem] border border-white/[0.09] bg-[#151922] shadow-[0_26px_60px_-28px_rgba(0,0,0,0.9)]"
+              className="absolute bottom-full left-0 z-50 mb-3 w-64 overflow-hidden rounded-[1.35rem] border border-white/[0.09] bg-[#191918] shadow-[0_26px_60px_-28px_rgba(0,0,0,0.9)]"
               style={{ minWidth: isCollapsed ? "256px" : "100%" }}
             >
               <div className="border-b border-white/[0.07] px-4 py-4">
@@ -359,13 +357,13 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
           {user ? (
             <button
               onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-              className={`flex min-h-14 w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.035] p-2.5 transition-colors hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-[#2f8fff]/55 ${isCollapsed ? "justify-center" : ""}`}
+              className={`flex min-h-12 w-full items-center gap-3 rounded-xl p-2.5 transition-colors hover:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-[#6f82ff]/55 ${isCollapsed ? "justify-center" : ""}`}
               title="Profile menu"
             >
               {user.photoURL ? (
                 <img src={user.photoURL} alt="Profile" className="size-9 rounded-full object-cover" />
               ) : (
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#2f8fff]/13 text-xs font-bold text-[#8fc1ff]">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#5b34d6] text-xs font-bold text-white">
                   {getUserInitials()}
                 </span>
               )}
@@ -376,7 +374,7 @@ export default function Sidebar({ onProjectSelect, onNewChat, activeProjectId }:
                     <span className="block truncate text-sm font-medium text-white">
                       {user.displayName || user.email?.split("@")[0] || "User"}
                     </span>
-                    <span className="block truncate text-xs text-slate-500">Builder Plan</span>
+                    <span className="block truncate text-xs text-[#8b8782]">Workspace</span>
                   </span>
                   <UserRound size={17} className="text-slate-600" />
                 </>

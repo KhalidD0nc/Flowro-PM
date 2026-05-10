@@ -22,6 +22,7 @@ export default function ChatPanel({
   onSendMessage,
   actionMode,
   onActionModeChange,
+  workflow = "app",
   onOpenBlueprint,
   onProjectSelect,
   onGoHome,
@@ -45,6 +46,11 @@ export default function ChatPanel({
   };
 
   const placeholder =
+    workflow === "slides"
+      ? project.chatHistory.length > 0
+        ? "Ask Flowro to adjust the deck direction..."
+        : "Describe the presentation you need..."
+      :
     currentPrd
       ? project.chatHistory.length > 0
         ? "Ask Flowro to refine the project plan..."
@@ -102,6 +108,7 @@ export default function ChatPanel({
           onSend={onSendMessage}
           actionMode={actionMode}
           onActionModeChange={onActionModeChange}
+          workflow={workflow}
           isGenerating={isGenerating}
           selectionContext={selectionContext}
           onClearContext={onClearContext}
