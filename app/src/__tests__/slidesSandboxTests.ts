@@ -1,5 +1,6 @@
 import { extractBuildBody, runSlideCode, runSlideCodeInBrowser, validateSlideCode } from "../lib/slides/sandbox"
 import { PreviewPres } from "../lib/slides/previewPres"
+import { validatePreviewDeckPrimitives } from "../lib/slides/primitiveValidation"
 import { SAMPLE_CHART_SLIDE_CODE, SAMPLE_COMPARISON_SLIDE_CODE, SAMPLE_COVER_SLIDE_CODE, buildMinimalFallbackSlideCode } from "../lib/slides/sampleDecks"
 
 interface TestResult { name: string; passed: boolean; detail?: string }
@@ -58,6 +59,34 @@ async function runTests(): Promise<TestResult[]> {
     passed:
       previewDeck.slides[0]?.primitives.some((p) => p.kind === "shape" && p.shape === "ellipse") === true &&
       previewDeck.slides[0]?.primitives.some((p) => p.kind === "text" && p.text.includes("Workflow Intelligence")) === true,
+  })
+  results.push({
+    name: "primitive validation accepts designed cover slide",
+    passed: validatePreviewDeckPrimitives(previewDeck).ok,
+  })
+
+  const invalidPres = new PreviewPres()
+  await runSlideCodeInBrowser({
+    code: `const s = pres.addSlide(); s.addText("This title has no supporting shape", { x: 0.6, y: 0.6, w: 4, h: 0.5, fontSize: 24 })`,
+    pres: invalidPres,
+  })
+  const invalidPrimitiveResult = validatePreviewDeckPrimitives(invalidPres.finalize())
+  results.push({
+    name: "primitive validation rejects slides without shapes",
+    passed: !invalidPrimitiveResult.ok && invalidPrimitiveResult.reasons.some((reason) => reason.includes("no shapes")),
+    detail: invalidPrimitiveResult.ok ? "unexpectedly passed" : invalidPrimitiveResult.reasons.join("; "),
+  })
+
+  const overflowPres = new PreviewPres()
+  await runSlideCodeInBrowser({
+    code: `const s = pres.addSlide(); s.addShape(pres.shapes.RECTANGLE, { x: 0.5, y: 0.5, w: 1, h: 1, fill: { color: "F4F6FB" }, line: { color: "F4F6FB" } }); s.addText("${"Too much text ".repeat(40)}", { x: 0.6, y: 0.6, w: 1.2, h: 0.35, fontSize: 22 })`,
+    pres: overflowPres,
+  })
+  const overflowPrimitiveResult = validatePreviewDeckPrimitives(overflowPres.finalize())
+  results.push({
+    name: "primitive validation rejects likely text overflow",
+    passed: !overflowPrimitiveResult.ok && overflowPrimitiveResult.reasons.some((reason) => reason.includes("overflows")),
+    detail: overflowPrimitiveResult.ok ? "unexpectedly passed" : overflowPrimitiveResult.reasons.join("; "),
   })
 
   // ── Chart slide renders chart primitive with values ───────────────────────

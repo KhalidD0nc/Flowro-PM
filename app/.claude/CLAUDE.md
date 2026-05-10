@@ -119,14 +119,14 @@
 
       This interpreter is the only new significant code we own. Everything else is delegation to pptxgenjs.
 
-      ### What gets deleted
+      ### What becomes secondary
 
-      - `app/src/lib/slides/schema.ts` — the `slidesStructuredSlideSchema`, `slidesProofObjectSchema`, layout enum, `chartType` enum, visual asset enum. Story-level types stay (brief, outline, evidence). Deck-level becomes `{ title, theme, slideCode: string, assets: AssetBag, diagnostics }`.
-      - `app/src/lib/slides/export.ts` — entire file. Replaced by ~40 lines that load the sandbox, run `build`, and call `pres.writeFile`.
-      - `app/src/components/workspace/SlideRenderer.tsx` — the 1100-line layout switch. Replaced by `<SlideCanvas slide={previewPrimitives} />` (~250 lines including the chart sub-renderers).
-      - `app/src/__tests__/slidesDeckTests.ts` schema-shape tests. Replaced with sandbox-execution tests + visual-regression snapshots.
+      - `app/src/lib/slides/schema.ts` still persists legacy `slides[]`, but `slideCode` + `assets` are now the primary design payload for previews and PPTX export.
+      - `app/src/lib/slides/export.ts` prefers sandboxed slideCode for PPTX. The JSON exporter stays as fallback and for current PDF support.
+      - `app/src/components/workspace/SlideRenderer.tsx` is no longer the primary preview path for new decks; `SlideCanvas` renders decks with `slideCode`, and `SlideRenderer` remains only as compatibility fallback.
+      - `app/src/__tests__/slidesSandboxTests.ts` now carries the core sandbox/preview safety checks. `slidesDeckTests.ts` still covers legacy normalization and fallback behavior during the transition.
 
-      This deletion is the point. The cage is the bug.
+      The goal is still to remove the cage, but deletion is gated behind Phase 4 validation/retry so the product keeps a usable fallback while slideCode reliability hardens.
 
       ---
 
@@ -137,8 +137,9 @@
       | **Phase 1 — Sandbox + IR + preview** | ✅ **Done** | `sandbox.ts`, `previewPres.ts`, `SlideCanvas.tsx`, `sampleDecks.ts`, 19 tests passing (`slidesSandboxTests.ts`). Static gate rejects `import`, `require`, `eval`, `Function`, `process`, `__proto__`, `fetch`, `XMLHttpRequest`. `node:vm` for server execution, `new Function` for browser preview. Wall-clock timeout enforced. |
       | **Phase 2a — slideCode generation + assets (core)** | ✅ **Done** | `generateSlidesDeckCode()` in `deck.ts` with full pptxgenjs-teaching prompt (API declaration + 3 worked examples + design rules). `assetBag.ts` builds logo/screenshot/icon PNG bag. Generation route attaches `slideCode` + `assets` to the deck; export route prefers slideCode → real native pptx shapes/charts. Schema extended additively (`slideCode?`, `assets?`, sandbox diagnostics). Legacy JSON pipeline still runs in parallel as fallback. |
       | **Phase 2b — Vision-driven asset intake** | ✅ **Done** | Full multi-stage pipeline: `visionClassify.ts` (multimodal OpenRouter call → role + dominantColors + looksLikeLogo + usableAs), `documentExtract.ts` (TXT/MD/PDF heuristic text extraction), `dataExtract.ts` (manual CSV/TSV parser → typed table schema), `deckExtract.ts` (stub; LibreOffice/hosted converter deferred), `intentParse.ts` (regex intent matcher: "use this as logo" etc.). `sourceIntake.ts` rewritten as `analyzeAssets()` running all passes in parallel with intent-reconcile at the end. `AssetRecord` type added to `schema.ts`. XLSX, full-fidelity PDF, and PPTX→PNG remain pending (no pdfjs-dist/mammoth/LibreOffice). |
+      | **Phase 2c — End-to-end slideCode wiring** | ✅ **Done** | `SlidesWorkspace` now renders `SlideCanvas` whenever `deck.slideCode` exists, with `SlideRenderer` retained only as fallback for old decks or preview execution failure. Initial `/slides/story`, `/slides/generate`, and `/slides/edit` all attach or refresh `slideCode` through `attachSlideCodeToDeck()`. Added `/api/projects/[projectId]/slides/regenerate-code` plus a workspace "Regenerate design" action. Split browser execution into `sandboxBrowser.ts` so the client bundle does not import `node:vm`. |
       | **Phase 3 — Brand intelligence** | ✅ **Done** | Vision `dominantColors` drive the deck theme via `themeFromAssetRecords()` — exact hex values propagated into the slideCode prompt. Logo placement hardened: `assets.logo` restricted to cover + closing via prompt rule. Product screenshots wrapped in SVG browser-chrome device frame (`addBrowserChrome()` in `assetBag.ts`). Real CSV chart data injected into the prompt via `dataContextFromRecords()`. `colorExtract.ts` gains `extractBrandColorsFromDominant()`. |
-      | **Phase 4** | ⏳ Pending | Validation/retry loop on captured primitives. |
+      | **Phase 4 — Validation & retry loop** | ✅ **Done** | `generateSlidesDeckCode()` now executes emitted slideCode against `PreviewPres`, validates captured primitives for text overflow, missing text, missing shapes, and missing decorative shapes, retries once with rejection reasons, then falls back to deterministic slideCode if the retry still fails. Added `primitiveValidation.ts` and Phase 4 sandbox tests. |
       | **Phase 5** | ⏳ Pending | Theme presets, speaker-note plumbing, deck-navigator thumbnails from preview primitives. |
 
       ### Files added in Phase 1 + 2a
@@ -160,6 +161,11 @@
       app/src/lib/slides/intentParse.ts      — regex intent matcher ("use this as logo", "this is our dashboard", etc.)
       ```
 
+      ### Files added in Phase 4
+      ```
+      app/src/lib/slides/primitiveValidation.ts — captured PreviewPres primitive validator for text overflow, per-slide text/shape presence, and decorative-shape coverage
+      ```
+
       ### Files modified in Phase 1 + 2a
       ```
       app/src/lib/slides/schema.ts           — added slideCode?, assets?, sandbox diagnostics fields (additive)
@@ -179,16 +185,34 @@
       app/src/app/api/projects/[projectId]/slides/generate/route.ts — calls analyzeAssets() with story.brief.objective as intent; passes assetRecords to generateSlidesDeckCode
       ```
 
+      ### Files added/modified in Phase 2c
+      ```
+      app/src/lib/slides/codeDeck.ts        — shared attachSlideCodeToDeck() helper for story/generate/edit/regenerate flows
+      app/src/lib/slides/sandboxShared.ts   — client/server-safe validator and shared sandbox result types
+      app/src/lib/slides/sandboxBrowser.ts  — browser-only slideCode executor used by SlideCanvas
+      app/src/components/workspace/SlidesWorkspace.tsx — prefers SlideCanvas for slideCode decks; keeps SlideRenderer fallback; adds Regenerate design action
+      app/src/app/api/projects/[projectId]/slides/story/route.ts — initial creation now returns a code-designed deck preview
+      app/src/app/api/projects/[projectId]/slides/edit/route.ts — deck edits now refresh slideCode so the visible preview changes
+      app/src/app/api/projects/[projectId]/slides/regenerate-code/route.ts — re-rolls slideCode without rebuilding story/evidence
+      ```
+
+      ### Files modified in Phase 4
+      ```
+      app/src/lib/slides/deck.ts            — validates emitted slideCode by executing it against PreviewPres, then retries once with primitive rejection reasons
+      app/src/lib/slides/codeDeck.ts        — persists sandboxDurationMs from successful validation
+      app/src/__tests__/slidesSandboxTests.ts — adds primitive validation coverage; 22/22 sandbox tests passing
+      ```
+
       ### Known gaps remaining after Phase 2b
       - **XLSX parsing**: requires `xlsx` package (not installed). CSV works; XLSX returns null.
       - **DOCX/DOC parsing**: requires `mammoth` (not installed). Returns empty extraction.
       - **PPTX → PNG slide thumbnails**: requires LibreOffice or a hosted converter. `deckExtract.ts` returns empty.
       - **Full-fidelity PDF parsing**: the heuristic regex extracts text from simple PDFs; complex PDFs with embedded fonts need `pdfjs-dist`.
 
-      ### Outstanding work to take Path A end-to-end (Phase 2c)
-      - Wire `SlideCanvas` into `SlidesWorkspace.tsx` so the editor shows the slideCode-driven preview when `deck.slideCode` is set, instead of the legacy `SlideRenderer`. Right now Path A only drives the `.pptx` export — the in-app preview still uses the legacy `slides[]` renderer. This is purely a UI swap; the data is already present on the deck.
-      - Once `SlideCanvas` is the default preview, delete `SlideRenderer.tsx` and the JSON-driven exporter branches in `export.ts` per the original plan ("two parallel pipelines is worse than one. Commit.").
-      - Add a `/api/projects/[projectId]/slides/regenerate-code` endpoint so users can re-roll slideCode without re-running the whole story → outline → web-evidence pipeline.
+      ### Phase 2c completion notes
+      - The in-app preview and thumbnails now prefer the slideCode primitive renderer, so newly created decks should visibly move away from the legacy template renderer.
+      - Legacy JSON slides remain in the persisted deck as compatibility fallback for old decks, PDF export, and failed slideCode preview execution. Do not delete `SlideRenderer` or the JSON exporter until Phase 4 validation/retry proves slideCode output is reliable enough to be the only runtime path.
+      - Users can re-roll only the visual design through `/api/projects/[projectId]/slides/regenerate-code` or the workspace "Regenerate design" button, without rebuilding the story/outline/evidence.
 
       ## Implementation phases
 
@@ -203,13 +227,16 @@
 
       **Done when:** a hand-authored `slideCode.js` produces an identical-looking preview and `.pptx`.
 
-      ### Phase 2 — LLM emits slideCode.js  ✅ Phase 2a DONE  ✅ Phase 2b DONE
+      ### Phase 2 — LLM emits slideCode.js  ✅ Phase 2a DONE  ✅ Phase 2b DONE  ✅ Phase 2c DONE
       **Why second:** until Phase 1 works, we cannot evaluate prompt quality.
 
       Phase 2a (slideCode prompt + asset bag) shipped 2026-05-09. Phase 2b (vision-driven asset
       intake) shipped 2026-05-10 — `analyzeAssets()` runs vision classification, document extraction,
       CSV parsing, and intent override in parallel for every uploaded asset. See status table for
-      remaining gaps (XLSX, DOCX, PPTX→PNG).
+      remaining gaps (XLSX, DOCX, PPTX→PNG). Phase 2c shipped 2026-05-10 — `SlideCanvas`
+      now drives in-app previews for decks with `slideCode`, edits refresh slideCode, and
+      `/api/projects/[projectId]/slides/regenerate-code` can re-roll design code without
+      rebuilding story/evidence.
 
       - Replace `deck.ts` system prompt. The new prompt:
       - Shows the LLM the exact `pres` API surface as TypeScript declarations (the only contract).
@@ -223,7 +250,7 @@
       - Evidence images: pre-fetched and base64'd as today.
       - Story stage (`story.ts`) keeps its current shape — outline + evidence + brief — but no longer constrains layouts. Output is fed verbatim into the deck prompt as research input.
 
-      **Done when:** the LLM-emitted `slideCode.js` compiles through the sandbox on ≥95% of test prompts and the rendered output is recognizably "designed."
+      **Done when:** the LLM-emitted `slideCode.js` compiles through the sandbox on ≥95% of test prompts and the rendered output is recognizably "designed." Phase 2 is now wired end-to-end; Phase 4 owns stricter primitive validation and retry reliability.
 
       ### Phase 3 — Brand intelligence  ✅ Done (2026-05-10)
       **Why third:** quality gain per unit work is high once the codepath works.
@@ -235,16 +262,19 @@
 
       **Done when:** a deck generated from an uploaded brand asset uses that brand's exact accent color across charts, accent bars, and status pills.
 
-      ### Phase 4 — Validation & retry loop
+      ### Phase 4 — Validation & retry loop ✅ Done (2026-05-10)
       **Why fourth:** catches the long-tail failures that prompt-only fixes miss.
 
-      - After sandbox execution, walk the captured primitives:
-      - Reject if any text element overflows its bounding box (rough metric: chars × fontSize / w).
-      - Reject if total decorative shapes < 1 per slide.
-      - Reject if any slide has zero text or zero shapes.
-      - One retry with rejection reasons fed back to the LLM. Then accept or fall back.
+      - `generateSlidesDeckCode()` now validates every LLM slideCode candidate by running it against `PreviewPres` before persistence.
+      - Static gate failures, sandbox execution failures, missing text, missing shapes, missing decorative shapes, and likely text overflow all produce concrete rejection reasons.
+      - Text overflow uses a rough line-capacity metric based on text length, font size, and bounding box width/height.
+      - The first failed candidate triggers one OpenRouter retry with `previousAttempt`, `rejectionReasons`, and a strict instruction to emit only the fixed build body.
+      - If the retry fails validation, Flowro falls back to deterministic minimal slideCode and records the failure reason in diagnostics.
+      - Successful candidates persist `sandboxDurationMs` through `attachSlideCodeToDeck()`.
 
-      **Done when:** rejection rate on a 50-prompt eval set is <5% after one retry.
+      **Done when:** invalid slideCode is caught before preview/export persistence, a single corrective retry gets concrete primitive-level reasons, and failed retries degrade to deterministic slideCode instead of broken previews.
+
+      **Verification, 2026-05-10:** `npx tsx src/__tests__/slidesSandboxTests.ts` passed 22/22; targeted ESLint passed for `deck.ts`, `codeDeck.ts`, `primitiveValidation.ts`, and `slidesSandboxTests.ts`; `npm run build` passed.
 
       ### Phase 5 — Polish
       - Theme presets (navy / forest / mono / warm) the LLM picks from when no brand asset is provided.
@@ -257,25 +287,26 @@
 
       | File | Action |
       |---|---|
-      | `app/src/lib/slides/schema.ts` | **Reduce.** Keep brief / outline / evidence / source schemas. Replace `slidesStructuredSlideSchema` and `slidesDeckSchema` with `slidesDeckSchema = { title, theme, slideCode: string, assets: AssetBag, diagnostics }`. |
+      | `app/src/lib/slides/schema.ts` | **Transition.** Keep brief / outline / evidence / source schemas. Decks now carry `slideCode` and `assets` additively while legacy `slides[]` remains as fallback until Phase 4 reliability is proven. |
       | `app/src/lib/slides/deck.ts` | **Rewrite prompt.** New system prompt teaches the pptxgenjs API + provides 4 worked examples. Output parsing becomes "read first ```js block." |
       | `app/src/lib/slides/story.ts` | **Trim.** Drop layout/proofType signals. Keep argument structure (brief + outline + evidence) as research input only. |
       | `app/src/lib/slides/sourceIntake.ts` | **Keep.** Brand color extraction is more valuable than ever now that the LLM can use the colors freely. |
-      | `app/src/lib/slides/sandbox.ts` | **New.** AST gate + vm execution + resource limits. |
+      | `app/src/lib/slides/sandbox.ts` | **New.** Server-side static gate + vm execution + resource limits. Shared validation lives in `sandboxShared.ts`; browser execution lives in `sandboxBrowser.ts`. |
       | `app/src/lib/slides/previewPres.ts` | **New.** PreviewPres shim that records pptxgenjs calls as primitives. |
       | `app/src/lib/slides/assetBag.ts` | **New.** Pre-builds logo + icon PNGs + evidence images. |
-      | `app/src/lib/slides/export.ts` | **Delete.** Replace with `runSandbox(slideCode, assets, "pptx")` (~40 lines). |
-      | `app/src/components/workspace/SlideRenderer.tsx` | **Delete.** Replace with `SlideCanvas.tsx` that renders preview primitives. |
-      | `app/src/components/workspace/SlideCanvas.tsx` | **New.** Reads preview primitives, renders DOM + inline SVG charts. |
-      | `app/src/__tests__/slidesDeckTests.ts` | **Rewrite.** Sandbox safety tests + visual regression. |
+      | `app/src/lib/slides/codeDeck.ts` | **New.** Shared helper that attaches or refreshes slideCode for create/generate/edit/regenerate routes. |
+      | `app/src/lib/slides/export.ts` | **Prefer slideCode.** PPTX export runs slideCode through the sandbox, with JSON export retained as fallback and PDF support. |
+      | `app/src/components/workspace/SlideRenderer.tsx` | **Fallback.** Retained only for legacy decks, PDF/JSON compatibility, and failed slideCode preview execution. |
+      | `app/src/components/workspace/SlideCanvas.tsx` | **Primary preview.** Reads preview primitives, renders DOM + inline SVG charts for decks with slideCode. |
+      | `app/src/__tests__/slidesSandboxTests.ts` | **Primary safety tests.** Sandbox safety + preview primitive execution. |
 
       ---
 
       ## What we are deliberately NOT doing
 
       - **Not** emitting raw HTML/CSS — this would force `.pptx` export to be a screenshot, killing editability.
-      - **Not** keeping the JSON schema "as a fallback layer." Two parallel pipelines is worse than one. Commit.
-      - **Not** trying to make `SlideRenderer.tsx`'s 12 layouts work in parallel with the new system. Delete it.
+      - **Not** making JSON templates the primary design path. `SlideCanvas` owns previews when `slideCode` exists.
+      - **Not** deleting `SlideRenderer.tsx` before Phase 4 validation/retry. It remains a compatibility fallback until slideCode can safely be the only runtime path.
       - **Not** building a visual editor that lets users drag shapes. The LLM is the designer; the user edits via prompt.
       - **Not** continuing the M0–M5 roadmap. Word-count tightening and typography polish are irrelevant in a primitive-composition pipeline.
 
@@ -493,12 +524,16 @@
 
       ```
       app/src/lib/slides/sandbox.ts         — NEW: AST gate + vm execution
+      app/src/lib/slides/sandboxShared.ts   — NEW: shared slideCode validation/types
+      app/src/lib/slides/sandboxBrowser.ts  — NEW: client-safe slideCode executor
       app/src/lib/slides/previewPres.ts     — NEW: pptxgenjs API shim that records primitives
       app/src/lib/slides/assetBag.ts        — NEW: builds logo + icons + images
+      app/src/lib/slides/codeDeck.ts        — NEW: attaches/refreshes slideCode on persisted decks
       app/src/lib/slides/deck.ts            — REWRITTEN: prompt teaches pptxgenjs API
       app/src/lib/slides/story.ts           — TRIMMED: drops layout/proof signals
-      app/src/lib/slides/schema.ts          — REDUCED: deck schema is now { title, theme, slideCode, assets }
-      app/src/lib/slides/export.ts          — DELETED, replaced by 40-line wrapper
-      app/src/components/workspace/SlideCanvas.tsx     — NEW: preview primitive renderer
-      app/src/components/workspace/SlideRenderer.tsx   — DELETED
+      app/src/lib/slides/schema.ts          — TRANSITIONAL: deck includes slideCode/assets plus legacy slides fallback
+      app/src/lib/slides/export.ts          — PREFERS slideCode PPTX export, retains JSON fallback/PDF
+      app/src/components/workspace/SlideCanvas.tsx     — PRIMARY: preview primitive renderer
+      app/src/components/workspace/SlideRenderer.tsx   — FALLBACK: legacy JSON renderer
+      app/src/app/api/projects/[projectId]/slides/regenerate-code/route.ts — NEW: re-rolls slideCode only
       ```
