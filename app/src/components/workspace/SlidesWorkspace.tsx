@@ -5,8 +5,10 @@ import type { User } from "firebase/auth"
 import type { ProjectView } from "@/lib/types/views"
 import type { SlidesDeck, SlidesStructuredSlide } from "@/lib/slides/schema"
 import { authFetch, authPost } from "@/lib/authFetch"
-import SlideCanvas from "@/components/workspace/SlideCanvas"
+import SlideCanvas, { SlideCanvasFromDeck } from "@/components/workspace/SlideCanvas"
 import SlideRenderer from "@/components/workspace/SlideRenderer"
+import { PreviewPres, type PreviewDeck } from "@/lib/slides/previewPres"
+import { runSlideCodeInBrowser } from "@/lib/slides/sandboxBrowser"
 
 const BASE_STEPS = [
   { key: "reading", label: "Reading sources", icon: "folder_open" },
@@ -29,16 +31,19 @@ function DeckSlidePreview({
   slideIndex,
   sources,
   variant,
+  previewDeck,
 }: {
   deck: SlidesDeck
   slide: SlidesStructuredSlide
   slideIndex: number
   sources: ProjectView["slidesSources"]
   variant: "full" | "panel" | "thumbnail"
+  previewDeck?: PreviewDeck | null
 }) {
   const fallback = <SlideRenderer deck={deck} slide={slide} sources={sources ?? []} variant={variant} />
   const slideCode = deck.diagnostics?.slideCodeProvider !== "deterministic" ? deck.slideCode : undefined
   if (!slideCode) return fallback
+  if (previewDeck) return <SlideCanvasFromDeck deck={previewDeck} slideIndex={slideIndex} variant={variant} />
   return (
     <SlideCanvas
       slideCode={slideCode}
@@ -68,10 +73,14 @@ export default function SlidesWorkspace({
   const [editInstruction, setEditInstruction] = useState("")
   const [busyAction, setBusyAction] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [previewDeck, setPreviewDeck] = useState<PreviewDeck | null>(null)
   const sources = project.slidesSources ?? []
   const story = project.slidesDeckStory
   const deck = project.slidesDeck
   const selectedSlide = deck?.slides.find((slide) => slide.id === selectedSlideId) ?? deck?.slides[0] ?? null
+  const slideCode = deck?.diagnostics?.slideCodeProvider !== "deterministic" ? deck?.slideCode : undefined
+  const selectedIndex = deck && selectedSlide ? Math.max(0, deck.slides.findIndex((slide) => slide.id === selectedSlide.id)) : 0
+  const selectedSpeakerNotes = previewDeck?.slides[selectedIndex]?.notes?.trim() || selectedSlide?.speakerNotes || ""
   const steps = project.slidesWebSearchEnabled
     ? [BASE_STEPS[0], { key: "search", label: "Searching web", icon: "travel_explore" }, ...BASE_STEPS.slice(1)]
     : BASE_STEPS
@@ -115,6 +124,20 @@ export default function SlidesWorkspace({
       setSelectedSlideId(deck.slides[0].id)
     }
   }, [deck, selectedSlideId])
+
+  useEffect(() => {
+    if (!slideCode) {
+      setPreviewDeck(null)
+      return
+    }
+    let cancelled = false
+    const pres = new PreviewPres()
+    runSlideCodeInBrowser({ code: slideCode, pres, assets: deck?.assets }).then((result) => {
+      if (cancelled) return
+      setPreviewDeck(result.ok ? pres.finalize() : null)
+    })
+    return () => { cancelled = true }
+  }, [slideCode, deck?.assets])
 
   async function applyEdit(target: "slide" | "deck") {
     if (!editInstruction.trim() || !deck) return
@@ -188,67 +211,24 @@ export default function SlidesWorkspace({
   }
 
   if (previewOnly && deck) {
-    const selectedIndex = Math.max(0, deck.slides.findIndex((slide) => slide.id === selectedSlide?.id))
-    const previousSlide = () => {
-      const nextIndex = selectedIndex <= 0 ? deck.slides.length - 1 : selectedIndex - 1
-      setSelectedSlideId(deck.slides[nextIndex]?.id ?? null)
-    }
-    const nextSlide = () => {
-      const nextIndex = selectedIndex >= deck.slides.length - 1 ? 0 : selectedIndex + 1
-      setSelectedSlideId(deck.slides[nextIndex]?.id ?? null)
-    }
-
     return (
-      <section className="relative flex h-full min-h-0 flex-1 overflow-hidden bg-[#080808] text-white">
-        <div className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-full border border-white/[0.1] bg-black/55 px-3 py-2 text-xs font-semibold text-white/80 backdrop-blur-xl">
-          <span>{selectedIndex + 1}</span>
-          <span className="text-white/35">/</span>
-          <span>{deck.slides.length}</span>
-        </div>
-
-        <div className="min-h-0 flex-1">
-          {selectedSlide ? (
-            <DeckSlidePreview deck={deck} slide={selectedSlide} slideIndex={selectedIndex} sources={sources} variant="full" />
-          ) : null}
-        </div>
-
-        {deck.slides.length > 1 ? (
-          <>
-            <button
-              type="button"
-              onClick={previousSlide}
-              aria-label="Previous slide"
-              className="absolute left-4 top-1/2 z-20 hidden size-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/[0.1] bg-black/55 text-white/85 backdrop-blur-xl transition hover:bg-black/75 hover:text-white sm:flex"
+      <section
+        aria-label="Slides preview"
+        className="h-full min-h-0 flex-1 overflow-y-auto bg-[#eceef2] px-4 py-5 text-[#111111] [scrollbar-width:thin]"
+      >
+        <div className="mx-auto flex w-full max-w-[min(100%,calc((100vh-7rem)*1.7778))] flex-col gap-5">
+          {deck.slides.map((slide, index) => (
+            <article
+              key={slide.id}
+              aria-label={`Slide ${slide.slideNumber}`}
+              className="relative aspect-video w-full shrink-0 overflow-hidden bg-white shadow-[0_18px_45px_-34px_rgba(15,23,42,0.85)]"
             >
-              <span className="material-symbols-outlined text-[24px]">chevron_left</span>
-            </button>
-            <button
-              type="button"
-              onClick={nextSlide}
-              aria-label="Next slide"
-              className="absolute right-4 top-1/2 z-20 hidden size-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/[0.1] bg-black/55 text-white/85 backdrop-blur-xl transition hover:bg-black/75 hover:text-white sm:flex"
-            >
-              <span className="material-symbols-outlined text-[24px]">chevron_right</span>
-            </button>
-          </>
-        ) : null}
-
-        <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center border-t border-white/[0.07] bg-black/55 px-3 py-3 backdrop-blur-xl">
-          <div className="flex max-w-full gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {deck.slides.map((slide, index) => (
-              <button
-                key={slide.id}
-                type="button"
-                onClick={() => setSelectedSlideId(slide.id)}
-                aria-label={`Open slide ${slide.slideNumber}`}
-                className={`h-12 w-[5.35rem] shrink-0 overflow-hidden rounded-[0.45rem] border text-left transition ${
-                  selectedSlide?.id === slide.id ? "border-[#8fb4ff] opacity-100" : "border-white/[0.14] opacity-55 hover:opacity-85"
-                }`}
-              >
-                <DeckSlidePreview deck={deck} slide={slide} slideIndex={index} sources={sources} variant="thumbnail" />
-              </button>
-            ))}
-          </div>
+              <DeckSlidePreview deck={deck} slide={slide} slideIndex={index} sources={sources} variant="full" previewDeck={previewDeck} />
+              <div className="absolute bottom-3 right-3 rounded-[0.4rem] bg-black/78 px-2.5 py-1 text-xs font-semibold text-white">
+                Page {index + 1} / {deck.slides.length}
+              </div>
+            </article>
+          ))}
         </div>
       </section>
     )
@@ -432,7 +412,7 @@ export default function SlidesWorkspace({
                   }`}
                 >
                   <div className="aspect-video overflow-hidden rounded-[0.4rem]">
-                    <DeckSlidePreview deck={deck} slide={slide} slideIndex={index} sources={sources} variant="thumbnail" />
+                    <DeckSlidePreview deck={deck} slide={slide} slideIndex={index} sources={sources} variant="thumbnail" previewDeck={previewDeck} />
                   </div>
                 </button>
               )) : (
@@ -449,9 +429,10 @@ export default function SlidesWorkspace({
                 <DeckSlidePreview
                   deck={deck}
                   slide={selectedSlide}
-                  slideIndex={Math.max(0, deck.slides.findIndex((slide) => slide.id === selectedSlide.id))}
+                  slideIndex={selectedIndex}
                   sources={sources}
                   variant="panel"
+                  previewDeck={previewDeck}
                 />
               </div>
             ) : (
@@ -480,6 +461,12 @@ export default function SlidesWorkspace({
                   <button type="button" onClick={() => void applyEdit("slide")} disabled={busyAction !== null || !editInstruction.trim()} className="rounded-full bg-[#4169ff] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Slide</button>
                   <button type="button" onClick={() => void applyEdit("deck")} disabled={busyAction !== null || !editInstruction.trim()} className="rounded-full bg-[#111111] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Deck</button>
                 </div>
+                {selectedSpeakerNotes ? (
+                  <div className="mt-3 rounded-[0.6rem] border border-[#d9d7cf] bg-[#f7f7f4] px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6f6c66]">Speaker notes</p>
+                    <p className="mt-1 max-h-[3.75rem] overflow-hidden text-xs leading-5 text-[#3f3f3b]">{selectedSpeakerNotes}</p>
+                  </div>
+                ) : null}
                 {localError ? <p className="mt-2 text-xs font-medium text-red-600">{localError}</p> : null}
               </div>
             ) : null}

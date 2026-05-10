@@ -2,6 +2,7 @@
 // Falls back gracefully when no API key or image is too small to classify usefully.
 
 import type { AssetRole, AssetUsage } from "@/lib/slides/schema"
+import { createSlidesTraceId, traceSlidesLlmFailure, traceSlidesLlmRequest, traceSlidesLlmResponse } from "@/lib/slides/llmTrace"
 
 export type VisionClassification = {
   role: AssetRole
@@ -86,6 +87,21 @@ Rules:
 - dominantColors: up to 5 hex colors by area coverage, most dominant first
 - usableAs: pick ALL that apply${userMessage ? `\n\nUSER'S STATED INTENT: "${userMessage.slice(0, 280)}"` : ""}`
 
+  const requestId = createSlidesTraceId("vision_classify")
+  const startedAt = Date.now()
+  traceSlidesLlmRequest({
+    requestId,
+    stage: "vision_classify",
+    provider: "openrouter",
+    model,
+    inputChars: systemPrompt.length + filename.length + dataUrl.length,
+    metadata: {
+      filename,
+      dataUrlChars: dataUrl.length,
+      hasUserIntent: Boolean(userMessage),
+    },
+  })
+
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -112,9 +128,13 @@ Rules:
       signal: AbortSignal.timeout(20000),
     })
 
-    if (!res.ok) return { ...FALLBACK }
+    if (!res.ok) {
+      traceSlidesLlmResponse({ requestId, stage: "vision_classify", provider: "openrouter", model, ok: false, status: res.status, durationMs: Date.now() - startedAt })
+      return { ...FALLBACK }
+    }
     const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
     const content = data?.choices?.[0]?.message?.content
+    traceSlidesLlmResponse({ requestId, stage: "vision_classify", provider: "openrouter", model, ok: typeof content === "string", status: res.status, durationMs: Date.now() - startedAt, outputChars: typeof content === "string" ? content.length : 0, usage: (data as { usage?: unknown }).usage })
     if (typeof content !== "string") return { ...FALLBACK }
 
     const parsed = JSON.parse(cleanJson(content)) as Partial<VisionClassification>
@@ -137,7 +157,8 @@ Rules:
         ? (parsed.warnings as unknown[]).filter((w): w is string => typeof w === "string")
         : [],
     }
-  } catch {
+  } catch (error) {
+    traceSlidesLlmFailure({ requestId, stage: "vision_classify", provider: "openrouter", model, durationMs: Date.now() - startedAt, error, metadata: { filename } })
     return { ...FALLBACK }
   }
 }

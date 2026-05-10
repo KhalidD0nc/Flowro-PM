@@ -43,6 +43,12 @@ export async function attachSlideCodeToDeck({
       ...(codeResult.diagnostics.sandboxError ? { sandboxError: codeResult.diagnostics.sandboxError } : {}),
       ...(codeResult.diagnostics.sandboxDurationMs !== undefined ? { sandboxDurationMs: codeResult.diagnostics.sandboxDurationMs } : {}),
       slideCodeProvider: codeResult.provider,
+      ...(codeResult.diagnostics.themePreset ? { themePreset: codeResult.diagnostics.themePreset } : {}),
+      ...(codeResult.diagnostics.slideCodeAttemptCount !== undefined ? { slideCodeAttemptCount: codeResult.diagnostics.slideCodeAttemptCount } : {}),
+      ...(codeResult.diagnostics.slideCodeRequestIds?.length ? { slideCodeRequestIds: codeResult.diagnostics.slideCodeRequestIds } : {}),
+      ...(codeResult.diagnostics.slideCodeDebugFiles?.length ? { slideCodeDebugFiles: codeResult.diagnostics.slideCodeDebugFiles } : {}),
+      ...(codeResult.diagnostics.slideCodeNotesCount !== undefined ? { slideCodeNotesCount: codeResult.diagnostics.slideCodeNotesCount } : {}),
+      ...(codeResult.diagnostics.slideCodeThumbnailCount !== undefined ? { slideCodeThumbnailCount: codeResult.diagnostics.slideCodeThumbnailCount } : {}),
       ...(codeResult.diagnostics.fallbackReason ? { fallbackReason: codeResult.diagnostics.fallbackReason } : {}),
     },
   }
