@@ -4,9 +4,8 @@
 // Each primitive is positioned absolutely on a 13.33×7.5-inch coordinate space scaled to the
 // container width. Charts are inline SVG, the same data the LLM passed.
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
-  PREVIEW_CANVAS,
   PreviewPres,
   type PreviewChart,
   type PreviewChartSeries,
@@ -17,7 +16,7 @@ import {
   type PreviewSlide,
   type PreviewText,
 } from "@/lib/slides/previewPres"
-import { runSlideCodeInBrowser } from "@/lib/slides/sandbox"
+import { runSlideCodeInBrowser } from "@/lib/slides/sandboxBrowser"
 
 type Variant = "full" | "panel" | "thumbnail"
 
@@ -26,9 +25,10 @@ type Props = {
   assets?: Record<string, unknown>
   slideIndex?: number
   variant?: Variant
+  fallback?: ReactNode
 }
 
-export default function SlideCanvas({ slideCode, assets, slideIndex = 0, variant = "panel" }: Props) {
+export default function SlideCanvas({ slideCode, assets, slideIndex = 0, variant = "panel", fallback }: Props) {
   const [deck, setDeck] = useState<PreviewDeck | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -49,6 +49,7 @@ export default function SlideCanvas({ slideCode, assets, slideIndex = 0, variant
   }, [slideCode, assets])
 
   if (error) {
+    if (fallback) return fallback
     return (
       <div className="flex h-full w-full items-center justify-center bg-red-50 p-6 text-center">
         <p className="text-sm text-red-700"><strong>SlideCanvas error</strong>: {error}</p>
@@ -298,13 +299,12 @@ function DoughnutChartSvg({ series, colors, doughnut }: { series: PreviewChartSe
   const total = s.values.reduce((sum, v) => sum + v, 0) || 1
   const R = 80, CX = 100, CY = 100
   const C = 2 * Math.PI * R
-  let cumulative = 0
   return (
     <svg viewBox="0 0 200 200" className="h-full w-full">
       {s.values.map((v, i) => {
+        const cumulative = s.values.slice(0, i).reduce((sum, value) => sum + value / total, 0)
         const dash = (v / total) * C
         const offset = C * 0.25 - cumulative * C
-        cumulative += v / total
         return (
           <circle
             key={i} cx={CX} cy={CY} r={R} fill="none"
