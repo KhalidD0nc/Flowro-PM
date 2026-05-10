@@ -191,7 +191,7 @@ export default function Home() {
 
           <div className="flex flex-col items-center pt-16 pb-12 text-center lg:pt-24 lg:pb-16">
             <h1 className="max-w-[1000px] text-5xl font-black leading-[1.05] tracking-tight text-[#201815] sm:text-6xl lg:text-[76px]">
-              Build apps by chatting to AI.<br/><i className="font-serif italic font-normal text-[#c2410c]">Chat it into existence.</i>
+              Build apps and slides by chatting to AI.<br/><i className="font-serif italic font-normal text-[#c2410c]">Chat it into existence.</i>
             </h1>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
               <a
@@ -210,6 +210,23 @@ export default function Home() {
                 <span className="material-symbols-outlined text-[22px]">code</span>
                 GitHub
               </a>
+            </div>
+
+            <div className="mt-10 flex w-full max-w-3xl flex-col items-center justify-between gap-4 rounded-[18px] border-2 border-[#201815] bg-white px-4 py-4 text-left shadow-[8px_8px_0_#201815] sm:flex-row sm:px-5">
+              <div className="flex items-center gap-3">
+                <div className="flex size-11 items-center justify-center rounded-xl border-2 border-[#201815] bg-[#ffd75a]">
+                  <span className="material-symbols-outlined text-[24px] text-[#201815]">web_asset</span>
+                </div>
+                <div className="flex size-11 items-center justify-center rounded-xl border-2 border-[#201815] bg-[#67d7c1]">
+                  <span className="material-symbols-outlined text-[24px] text-[#201815]">co_present</span>
+                </div>
+              </div>
+              <div className="min-w-0 flex-1 text-center sm:text-left">
+                <p className="text-sm font-black uppercase tracking-[0.18em] text-[#c2410c]">One prompt. App or deck.</p>
+                <p className="mt-1 text-base font-black leading-6 text-[#201815] sm:text-lg">
+                  Turn one prompt into a working app or a polished deck.
+                </p>
+              </div>
             </div>
 
             <IntegrationFlowBanner />
@@ -243,6 +260,45 @@ export default function Home() {
                         <p className="text-sm font-medium text-[#5f5045] line-clamp-3">
                           Create a modern landing page for an architecture and construction company. The company designs and builds residential, commercial, and luxury spaces...
                         </p>
+                      </div>
+
+                      <div className="rounded-xl border-2 border-[#201815] bg-[#201815] p-4 text-white shadow-[4px_4px_0_#f97316]">
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#67d7c1]">
+                            <span className="material-symbols-outlined text-[16px]">co_present</span>
+                            Slides Mode
+                          </div>
+                          <span className="rounded-full border border-white/15 bg-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-white/70">
+                            Ready
+                          </span>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-[1fr_128px] sm:items-center">
+                          <div>
+                            <h3 className="font-black leading-tight text-white">Investor deck generated</h3>
+                            <p className="mt-2 text-sm font-medium leading-6 text-white/65">
+                              Brief, outline, visual deck, edits, and export.
+                            </p>
+                          </div>
+                          <div className="relative h-24 w-full sm:h-28" aria-hidden="true">
+                            <div className="absolute right-0 top-0 h-[74px] w-[112px] rotate-3 rounded-lg border-2 border-white/20 bg-[#fffaf0] shadow-[4px_4px_0_rgba(255,255,255,0.12)]">
+                              <div className="m-2 h-2 w-8 rounded-full bg-[#67d7c1]" />
+                              <div className="mx-2 mt-4 h-2 w-16 rounded-full bg-[#201815]" />
+                              <div className="mx-2 mt-2 h-2 w-12 rounded-full bg-[#f97316]" />
+                            </div>
+                            <div className="absolute right-3 top-4 h-[74px] w-[112px] -rotate-2 rounded-lg border-2 border-white/20 bg-[#ffd75a] shadow-[4px_4px_0_rgba(255,255,255,0.12)]">
+                              <div className="m-2 h-2 w-6 rounded-full bg-[#201815]" />
+                              <div className="mx-2 mt-5 h-8 rounded-md border-2 border-[#201815]/40 bg-white/50" />
+                            </div>
+                            <div className="absolute right-6 top-8 h-[74px] w-[112px] rotate-1 rounded-lg border-2 border-white/20 bg-[#67d7c1] shadow-[4px_4px_0_rgba(255,255,255,0.12)]">
+                              <div className="m-2 h-2 w-8 rounded-full bg-[#201815]" />
+                              <div className="mx-2 mt-4 grid grid-cols-3 gap-1">
+                                <span className="h-8 rounded-sm bg-[#201815]" />
+                                <span className="h-8 rounded-sm bg-white/70" />
+                                <span className="h-8 rounded-sm bg-[#f97316]" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                       
                     </div>
