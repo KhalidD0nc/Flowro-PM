@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react"
 import type { User } from "firebase/auth"
 import type { ProjectView } from "@/lib/types/views"
-import type { SlidesDeck } from "@/lib/slides/schema"
+import type { SlidesDeck, SlidesStructuredSlide } from "@/lib/slides/schema"
 import { authFetch, authPost } from "@/lib/authFetch"
+import SlideCanvas from "@/components/workspace/SlideCanvas"
 import SlideRenderer from "@/components/workspace/SlideRenderer"
 
 const BASE_STEPS = [
@@ -20,6 +21,33 @@ function formatFileSize(size?: number) {
   if (!size) return null
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function DeckSlidePreview({
+  deck,
+  slide,
+  slideIndex,
+  sources,
+  variant,
+}: {
+  deck: SlidesDeck
+  slide: SlidesStructuredSlide
+  slideIndex: number
+  sources: ProjectView["slidesSources"]
+  variant: "full" | "panel" | "thumbnail"
+}) {
+  const fallback = <SlideRenderer deck={deck} slide={slide} sources={sources ?? []} variant={variant} />
+  const slideCode = deck.diagnostics?.slideCodeProvider !== "deterministic" ? deck.slideCode : undefined
+  if (!slideCode) return fallback
+  return (
+    <SlideCanvas
+      slideCode={slideCode}
+      assets={deck.assets}
+      slideIndex={slideIndex}
+      variant={variant}
+      fallback={fallback}
+    />
+  )
 }
 
 export default function SlidesWorkspace({
@@ -140,6 +168,25 @@ export default function SlidesWorkspace({
     }
   }
 
+  async function regenerateDesign() {
+    if (!deck) return
+    try {
+      setBusyAction("regenerate-code")
+      setLocalError(null)
+      const response = await authPost(`/api/projects/${project.id}/slides/regenerate-code`, user, {})
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Failed to regenerate slide design")
+      onProjectChange?.({
+        slidesDeck: data.slidesDeck as SlidesDeck,
+        slidesStatus: data.slidesStatus,
+      })
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : "Failed to regenerate slide design")
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   if (previewOnly && deck) {
     const selectedIndex = Math.max(0, deck.slides.findIndex((slide) => slide.id === selectedSlide?.id))
     const previousSlide = () => {
@@ -161,7 +208,7 @@ export default function SlidesWorkspace({
 
         <div className="min-h-0 flex-1">
           {selectedSlide ? (
-            <SlideRenderer deck={deck} slide={selectedSlide} sources={sources} variant="full" />
+            <DeckSlidePreview deck={deck} slide={selectedSlide} slideIndex={selectedIndex} sources={sources} variant="full" />
           ) : null}
         </div>
 
@@ -188,7 +235,7 @@ export default function SlidesWorkspace({
 
         <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center border-t border-white/[0.07] bg-black/55 px-3 py-3 backdrop-blur-xl">
           <div className="flex max-w-full gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {deck.slides.map((slide) => (
+            {deck.slides.map((slide, index) => (
               <button
                 key={slide.id}
                 type="button"
@@ -198,7 +245,7 @@ export default function SlidesWorkspace({
                   selectedSlide?.id === slide.id ? "border-[#8fb4ff] opacity-100" : "border-white/[0.14] opacity-55 hover:opacity-85"
                 }`}
               >
-                <SlideRenderer deck={deck} slide={slide} sources={sources} variant="thumbnail" />
+                <DeckSlidePreview deck={deck} slide={slide} slideIndex={index} sources={sources} variant="thumbnail" />
               </button>
             ))}
           </div>
@@ -373,7 +420,7 @@ export default function SlidesWorkspace({
               <span className="text-xs text-[#8f8f8b]">{deck?.slides.length ?? 0} slides</span>
             </div>
             <div className="mt-3 space-y-2">
-              {deck ? deck.slides.map((slide) => (
+              {deck ? deck.slides.map((slide, index) => (
                 <button
                   key={slide.id}
                   type="button"
@@ -385,7 +432,7 @@ export default function SlidesWorkspace({
                   }`}
                 >
                   <div className="aspect-video overflow-hidden rounded-[0.4rem]">
-                    <SlideRenderer deck={deck} slide={slide} sources={sources} variant="thumbnail" />
+                    <DeckSlidePreview deck={deck} slide={slide} slideIndex={index} sources={sources} variant="thumbnail" />
                   </div>
                 </button>
               )) : (
@@ -399,7 +446,13 @@ export default function SlidesWorkspace({
           <div className="overflow-hidden rounded-[0.9rem] border border-white/[0.08] bg-[#eeeeea] p-4 text-[#111111]">
             {deck && selectedSlide ? (
               <div className="aspect-video overflow-hidden rounded-[0.7rem] border border-[#d9d7cf] shadow-[0_24px_60px_-46px_rgba(0,0,0,0.7)]">
-                <SlideRenderer deck={deck} slide={selectedSlide} sources={sources} variant="panel" />
+                <DeckSlidePreview
+                  deck={deck}
+                  slide={selectedSlide}
+                  slideIndex={Math.max(0, deck.slides.findIndex((slide) => slide.id === selectedSlide.id))}
+                  sources={sources}
+                  variant="panel"
+                />
               </div>
             ) : (
               <div className="flex aspect-video items-center justify-center rounded-[0.7rem] border border-[#d9d7cf] bg-white p-6 text-center">
@@ -415,6 +468,7 @@ export default function SlidesWorkspace({
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => void exportDeck("pptx")} disabled={busyAction !== null} className="rounded-full bg-[#111111] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Export PPTX</button>
                   <button type="button" onClick={() => void exportDeck("pdf")} disabled={busyAction !== null} className="rounded-full border border-[#d9d7cf] px-3 py-2 text-xs font-semibold text-[#111111] disabled:opacity-50">Export PDF</button>
+                  <button type="button" onClick={() => void regenerateDesign()} disabled={busyAction !== null} className="rounded-full border border-[#4169ff]/30 bg-[#4169ff]/10 px-3 py-2 text-xs font-semibold text-[#2442c4] disabled:opacity-50">Regenerate design</button>
                 </div>
                 <div className="mt-3 flex gap-2">
                   <input

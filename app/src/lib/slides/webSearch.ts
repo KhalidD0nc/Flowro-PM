@@ -67,6 +67,11 @@ function evidenceId(index: number) {
   return `web-${index + 1}`
 }
 
+function searchTimeoutMs(): number {
+  const parsed = Number(process.env.OPENAI_SEARCH_TIMEOUT_MS)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30000
+}
+
 export async function gatherSlidesWebEvidence(prompt: string): Promise<SlidesEvidence[]> {
   if (!process.env.OPENAI_API_KEY) {
     return [{
@@ -79,9 +84,12 @@ export async function gatherSlidesWebEvidence(prompt: string): Promise<SlidesEvi
     }]
   }
 
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), searchTimeoutMs())
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json",
@@ -142,5 +150,7 @@ ${prompt}`,
       visualCandidates: [],
       provider: "failed",
     }]
+  } finally {
+    clearTimeout(timeoutId)
   }
 }

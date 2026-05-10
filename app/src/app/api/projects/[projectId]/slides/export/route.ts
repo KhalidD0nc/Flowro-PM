@@ -28,11 +28,12 @@ export async function GET(
     // Path A: prefer LLM-emitted slideCode for pptx export when present (real shapes/charts/text).
     // Legacy JSON exporter is the fallback while the slideCode pipeline is still being validated.
     const deck = project.slidesDeck
+    const slideCode = deck.diagnostics?.slideCodeProvider !== "deterministic" ? deck.slideCode : undefined
     const bytes = format === "pdf"
       ? exportSlidesDeckToPdf(deck)
-      : deck.slideCode
+      : slideCode
         ? await exportSlidesDeckCodeToPptx({
-            slideCode: deck.slideCode,
+            slideCode,
             assets: deck.assets,
             title: deck.title,
             subtitle: deck.subtitle,

@@ -4,6 +4,7 @@ import { isAuthError, unauthorizedResponse, verifyAuthToken } from "../../../../
 import { addMessage, getProject, updateProject } from "@/lib/firebase/collections"
 import type { MessageIntent, MessageRole } from "@/lib/firebase/schema"
 import { logError } from "@/lib/logger"
+import { attachSlideCodeToDeck } from "@/lib/slides/codeDeck"
 import { generateSlidesDeck } from "@/lib/slides/deck"
 import { generateSlidesDeckStory } from "@/lib/slides/story"
 
@@ -108,9 +109,15 @@ export async function POST(
       slidesStatus: "drafting",
     })
 
-    const deck = await generateSlidesDeck({
+    const structuredDeck = await generateSlidesDeck({
       story,
       sources: project.slidesSources ?? [],
+    })
+    const deck = await attachSlideCodeToDeck({
+      deck: structuredDeck,
+      story,
+      sources: project.slidesSources ?? [],
+      intent: prompt,
     })
 
     await updateProject(projectId, {
@@ -119,9 +126,12 @@ export async function POST(
       slidesStatus: "ready",
     })
 
+    const designFallback = deck.diagnostics?.slideCodeProvider === "deterministic"
     return NextResponse.json({
       success: true,
-      assistantContent: `I generated a ${deck.slides.length}-slide structured deck preview. You can select a slide for targeted edits or export the deck.`,
+      assistantContent: designFallback
+        ? `I generated a ${deck.slides.length}-slide structured deck preview. The code-design pass fell back, so the deck is using the reliable slide renderer for now.`
+        : `I generated a ${deck.slides.length}-slide code-designed deck preview. You can select a slide for targeted edits, regenerate the design, or export the deck.`,
       slidesStatus: "ready",
       slidesDeckStory: story,
       slidesDeck: deck,

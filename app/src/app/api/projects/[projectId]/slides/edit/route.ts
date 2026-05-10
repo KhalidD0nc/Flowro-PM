@@ -3,6 +3,7 @@ import { Timestamp } from "firebase-admin/firestore"
 import { isAuthError, unauthorizedResponse, verifyAuthToken } from "../../../../blueprints/auth"
 import { addMessage, getProject, updateProject } from "@/lib/firebase/collections"
 import { logError } from "@/lib/logger"
+import { attachSlideCodeToDeck } from "@/lib/slides/codeDeck"
 import { editSlidesDeck } from "@/lib/slides/deck"
 
 async function verifySlidesProject(projectId: string, userId: string) {
@@ -31,11 +32,17 @@ export async function POST(
     const project = await verifySlidesProject(projectId, authResult.userId)
     await updateProject(projectId, { slidesStatus: "drafting" })
 
-    const deck = await editSlidesDeck({
+    const structuredDeck = await editSlidesDeck({
       deck: project.slidesDeck!,
       story: project.slidesDeckStory!,
       instruction,
       slideId,
+    })
+    const deck = await attachSlideCodeToDeck({
+      deck: structuredDeck,
+      story: project.slidesDeckStory!,
+      sources: project.slidesSources ?? [],
+      intent: instruction,
     })
     await updateProject(projectId, { slidesDeck: deck, slidesStatus: "ready" })
 

@@ -125,7 +125,7 @@ class SlideRecorder {
   get background(): { color: string } { return this.#bg }
 
   addShape(shape: string, opts: AddOpts) {
-    if (!this.#guardCount("shape")) return
+    if (!this.#guardCount()) return
     const normalized = ALLOWED_SHAPES.has(shape) ? shape : "rect"
     if (normalized !== shape) this.warnings.push(`slide ${this.index}: unknown shape "${shape}", coerced to rect`)
     this.primitives.push({
@@ -140,7 +140,7 @@ class SlideRecorder {
   }
 
   addText(text: string | Array<{ text?: string }> | undefined, opts: AddOpts) {
-    if (!this.#guardCount("text")) return
+    if (!this.#guardCount()) return
     const textValue = typeof text === "string"
       ? text
       : Array.isArray(text)
@@ -164,7 +164,7 @@ class SlideRecorder {
   }
 
   addImage(opts: AddOpts) {
-    if (!this.#guardCount("image")) return
+    if (!this.#guardCount()) return
     const data = typeof opts.data === "string" ? opts.data : undefined
     const path = typeof opts.path === "string" ? opts.path : undefined
     this.primitives.push({
@@ -177,7 +177,7 @@ class SlideRecorder {
   }
 
   addChart(chartType: string | undefined, data: unknown, opts: AddOpts = {}) {
-    if (!this.#guardCount("chart")) return
+    if (!this.#guardCount()) return
     const ct = (typeof chartType === "string" ? chartType.toLowerCase() : "bar") as PreviewChartType
     const finalType = ALLOWED_CHARTS.has(ct) ? ct : "bar"
     if (finalType !== ct) this.warnings.push(`slide ${this.index}: unknown chart "${chartType}", coerced to bar`)
@@ -194,7 +194,7 @@ class SlideRecorder {
     if (typeof text === "string") this.notes = text.slice(0, 4000)
   }
 
-  #guardCount(_kind: string): boolean {
+  #guardCount(): boolean {
     if (this.primitives.length >= this.maxShapesPerSlide) {
       this.warnings.push(`slide ${this.index}: shape count cap (${this.maxShapesPerSlide}) reached, dropping further primitives`)
       return false

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { isAuthError, unauthorizedResponse, verifyAuthToken } from "../../../../blueprints/auth"
 import { getProject, updateProject } from "@/lib/firebase/collections"
 import { logError } from "@/lib/logger"
-import { generateSlidesDeck, generateSlidesDeckCode } from "@/lib/slides/deck"
-import { analyzeAssets } from "@/lib/slides/sourceIntake"
+import { attachSlideCodeToDeck } from "@/lib/slides/codeDeck"
+import { generateSlidesDeck } from "@/lib/slides/deck"
 
 async function verifySlidesProject(projectId: string, userId: string) {
   const project = await getProject(projectId)
@@ -31,32 +31,8 @@ export async function POST(
     const story = project.slidesDeckStory!
     const sources = project.slidesSources ?? []
 
-    // Phase 2b — vision-driven asset intake.
-    // Use the deck objective as the user intent context so "use this as logo" style
-    // instructions stated when the project was created are honoured.
-    const userIntent = story.brief.objective || undefined
-    const assetRecords = sources.length
-      ? await analyzeAssets(sources, userIntent).catch(() => undefined)
-      : undefined
-
-    // Legacy JSON deck — keeps existing UI/exports working alongside Path A.
     const deck = await generateSlidesDeck({ story, sources })
-    // Path A — LLM emits slideCode against pptxgenjs primitives. Attached to the deck so the
-    // SlideCanvas (preview) and exportSlidesDeckCodeToPptx (export) can prefer it when present.
-    // Phase 3 — pass assetRecords so the prompt gets vision colors + real chart data.
-    const codeResult = await generateSlidesDeckCode({ story, sources, evidence: story.evidence, legacyDeck: deck, assetRecords })
-    const enrichedDeck = {
-      ...deck,
-      slideCode: codeResult.slideCode,
-      assets: codeResult.assets,
-      diagnostics: {
-        ...deck.diagnostics,
-        sandboxStage: codeResult.diagnostics.sandboxStage,
-        ...(codeResult.diagnostics.sandboxError ? { sandboxError: codeResult.diagnostics.sandboxError } : {}),
-        slideCodeProvider: codeResult.provider,
-        ...(codeResult.diagnostics.fallbackReason ? { fallbackReason: codeResult.diagnostics.fallbackReason } : {}),
-      },
-    }
+    const enrichedDeck = await attachSlideCodeToDeck({ deck, story, sources })
     await updateProject(projectId, { slidesDeck: enrichedDeck, slidesStatus: "ready" })
 
     return NextResponse.json({ success: true, slidesDeck: enrichedDeck, slidesStatus: "ready" })
