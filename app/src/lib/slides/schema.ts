@@ -317,6 +317,12 @@ export const slidesDeckSchema = z.object({
     sandboxError: z.string().min(1).max(400).optional(),
     sandboxDurationMs: z.number().int().nonnegative().optional(),
     slideCodeProvider: z.enum(["openrouter", "deterministic"]).optional(),
+    themePreset: z.enum(["navy", "forest", "mono", "warm"]).optional(),
+    slideCodeAttemptCount: z.number().int().nonnegative().optional(),
+    slideCodeRequestIds: z.array(z.string().min(1).max(80)).max(4).optional(),
+    slideCodeDebugFiles: z.array(z.string().min(1).max(260)).max(4).optional(),
+    slideCodeNotesCount: z.number().int().nonnegative().optional(),
+    slideCodeThumbnailCount: z.number().int().nonnegative().optional(),
   }).optional(),
 })
 export type SlidesDeck = z.infer<typeof slidesDeckSchema>

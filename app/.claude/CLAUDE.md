@@ -140,7 +140,7 @@
       | **Phase 2c — End-to-end slideCode wiring** | ✅ **Done** | `SlidesWorkspace` now renders `SlideCanvas` whenever `deck.slideCode` exists, with `SlideRenderer` retained only as fallback for old decks or preview execution failure. Initial `/slides/story`, `/slides/generate`, and `/slides/edit` all attach or refresh `slideCode` through `attachSlideCodeToDeck()`. Added `/api/projects/[projectId]/slides/regenerate-code` plus a workspace "Regenerate design" action. Split browser execution into `sandboxBrowser.ts` so the client bundle does not import `node:vm`. |
       | **Phase 3 — Brand intelligence** | ✅ **Done** | Vision `dominantColors` drive the deck theme via `themeFromAssetRecords()` — exact hex values propagated into the slideCode prompt. Logo placement hardened: `assets.logo` restricted to cover + closing via prompt rule. Product screenshots wrapped in SVG browser-chrome device frame (`addBrowserChrome()` in `assetBag.ts`). Real CSV chart data injected into the prompt via `dataContextFromRecords()`. `colorExtract.ts` gains `extractBrandColorsFromDominant()`. |
       | **Phase 4 — Validation & retry loop** | ✅ **Done** | `generateSlidesDeckCode()` now executes emitted slideCode against `PreviewPres`, validates captured primitives for text overflow, missing text, missing shapes, and missing decorative shapes, retries once with rejection reasons, then falls back to deterministic slideCode if the retry still fails. Added `primitiveValidation.ts` and Phase 4 sandbox tests. |
-      | **Phase 5** | ⏳ Pending | Theme presets, speaker-note plumbing, deck-navigator thumbnails from preview primitives. |
+      | **Phase 5 — Polish + traceability** | ✅ **Done** | Added no-brand theme presets (navy/forest/mono/warm), persisted slideCode attempt/request metadata, speaker-note preview plumbing from `PreviewPres`, and deck-navigator thumbnails now reuse one captured preview primitive deck instead of re-running slideCode per thumbnail. Added structured logs for Slides LLM/search requests. |
 
       ### Files added in Phase 1 + 2a
       ```
@@ -164,6 +164,11 @@
       ### Files added in Phase 4
       ```
       app/src/lib/slides/primitiveValidation.ts — captured PreviewPres primitive validator for text overflow, per-slide text/shape presence, and decorative-shape coverage
+      ```
+
+      ### Files added in Phase 5
+      ```
+      app/src/lib/slides/llmTrace.ts — bounded structured logging helper for Slides LLM/search requests and validation outcomes
       ```
 
       ### Files modified in Phase 1 + 2a
@@ -201,6 +206,18 @@
       app/src/lib/slides/deck.ts            — validates emitted slideCode by executing it against PreviewPres, then retries once with primitive rejection reasons
       app/src/lib/slides/codeDeck.ts        — persists sandboxDurationMs from successful validation
       app/src/__tests__/slidesSandboxTests.ts — adds primitive validation coverage; 22/22 sandbox tests passing
+      ```
+
+      ### Files modified in Phase 5
+      ```
+      app/src/lib/slides/deck.ts            — no-brand theme presets, slideCode request logging, validation logging, notes/thumbnail diagnostics
+      app/src/lib/slides/story.ts           — story-generation request/response/failure logging
+      app/src/lib/slides/sourceIntake.ts    — source-classification request/response/failure logging
+      app/src/lib/slides/visionClassify.ts  — vision request/response/failure logging
+      app/src/lib/slides/webSearch.ts       — OpenAI web-search request/response/failure logging
+      app/src/lib/slides/schema.ts          — diagnostics fields for theme preset, slideCode request IDs, notes count, thumbnail count
+      app/src/lib/slides/codeDeck.ts        — persists Phase 5 slideCode diagnostics
+      app/src/components/workspace/SlidesWorkspace.tsx — reuses one PreviewPres deck for thumbnails and shows selected-slide speaker notes
       ```
 
       ### Known gaps remaining after Phase 2b
@@ -276,10 +293,13 @@
 
       **Verification, 2026-05-10:** `npx tsx src/__tests__/slidesSandboxTests.ts` passed 22/22; targeted ESLint passed for `deck.ts`, `codeDeck.ts`, `primitiveValidation.ts`, and `slidesSandboxTests.ts`; `npm run build` passed.
 
-      ### Phase 5 — Polish
-      - Theme presets (navy / forest / mono / warm) the LLM picks from when no brand asset is provided.
-      - Speaker notes preserved (passed through `pres.addNotes`).
-      - Slide thumbnails for the deck navigator generated from preview primitives at low resolution.
+      ### Phase 5 — Polish ✅ Done (2026-05-10)
+      - Theme presets (navy / forest / mono / warm) are selected when no brand asset is available, injected into the slideCode prompt, and persisted as `diagnostics.themePreset`.
+      - Speaker notes are preserved through `pres.addNotes`; `PreviewPres` captures them, PowerPoint export keeps them, and the workspace displays the selected slide's notes from preview primitives when available.
+      - Slide thumbnails for the deck navigator now come from a single captured `PreviewDeck` primitive tree, so thumbnails and the main preview share the same low-resolution primitive source instead of executing slideCode separately for every thumbnail.
+      - Structured logs now track Slides LLM and search calls: `slides_llm_request`, `slides_llm_response`, and `slides_llm_failure` include request ID, stage, provider, model, prompt/message sizes, bounded previews, duration, output size, usage when returned, validation rejection reasons, asset keys, theme preset, and retry attempts.
+
+      **Verification, 2026-05-10:** `npx tsx src/__tests__/slidesSandboxTests.ts` passed 22/22; focused ESLint passed for touched Slides files and `SlidesWorkspace.tsx`; `npm run build` passed.
 
       ---
 

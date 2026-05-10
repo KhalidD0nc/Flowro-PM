@@ -1,4 +1,6 @@
 import { generateCompletion } from "@/lib/openrouter"
+import type { Message } from "@/lib/openrouter"
+import { createSlidesTraceId, traceSlidesLlmFailure, traceSlidesLlmRequest, traceSlidesLlmResponse } from "@/lib/slides/llmTrace"
 import {
   slidesDeckStorySchema,
   type SlidesDeckBrief,
@@ -188,16 +190,12 @@ export async function generateSlidesDeckStory({
   if (!process.env.OPENROUTER_API_KEY) return fallback
 
   try {
-    const response = await generateCompletion({
-      model: process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "openai/gpt-mini-latest",
-      reasoning: false,
-      maxTokens: 2600,
-      timeoutMs: 30000,
-      maxRetries: 0,
-      messages: [
-        {
-          role: "system",
-          content: `You create internal presentation planning JSON for Flowro Slides. Return JSON only with this shape: {"brief":{"objective":"...","audience":"...","desiredOutcome":"...","tone":"...","sourceStrategy":"...","blockerQuestion":"optional only for true blockers"},"outline":[{"id":"slide-1","title":"claim-style title","claim":"specific claim, not a topic","proofType":"chart|image|comparison|timeline|diagram|table|source_backed_visual","sourceIds":["..."],"evidenceIds":["..."],"speakerIntent":"..."}]}.
+    const model = process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "openai/gpt-mini-latest"
+    const requestId = createSlidesTraceId("story")
+    const messages: Message[] = [
+      {
+        role: "system",
+        content: `You create internal presentation planning JSON for Flowro Slides. Return JSON only with this shape: {"brief":{"objective":"...","audience":"...","desiredOutcome":"...","tone":"...","sourceStrategy":"...","blockerQuestion":"optional only for true blockers"},"outline":[{"id":"slide-1","title":"claim-style title","claim":"specific claim, not a topic","proofType":"chart|image|comparison|timeline|diagram|table|source_backed_visual","sourceIds":["..."],"evidenceIds":["..."],"speakerIntent":"..."}]}.
 
 TITLE RULES: Titles are assertive claims, max 8 words. Not topic labels. BAD: "Q3 Results" → GOOD: "Revenue exceeded forecast by 12%". Never use gerunds or questions as titles. Hard limit: 60 characters.
 
@@ -208,24 +206,34 @@ OUTLINE STRUCTURE: The outline is a designed argument — each slide advances th
 LAYOUT VARIETY: Never more than 2 consecutive slides sharing the same proofType. Always prefer chart, comparison, or timeline over source_backed_visual. Use image proof only when attached assets or web evidence can directly support it.
 
 Ask a blockerQuestion only if generation would be materially wrong without it.`,
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            prompt,
-            sources: sources.map((source) => ({
-              id: source.id,
-              name: source.name,
-              role: source.role,
-              summary: source.summary,
-            })),
-            evidence,
-          }),
-        },
-      ],
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          prompt,
+          sources: sources.map((source) => ({
+            id: source.id,
+            name: source.name,
+            role: source.role,
+            summary: source.summary,
+          })),
+          evidence,
+        }),
+      },
+    ]
+    const startedAt = Date.now()
+    traceSlidesLlmRequest({ requestId, stage: "story", provider: "openrouter", model, messages, metadata: { sourceCount: sources.length, evidenceCount: evidence.length, webSearchEnabled } })
+    const response = await generateCompletion({
+      model,
+      reasoning: false,
+      maxTokens: 2600,
+      timeoutMs: 30000,
+      maxRetries: 0,
+      messages,
     })
     const data = await response.json()
     const content = data?.choices?.[0]?.message?.content
+    traceSlidesLlmResponse({ requestId, stage: "story", provider: "openrouter", model, ok: typeof content === "string", status: response.status, durationMs: Date.now() - startedAt, outputChars: typeof content === "string" ? content.length : 0, usage: data?.usage })
     if (typeof content !== "string") {
       return fallback
     }
@@ -240,7 +248,8 @@ Ask a blockerQuestion only if generation would be materially wrong without it.`,
       return fallback
     }
     return validated.data
-  } catch {
+  } catch (error) {
+    traceSlidesLlmFailure({ requestId: createSlidesTraceId("story_error"), stage: "story", provider: "openrouter", model: process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "openai/gpt-mini-latest", durationMs: 0, error })
     return fallback
   }
 }

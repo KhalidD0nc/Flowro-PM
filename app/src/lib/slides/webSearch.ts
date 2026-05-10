@@ -1,4 +1,5 @@
 import type { SlidesEvidence } from "@/lib/slides/schema"
+import { createSlidesTraceId, traceSlidesLlmFailure, traceSlidesLlmRequest, traceSlidesLlmResponse } from "@/lib/slides/llmTrace"
 
 type OpenAIAnnotation = {
   type?: string
@@ -86,6 +87,16 @@ export async function gatherSlidesWebEvidence(prompt: string): Promise<SlidesEvi
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), searchTimeoutMs())
+  const model = process.env.OPENAI_SEARCH_MODEL || "gpt-5-mini"
+  const requestId = createSlidesTraceId("web_search")
+  const input = `Gather current, presentation-ready evidence for this deck request. Return concise evidence summaries with citations, not a deck outline.
+
+If strong visuals would materially improve the deck and the user did not provide image assets, also mention credible, directly accessible image URLs only when you can verify they are public image files. Do not invent image URLs.
+
+Deck request:
+${prompt}`
+  const startedAt = Date.now()
+  traceSlidesLlmRequest({ requestId, stage: "web_search", provider: "openai", model, inputChars: input.length, metadata: { promptChars: prompt.length, timeoutMs: searchTimeoutMs() } })
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -95,19 +106,15 @@ export async function gatherSlidesWebEvidence(prompt: string): Promise<SlidesEvi
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_SEARCH_MODEL || "gpt-5-mini",
+        model,
         tools: [{ type: "web_search" }],
         tool_choice: "auto",
-        input: `Gather current, presentation-ready evidence for this deck request. Return concise evidence summaries with citations, not a deck outline.
-
-If strong visuals would materially improve the deck and the user did not provide image assets, also mention credible, directly accessible image URLs only when you can verify they are public image files. Do not invent image URLs.
-
-Deck request:
-${prompt}`,
+        input,
       }),
     })
 
     if (!response.ok) {
+      traceSlidesLlmResponse({ requestId, stage: "web_search", provider: "openai", model, ok: false, status: response.status, durationMs: Date.now() - startedAt })
       throw new Error(await response.text())
     }
 
@@ -133,6 +140,7 @@ ${prompt}`,
       .find((item) => item.type === "web_search_call")
       ?.action?.queries?.[0] ?? prompt.slice(0, 300)
 
+    traceSlidesLlmResponse({ requestId, stage: "web_search", provider: "openai", model, ok: true, status: response.status, durationMs: Date.now() - startedAt, outputChars: (data.output_text ?? messageTexts.join("\n\n")).length, metadata: { citationCount: citations.length, visualCandidateCount: visualCandidatesFromText(messageTexts.join("\n\n")).length } })
     return [{
       id: evidenceId(0),
       query,
@@ -141,7 +149,8 @@ ${prompt}`,
       visualCandidates: visualCandidatesFromText(messageTexts.join("\n\n")),
       provider: "openai_web_search",
     }]
-  } catch {
+  } catch (error) {
+    traceSlidesLlmFailure({ requestId, stage: "web_search", provider: "openai", model, durationMs: Date.now() - startedAt, error })
     return [{
       id: "web-failed",
       query: prompt.slice(0, 300),

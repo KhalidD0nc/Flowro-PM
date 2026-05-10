@@ -97,6 +97,12 @@ export async function POST(request: NextRequest) {
             if (project.userId !== userId) {
                 return NextResponse.json({ error: "Access denied" }, { status: 403 })
             }
+            if ((project.projectType ?? "app") === "slides") {
+                return NextResponse.json(
+                    { error: "Slides projects must use the Slides generation routes." },
+                    { status: 400 }
+                )
+            }
             existingPlan = await getProjectPlanByProjectId(projectId)
         }
 

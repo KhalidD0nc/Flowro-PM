@@ -1,4 +1,6 @@
 import { generateCompletion } from "@/lib/openrouter"
+import type { Message } from "@/lib/openrouter"
+import { logWarn } from "@/lib/logger"
 import {
   slidesDeckSchema,
   type AssetRecord,
@@ -14,10 +16,15 @@ import {
 } from "@/lib/slides/schema"
 import { buildAssetBag, describeAssetBag } from "@/lib/slides/assetBag"
 import { describeAssetRecords } from "@/lib/slides/sourceIntake"
+import { createSlidesTraceId, traceSlidesLlmFailure, traceSlidesLlmRequest, traceSlidesLlmResponse } from "@/lib/slides/llmTrace"
 import { PreviewPres } from "@/lib/slides/previewPres"
 import { validatePreviewDeckPrimitives } from "@/lib/slides/primitiveValidation"
 import { extractBuildBody, runSlideCode, validateSlideCode } from "@/lib/slides/sandbox"
 import { buildMinimalFallbackSlideCode } from "@/lib/slides/sampleDecks"
+import { mkdir, writeFile } from "fs/promises"
+import path from "path"
+
+const SLIDES_CODE_OUTPUT_DIR = process.env.SLIDES_CODE_OUTPUT_DIR || "/Users/khalidr/Desktop/Flowro-Slides-Code"
 
 function cleanJson(raw: string): string {
   return raw.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "")
@@ -25,6 +32,52 @@ function cleanJson(raw: string): string {
 
 function truncate(value: unknown, max: number): string {
   return typeof value === "string" ? value.trim().slice(0, max) : ""
+}
+
+function filenameSafe(value: string): string {
+  return value.replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "").slice(0, 100) || "slide_code"
+}
+
+function normalizeDebugSlideCode(content: string): string {
+  const trimmed = content.trim()
+  const fenced = /```(?:js|javascript|ts)?\s*([\s\S]*?)```/m.exec(trimmed)
+  const source = fenced ? fenced[1] : trimmed.replace(/^```(?:js|javascript|ts)?\s*/i, "").replace(/\s*```$/, "")
+  return source.trimEnd()
+}
+
+async function saveGeneratedSlideCodeFile(args: {
+  requestId: string
+  stage: string
+  model: string
+  attempt: number
+  content: string
+  finishReason?: unknown
+}): Promise<string | undefined> {
+  try {
+    await mkdir(SLIDES_CODE_OUTPUT_DIR, { recursive: true })
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-")
+    const filename = `${stamp}_${filenameSafe(args.stage)}_${filenameSafe(args.requestId)}.js`
+    const filePath = path.join(SLIDES_CODE_OUTPUT_DIR, filename)
+    const header = [
+      "// Flowro Slides generated slideCode debug file.",
+      `// requestId: ${args.requestId}`,
+      `// stage: ${args.stage}`,
+      `// model: ${args.model}`,
+      `// attempt: ${args.attempt}`,
+      `// finishReason: ${String(args.finishReason ?? "unknown")}`,
+      "",
+    ].join("\n")
+    await writeFile(filePath, `${header}${normalizeDebugSlideCode(args.content)}\n`, "utf8")
+    return filePath
+  } catch (error) {
+    logWarn("slides_slide_code_debug_write_failed", {
+      requestId: args.requestId,
+      stage: args.stage,
+      outputDir: SLIDES_CODE_OUTPUT_DIR,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return undefined
+  }
 }
 
 function numberValue(value: unknown): number | undefined {
@@ -159,6 +212,52 @@ const DEFAULT_THEME = {
   muted: "#5f6b7a",
 }
 
+const THEME_PRESETS = {
+  navy: {
+    background: "#FFFFFF",
+    foreground: "#151515",
+    accent: "#00E5C3",
+    muted: "#5F6B7A",
+    primary: "#0D1B3E",
+    description: "navy preset: primary #0D1B3E, accent #00E5C3, light slides #FFFFFF/#F4F6FB, strong executive contrast",
+  },
+  forest: {
+    background: "#FBFCF8",
+    foreground: "#17231C",
+    accent: "#2FA36B",
+    muted: "#657166",
+    primary: "#123326",
+    description: "forest preset: primary #123326, accent #2FA36B, warm off-white background #FBFCF8, calm credible tone",
+  },
+  mono: {
+    background: "#FFFFFF",
+    foreground: "#111111",
+    accent: "#111111",
+    muted: "#6F6F6A",
+    primary: "#111111",
+    description: "mono preset: black/white base with grayscale panels, restrained editorial hierarchy, no bright generic blue",
+  },
+  warm: {
+    background: "#FFF9F1",
+    foreground: "#211814",
+    accent: "#D96035",
+    muted: "#7B6B61",
+    primary: "#3A2118",
+    description: "warm preset: primary #3A2118, accent #D96035, cream background #FFF9F1, energetic but polished",
+  },
+} as const
+
+type ThemePresetName = keyof typeof THEME_PRESETS
+
+function selectThemePreset(story?: SlidesDeckStory): ThemePresetName {
+  const text = `${story?.brief.objective ?? ""} ${story?.brief.tone ?? ""} ${story?.brief.audience ?? ""}`.toLowerCase()
+  if (/\b(finance|legal|enterprise|board|security|investor|executive)\b/.test(text)) return "navy"
+  if (/\b(sustainability|health|wellness|education|community|nature|climate)\b/.test(text)) return "forest"
+  if (/\b(luxury|fashion|portfolio|agency|editorial|minimal|mono)\b/.test(text)) return "mono"
+  if (/\b(creator|consumer|food|retail|launch|marketing|brand|social)\b/.test(text)) return "warm"
+  return "navy"
+}
+
 function fallbackProof(item: SlidesDeckStory["outline"][number], index: number): SlidesProofObject {
   const proofDataByType: Record<string, SlidesProofObject["data"]> = {
     chart: [
@@ -266,16 +365,12 @@ export async function generateSlidesDeck({
   if (!process.env.OPENROUTER_API_KEY) return fallback
 
   try {
-    const response = await generateCompletion({
-      model: process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "openai/gpt-mini-latest",
-      reasoning: false,
-      maxTokens: 10000,
-      timeoutMs: 90000,
-      maxRetries: 0,
-      messages: [
-        {
-          role: "system",
-          content: `You generate structured presentation slides for Flowro Slides. Return JSON only with {"title","subtitle","theme":{"background","foreground","accent","muted"},"slides":[{"id","slideNumber","title","claim","body":["max 3 bullets"],"proof":{"type":"chart|image|comparison|timeline|diagram|table|source_backed_visual","chartType":"bar_horizontal|bar_vertical|line|area|donut|progress|scatter|funnel","title","description","data":[{"label","value","xValue":0,"numericValue":0,"group":"optional","tone":"accent|positive|warning|neutral|muted"}]},"speakerNotes","sourceIds":["..."],"evidenceIds":["..."],"layout":"cover|claim_visual|comparison|timeline|data_table|closing|big_number|side_by_side|quote_highlight|timeline_vertical|image_left|image_full","visualTone","visualAsset":{"kind":"none|source_image|web_image|generated_visual","sourceId":"optional","evidenceId":"optional","url":"optional direct public image URL","query":"optional visual search direction","alt":"optional","rationale":"optional"}}]}.
+    const model = process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "openai/gpt-mini-latest"
+    const requestId = createSlidesTraceId("deck_json")
+    const messages: Message[] = [
+      {
+        role: "system",
+        content: `You generate structured presentation slides for Flowro Slides. Return JSON only with {"title","subtitle","theme":{"background","foreground","accent","muted"},"slides":[{"id","slideNumber","title","claim","body":["max 3 bullets"],"proof":{"type":"chart|image|comparison|timeline|diagram|table|source_backed_visual","chartType":"bar_horizontal|bar_vertical|line|area|donut|progress|scatter|funnel","title","description","data":[{"label","value","xValue":0,"numericValue":0,"group":"optional","tone":"accent|positive|warning|neutral|muted"}]},"speakerNotes","sourceIds":["..."],"evidenceIds":["..."],"layout":"cover|claim_visual|comparison|timeline|data_table|closing|big_number|side_by_side|quote_highlight|timeline_vertical|image_left|image_full","visualTone","visualAsset":{"kind":"none|source_image|web_image|generated_visual","sourceId":"optional","evidenceId":"optional","url":"optional direct public image URL","query":"optional visual search direction","alt":"optional","rationale":"optional"}}]}.
 
 TEXT RULES:
 Title: echo and amplify the claim in ≤8 words. Hard limit: 60 characters. Assertive, not a topic label.
@@ -336,34 +431,44 @@ Never use generic blue (#0066ff range) as accent unless the brand explicitly use
 background + foreground must have contrast ratio ≥ 4.5:1.
 
 IMAGE POLICY: Images are optional. Prefer charts, comparisons, timelines, tables, or designed visual panels over raw images. Use source_image only for product/brand proof. Use web_image only when evidence includes a credible direct URL. Otherwise use generated_visual with a descriptive query. Preserve sourceIds and evidenceIds from the outline.`,
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            brief: story.brief,
-            outline: story.outline,
-            evidence: story.evidence,
-            sources: sources.map((source) => ({
-              id: source.id,
-              name: source.name,
-              role: source.role,
-              summary: source.summary,
-              hasRenderableImage: Boolean(source.dataUrl || source.url),
-              width: source.width,
-              height: source.height,
-              ...(source.brandColors ? { brandColors: source.brandColors } : {}),
-            })),
-            designSkillBrief: {
-              intent: "Create distinctive, presentation-grade slides with varied layouts and no text-only slides.",
-              imagePolicy: "Images are optional. Use them only when they clarify or elevate the claim; otherwise use charts, timelines, comparisons, tables, or designed visual panels.",
-              visualCandidates: story.evidence.flatMap((item) => item.visualCandidates ?? []).slice(0, 8),
-            },
-          }),
-        },
-      ],
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          brief: story.brief,
+          outline: story.outline,
+          evidence: story.evidence,
+          sources: sources.map((source) => ({
+            id: source.id,
+            name: source.name,
+            role: source.role,
+            summary: source.summary,
+            hasRenderableImage: Boolean(source.dataUrl || source.url),
+            width: source.width,
+            height: source.height,
+            ...(source.brandColors ? { brandColors: source.brandColors } : {}),
+          })),
+          designSkillBrief: {
+            intent: "Create distinctive, presentation-grade slides with varied layouts and no text-only slides.",
+            imagePolicy: "Images are optional. Use them only when they clarify or elevate the claim; otherwise use charts, timelines, comparisons, tables, or designed visual panels.",
+            visualCandidates: story.evidence.flatMap((item) => item.visualCandidates ?? []).slice(0, 8),
+          },
+        }),
+      },
+    ]
+    const startedAt = Date.now()
+    traceSlidesLlmRequest({ requestId, stage: "deck_json", provider: "openrouter", model, messages, metadata: { outlineCount: story.outline.length, sourceCount: sources.length } })
+    const response = await generateCompletion({
+      model,
+      reasoning: false,
+      maxTokens: 50000,
+      timeoutMs: 900000,
+      maxRetries: 0,
+      messages,
     })
     const data = await response.json()
     const content = data?.choices?.[0]?.message?.content
+    traceSlidesLlmResponse({ requestId, stage: "deck_json", provider: "openrouter", model, ok: typeof content === "string", status: response.status, durationMs: Date.now() - startedAt, outputChars: typeof content === "string" ? content.length : 0, usage: data?.usage })
     if (typeof content !== "string") {
       return fallbackSlidesDeck(story, sources, "Slides AI returned no deck content, so a deterministic visual fallback was rendered.")
     }
@@ -390,6 +495,7 @@ IMAGE POLICY: Images are optional. Prefer charts, comparisons, timelines, tables
     }
     return validated.data
   } catch (error) {
+    traceSlidesLlmFailure({ requestId: createSlidesTraceId("deck_json_error"), stage: "deck_json", provider: "openrouter", model: process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "openai/gpt-mini-latest", durationMs: 0, error })
     return fallbackSlidesDeck(story, sources, error instanceof Error
       ? `Slides AI deck generation failed (${error.message.slice(0, 120)}), so a deterministic visual fallback was rendered.`
       : "Slides AI deck generation failed, so a deterministic visual fallback was rendered.")
@@ -492,6 +598,8 @@ ${args.dataContext ? `\n${args.dataContext}\n` : ""}
 THEME GUIDANCE: ${args.theme}
 When a brand palette is provided above, you MUST use those exact hex values for backgrounds, accent bars,
 chart colors, and highlight text. Do not substitute or approximate.
+When no brand palette is provided, use exactly one named preset from this set and make the choice visible
+through repeated color usage, not text labels: navy, forest, mono, warm. Do not drift into generic blue.
 
 DESIGN RULES (non-negotiable):
 1. 6–10 slides total. First slide = cover. Last slide = closing/call-to-action.
@@ -506,7 +614,7 @@ DESIGN RULES (non-negotiable):
 7. Pull real numbers from the brief, outline, and data tables; do not invent metrics.
 8. Use Aptos / Trebuchet MS / Georgia as fontFace. Default body 11–14pt; headings 24–44pt.
 9. Stay within the 13.33 × 7.5 canvas. Margins ≥ 0.5 in.
-10. Add \`s.addNotes("...")\` to every slide with the speaker intent (≤ 280 chars).
+10. Add \`s.addNotes("...")\` to every slide with the speaker intent (≤ 280 chars). These notes are exported to PowerPoint speaker notes.
 
 QUALITY BAR: A viewer should identify the main claim of any slide in 3 seconds. The deck should visually
 rival a designer's deck in Keynote — not a templated SaaS deck.
@@ -518,7 +626,7 @@ ${PRES_API_EXAMPLES}
 OUTPUT FORMAT: a single \`\`\`js block. Nothing else. No prose before or after.`
 }
 
-function themeFromSources(sources: SlidesSource[]): { background: string; foreground: string; accent: string; muted: string; description: string } {
+function themeFromSources(sources: SlidesSource[], story?: SlidesDeckStory): { background: string; foreground: string; accent: string; muted: string; description: string; preset?: ThemePresetName } {
   const brand = sources.find((s) => s.role === "brand_asset" && s.brandColors)
   if (brand?.brandColors) {
     return {
@@ -529,18 +637,21 @@ function themeFromSources(sources: SlidesSource[]): { background: string; foregr
       description: `Use the user's brand palette. Primary ${brand.brandColors.primary}, accent ${brand.brandColors.accent}, background ${brand.brandColors.background}.`,
     }
   }
+  const presetName = selectThemePreset(story)
+  const preset = THEME_PRESETS[presetName]
   return {
-    background: "#FFFFFF",
-    foreground: "#151515",
-    accent: "#00E5C3",
-    muted: "#5F6B7A",
-    description: "No brand uploaded — use a default navy/teal palette: primary #0D1B3E, accent #00E5C3.",
+    background: preset.background,
+    foreground: preset.foreground,
+    accent: preset.accent,
+    muted: preset.muted,
+    preset: presetName,
+    description: `No brand uploaded — use the ${preset.description}. Use preset primary ${preset.primary} for dark backgrounds and preset accent ${preset.accent} for charts, bars, and highlights.`,
   }
 }
 
 // Phase 3: theme derived from vision-classified AssetRecord[] dominantColors.
 // Priority: intentRole=logo/brand brandColors > vision dominantColors > legacy SVG extraction > default.
-function themeFromAssetRecords(records: AssetRecord[]): { background: string; foreground: string; accent: string; muted: string; description: string } {
+function themeFromAssetRecords(records: AssetRecord[], story?: SlidesDeckStory): { background: string; foreground: string; accent: string; muted: string; description: string; preset?: ThemePresetName } {
   const logoRecord = records.find(
     (r) => (r.role === "logo" || r.role === "brand_guideline") && r.brandColors,
   )
@@ -569,12 +680,15 @@ function themeFromAssetRecords(records: AssetRecord[]): { background: string; fo
       description: `Brand colors extracted from uploaded asset via vision. Dominant: ${withColors.properties.dominantColors.slice(0, 3).join(", ")}. Use these hex values for the deck palette.`,
     }
   }
+  const presetName = selectThemePreset(story)
+  const preset = THEME_PRESETS[presetName]
   return {
-    background: "#FFFFFF",
-    foreground: "#151515",
-    accent: "#00E5C3",
-    muted: "#5F6B7A",
-    description: "No brand uploaded — use a default navy/teal palette: primary #0D1B3E, accent #00E5C3.",
+    background: preset.background,
+    foreground: preset.foreground,
+    accent: preset.accent,
+    muted: preset.muted,
+    preset: presetName,
+    description: `No brand uploaded — use the ${preset.description}. Use preset primary ${preset.primary} for dark backgrounds and preset accent ${preset.accent} for charts, bars, and highlights.`,
   }
 }
 
@@ -616,9 +730,9 @@ export async function generateSlidesDeckCode({
   evidence?: SlidesEvidence[]
   legacyDeck?: SlidesDeck
   assetRecords?: AssetRecord[]
-}): Promise<{ slideCode: string; assets: SlidesAssetBag; theme: { background: string; foreground: string; accent: string; muted: string }; provider: "openrouter" | "deterministic"; diagnostics: { fallbackReason?: string; sandboxStage: "validate" | "execute" | "limit" | "ok"; sandboxError?: string; sandboxDurationMs?: number } }> {
+}): Promise<{ slideCode: string; assets: SlidesAssetBag; theme: { background: string; foreground: string; accent: string; muted: string }; provider: "openrouter" | "deterministic"; diagnostics: { fallbackReason?: string; sandboxStage: "validate" | "execute" | "limit" | "ok"; sandboxError?: string; sandboxDurationMs?: number; themePreset?: ThemePresetName; slideCodeAttemptCount?: number; slideCodeRequestIds?: string[]; slideCodeDebugFiles?: string[]; slideCodeNotesCount?: number; slideCodeThumbnailCount?: number } }> {
   // Phase 3: prefer AssetRecord-derived theme (vision colors) over legacy SVG extraction
-  const theme = assetRecords?.length ? themeFromAssetRecords(assetRecords) : themeFromSources(sources)
+  const theme = assetRecords?.length ? themeFromAssetRecords(assetRecords, story) : themeFromSources(sources, story)
   const assets = await buildAssetBag({ sources, assetRecords, evidence: evidence ?? story.evidence ?? [] })
   // Richer manifest when AssetRecord[] is available (includes role, description, usableAs)
   const manifest = assetRecords?.length ? describeAssetRecords(assetRecords) : describeAssetBag(assets)
@@ -626,21 +740,33 @@ export async function generateSlidesDeckCode({
   const fallbackTitle = story.outline[0]?.title || legacyDeck?.title || "Generated deck"
   const fallbackSubtitle = story.brief.desiredOutcome || ""
 
+  const requestIds: string[] = []
+  const debugFiles: string[] = []
+  const lastRequestId = (stage: string) => requestIds[requestIds.length - 1] ?? createSlidesTraceId(stage)
   const fallback = (reason?: string) => ({
     slideCode: buildMinimalFallbackSlideCode({ title: fallbackTitle, subtitle: fallbackSubtitle, theme: { background: theme.background.replace(/^#/, ""), foreground: theme.foreground.replace(/^#/, ""), accent: theme.accent.replace(/^#/, ""), muted: theme.muted.replace(/^#/, "") } }),
     assets,
     theme,
     provider: "deterministic" as const,
-    diagnostics: { ...(reason ? { fallbackReason: reason.slice(0, 240) } : {}), sandboxStage: "ok" as const },
+    diagnostics: {
+      ...(reason ? { fallbackReason: reason.slice(0, 240) } : {}),
+      sandboxStage: "ok" as const,
+      ...(theme.preset ? { themePreset: theme.preset } : {}),
+      slideCodeAttemptCount: requestIds.length,
+      ...(requestIds.length ? { slideCodeRequestIds: requestIds } : {}),
+      ...(debugFiles.length ? { slideCodeDebugFiles: debugFiles } : {}),
+    },
   })
 
   const validateCandidate = async (code: string) => {
     const extracted = extractBuildBody(code)
     if ("error" in extracted) {
+      traceSlidesLlmResponse({ requestId: lastRequestId("slide_code_validate"), stage: "slide_code_validate", provider: "openrouter", model: process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6", ok: false, durationMs: 0, outputChars: code.length, metadata: { reason: extracted.error } })
       return { ok: false as const, stage: "validate" as const, error: extracted.error, reasons: [extracted.error] }
     }
     const staticGate = validateSlideCode(extracted.body)
     if (!staticGate.ok) {
+      traceSlidesLlmResponse({ requestId: lastRequestId("slide_code_validate"), stage: "slide_code_validate", provider: "openrouter", model: process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6", ok: false, durationMs: 0, outputChars: code.length, metadata: { reason: staticGate.reason } })
       return { ok: false as const, stage: "validate" as const, error: staticGate.reason, reasons: [staticGate.reason] }
     }
 
@@ -658,6 +784,7 @@ export async function generateSlidesDeckCode({
     })
 
     if (!execution.ok) {
+      traceSlidesLlmResponse({ requestId: lastRequestId("slide_code_validate"), stage: "slide_code_validate", provider: "openrouter", model: process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6", ok: false, durationMs: execution.diagnostics.durationMs, outputChars: code.length, metadata: { sandboxStage: execution.stage, sandboxError: execution.error } })
       return {
         ok: false as const,
         stage: execution.stage,
@@ -670,6 +797,7 @@ export async function generateSlidesDeckCode({
     const previewDeck = previewPres.finalize()
     const primitiveValidation = validatePreviewDeckPrimitives(previewDeck)
     if (!primitiveValidation.ok) {
+      traceSlidesLlmResponse({ requestId: lastRequestId("slide_code_validate"), stage: "slide_code_validate", provider: "openrouter", model: process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6", ok: false, durationMs: execution.diagnostics.durationMs, outputChars: code.length, metadata: { rejectionReasons: primitiveValidation.reasons.slice(0, 8), slideCount: previewDeck.slides.length } })
       return {
         ok: false as const,
         stage: "validate" as const,
@@ -679,32 +807,83 @@ export async function generateSlidesDeckCode({
       }
     }
 
-    return { ok: true as const, durationMs: execution.diagnostics.durationMs }
+    traceSlidesLlmResponse({ requestId: lastRequestId("slide_code_validate"), stage: "slide_code_validate", provider: "openrouter", model: process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6", ok: true, durationMs: execution.diagnostics.durationMs, outputChars: code.length, metadata: { slideCount: previewDeck.slides.length, notesCount: previewDeck.slides.filter((slide) => slide.notes.trim()).length, thumbnailCount: previewDeck.slides.length } })
+    return {
+      ok: true as const,
+      durationMs: execution.diagnostics.durationMs,
+      notesCount: previewDeck.slides.filter((slide) => slide.notes.trim()).length,
+      thumbnailCount: previewDeck.slides.length,
+    }
   }
 
   const requestSlideCode = async (retryPayload?: Record<string, unknown>) => {
+    const model = process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6"
+    const requestId = createSlidesTraceId(retryPayload ? "slide_code_retry" : "slide_code")
+    requestIds.push(requestId)
+    const messages: Message[] = [
+      { role: "system", content: slideCodeSystemPrompt({ assetManifest: manifest, theme: theme.description, dataContext }) },
+      {
+        role: "user",
+        content: JSON.stringify({
+          ...(retryPayload ?? {}),
+          brief: story.brief,
+          outline: story.outline,
+          evidence: (evidence ?? story.evidence ?? []).map((e) => ({ id: e.id, query: e.query, summary: e.summary, citations: e.citations })),
+          legacySlideHints: legacyDeck?.slides?.map((s) => ({ title: s.title, claim: s.claim, layout: s.layout, proofType: s.proof.type })) ?? [],
+        }),
+      },
+    ]
+    const startedAt = Date.now()
+    traceSlidesLlmRequest({
+      requestId,
+      stage: retryPayload ? "slide_code_retry" : "slide_code",
+      provider: "openrouter",
+      model,
+      attempt: requestIds.length,
+      messages,
+      metadata: {
+        outlineCount: story.outline.length,
+        sourceCount: sources.length,
+        assetRecordCount: assetRecords?.length ?? 0,
+        assetKeys: Object.keys(assets),
+        themePreset: theme.preset ?? "brand",
+        hasDataContext: Boolean(dataContext),
+      },
+    })
     const response = await generateCompletion({
-      model: process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6",
+      model,
       reasoning: false,
-      maxTokens: 9000,
+      maxTokens: 50000,
       timeoutMs: 90000,
       maxRetries: 0,
-      messages: [
-        { role: "system", content: slideCodeSystemPrompt({ assetManifest: manifest, theme: theme.description, dataContext }) },
-        {
-          role: "user",
-          content: JSON.stringify({
-            ...(retryPayload ?? {}),
-            brief: story.brief,
-            outline: story.outline,
-            evidence: (evidence ?? story.evidence ?? []).map((e) => ({ id: e.id, query: e.query, summary: e.summary, citations: e.citations })),
-            legacySlideHints: legacyDeck?.slides?.map((s) => ({ title: s.title, claim: s.claim, layout: s.layout, proofType: s.proof.type })) ?? [],
-          }),
-        },
-      ],
+      messages,
     })
     const data = await response.json()
     const content = data?.choices?.[0]?.message?.content
+    const finishReason = data?.choices?.[0]?.finish_reason
+    if (typeof content === "string") {
+      const savedPath = await saveGeneratedSlideCodeFile({
+        requestId,
+        stage: retryPayload ? "slide_code_retry" : "slide_code",
+        model,
+        attempt: requestIds.length,
+        content,
+        finishReason,
+      })
+      if (savedPath) debugFiles.push(savedPath)
+    }
+    traceSlidesLlmResponse({
+      requestId,
+      stage: retryPayload ? "slide_code_retry" : "slide_code",
+      provider: "openrouter",
+      model,
+      ok: typeof content === "string",
+      status: response.status,
+      durationMs: Date.now() - startedAt,
+      outputChars: typeof content === "string" ? content.length : 0,
+      usage: data?.usage,
+      metadata: { finishReason, ...(debugFiles.length ? { savedCodeFile: debugFiles[debugFiles.length - 1] } : {}) },
+    })
     return typeof content === "string" ? content : undefined
   }
 
@@ -718,7 +897,22 @@ export async function generateSlidesDeckCode({
 
     const validated = await validateCandidate(content)
     if (validated.ok) {
-      return { slideCode: content, assets, theme, provider: "openrouter", diagnostics: { sandboxStage: "ok", sandboxDurationMs: validated.durationMs } }
+      return {
+        slideCode: content,
+        assets,
+        theme,
+        provider: "openrouter",
+        diagnostics: {
+          sandboxStage: "ok",
+          sandboxDurationMs: validated.durationMs,
+          ...(theme.preset ? { themePreset: theme.preset } : {}),
+          slideCodeAttemptCount: requestIds.length,
+          slideCodeRequestIds: requestIds,
+          ...(debugFiles.length ? { slideCodeDebugFiles: debugFiles } : {}),
+          slideCodeNotesCount: validated.notesCount,
+          slideCodeThumbnailCount: validated.thumbnailCount,
+        },
+      }
     }
 
     const retryContent = await requestSlideCode({
@@ -732,8 +926,24 @@ export async function generateSlidesDeckCode({
     if (!retryValidated.ok) {
       return fallback(`slideCode validation failed after retry: ${retryValidated.error}`)
     }
-    return { slideCode: retryContent, assets, theme, provider: "openrouter", diagnostics: { sandboxStage: "ok", sandboxDurationMs: retryValidated.durationMs } }
+    return {
+      slideCode: retryContent,
+      assets,
+      theme,
+      provider: "openrouter",
+      diagnostics: {
+        sandboxStage: "ok",
+        sandboxDurationMs: retryValidated.durationMs,
+        ...(theme.preset ? { themePreset: theme.preset } : {}),
+        slideCodeAttemptCount: requestIds.length,
+        slideCodeRequestIds: requestIds,
+        ...(debugFiles.length ? { slideCodeDebugFiles: debugFiles } : {}),
+        slideCodeNotesCount: retryValidated.notesCount,
+        slideCodeThumbnailCount: retryValidated.thumbnailCount,
+      },
+    }
   } catch (err) {
+    traceSlidesLlmFailure({ requestId: lastRequestId("slide_code_error"), stage: "slide_code", provider: "openrouter", model: process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6", durationMs: 0, error: err })
     return fallback(err instanceof Error ? err.message.slice(0, 200) : "unknown error")
   }
 }
@@ -764,25 +974,31 @@ export async function editSlidesDeck({
   if (!process.env.OPENROUTER_API_KEY) return fallback
 
   try {
+    const model = process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "openai/gpt-mini-latest"
+    const requestId = createSlidesTraceId("deck_edit")
+    const messages: Message[] = [
+      {
+        role: "system",
+        content: `Apply an AI edit to a structured deck. Return the full updated deck JSON only. Preserve sourceIds, evidenceIds, and useful visualAsset intent unless the instruction explicitly asks to change them. Keep slide claims specific and every non-cover slide proof-backed. Images remain optional: use them only when they materially improve the slide.`,
+      },
+      {
+        role: "user",
+        content: JSON.stringify({ instruction, slideId, story, deck }),
+      },
+    ]
+    const startedAt = Date.now()
+    traceSlidesLlmRequest({ requestId, stage: "deck_edit", provider: "openrouter", model, messages, metadata: { slideId: slideId ?? "deck", slideCount: deck.slides.length } })
     const response = await generateCompletion({
-      model: process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "openai/gpt-mini-latest",
+      model,
       reasoning: false,
-      maxTokens: 10000,
-      timeoutMs: 90000,
+      maxTokens: 50000,
+      timeoutMs: 900000,
       maxRetries: 0,
-      messages: [
-        {
-          role: "system",
-          content: `Apply an AI edit to a structured deck. Return the full updated deck JSON only. Preserve sourceIds, evidenceIds, and useful visualAsset intent unless the instruction explicitly asks to change them. Keep slide claims specific and every non-cover slide proof-backed. Images remain optional: use them only when they materially improve the slide.`,
-        },
-        {
-          role: "user",
-          content: JSON.stringify({ instruction, slideId, story, deck }),
-        },
-      ],
+      messages,
     })
     const data = await response.json()
     const content = data?.choices?.[0]?.message?.content
+    traceSlidesLlmResponse({ requestId, stage: "deck_edit", provider: "openrouter", model, ok: typeof content === "string", status: response.status, durationMs: Date.now() - startedAt, outputChars: typeof content === "string" ? content.length : 0, usage: data?.usage })
     if (typeof content !== "string") return fallback
 
     const parsed = normalizeSlidesDeckJson(JSON.parse(cleanJson(content)), [])
@@ -797,7 +1013,8 @@ export async function editSlidesDeck({
       },
     })
     return validated.success ? validated.data : fallback
-  } catch {
+  } catch (error) {
+    traceSlidesLlmFailure({ requestId: createSlidesTraceId("deck_edit_error"), stage: "deck_edit", provider: "openrouter", model: process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "openai/gpt-mini-latest", durationMs: 0, error })
     return fallback
   }
 }

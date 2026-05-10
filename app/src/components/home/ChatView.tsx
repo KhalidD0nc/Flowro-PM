@@ -74,8 +74,10 @@ export default function ChatView({ projectId, initialMessage, projectType, user,
   const hasInitialized = useRef(false)
   const hasBootstrappedSeed = useRef(false)
 
-  const latestClarification = project && !draftPlan ? getLatestClarificationResponse(project.chatHistory) ?? null : null
-  const clarificationQuestions = !draftPlan ? latestClarification?.questions ?? null : null
+  const effectiveProjectType = project?.projectType ?? projectType ?? "app"
+  const isSlidesProject = effectiveProjectType === "slides"
+  const latestClarification = project && !isSlidesProject && !draftPlan ? getLatestClarificationResponse(project.chatHistory) ?? null : null
+  const clarificationQuestions = !isSlidesProject && !draftPlan ? latestClarification?.questions ?? null : null
   const clarificationProgress = clarificationQuestions
     ? getClarificationProgress(clarificationQuestions, clarificationAnswers)
     : { activeQuestion: null, activeQuestionIndex: -1, answeredSummaries: [], isReady: false }
@@ -84,8 +86,6 @@ export default function ChatView({ projectId, initialMessage, projectType, user,
   const latestBuild = buildRuns[0] ?? null
   const latestBuildId = latestBuild?.id
   const shouldPollBuild = shouldPollBuildRun(latestBuild)
-  const effectiveProjectType = project?.projectType ?? projectType ?? "app"
-  const isSlidesProject = effectiveProjectType === "slides"
   const hasPreparedSlides = isSlidesProject && Boolean(project?.slidesDeck)
   const hasWorkspaceContent = isSlidesProject || Boolean(draftPlan)
 

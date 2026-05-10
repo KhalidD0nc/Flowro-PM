@@ -63,7 +63,7 @@ export default function ChatInput({
     : placeholder ? placeholder.replace("Ask Flowro to refine the project plan...", "Ask Flowro...").replace("Describe your product idea...", "Ask Flowro...") : "Ask Flowro...";
   const showActionMode = workflow !== "slides";
 
-  const hasClarificationFlow = Boolean(activeClarificationQuestion || clarificationSummaries?.length);
+  const hasClarificationFlow = workflow !== "slides" && Boolean(activeClarificationQuestion || clarificationSummaries?.length);
   const activeAnswer = activeClarificationQuestion
     ? clarificationAnswers?.[activeClarificationQuestion.id]
     : undefined;

@@ -28,6 +28,8 @@ import { extractFromData } from "@/lib/slides/dataExtract"
 import { extractFromDeck } from "@/lib/slides/deckExtract"
 import { parseUserIntent } from "@/lib/slides/intentParse"
 import { generateCompletion } from "@/lib/openrouter"
+import type { Message } from "@/lib/openrouter"
+import { createSlidesTraceId, traceSlidesLlmFailure, traceSlidesLlmRequest, traceSlidesLlmResponse } from "@/lib/slides/llmTrace"
 
 const DOCUMENT_EXTENSIONS = new Set(["pdf", "doc", "docx", "txt", "md"])
 const DECK_EXTENSIONS = new Set(["ppt", "pptx", "key"])
@@ -99,25 +101,31 @@ export async function classifySlidesSourcesWithOpenRouter(sources: SlidesSourceI
   if (!sources.length || !process.env.OPENROUTER_API_KEY) return fallback
 
   try {
+    const model = process.env.OPENROUTER_MODEL_SOURCE_INTAKE || "openai/gpt-mini-latest"
+    const requestId = createSlidesTraceId("source_classify")
+    const messages: Message[] = [
+      {
+        role: "system",
+        content: `Classify presentation source metadata. Return JSON only: {"sources":[{"id":"...","role":"source_material|reference_deck|style_template_guide|brand_asset|data_file|product_screenshot|image_library|web_link_source","summary":"one concise sentence"}]}.`,
+      },
+      {
+        role: "user",
+        content: JSON.stringify({ sources }),
+      },
+    ]
+    const startedAt = Date.now()
+    traceSlidesLlmRequest({ requestId, stage: "source_classify", provider: "openrouter", model, messages, metadata: { sourceCount: sources.length } })
     const response = await generateCompletion({
-      model: process.env.OPENROUTER_MODEL_SOURCE_INTAKE || "openai/gpt-mini-latest",
+      model,
       reasoning: false,
       maxTokens: 1200,
       timeoutMs: 20000,
       maxRetries: 0,
-      messages: [
-        {
-          role: "system",
-          content: `Classify presentation source metadata. Return JSON only: {"sources":[{"id":"...","role":"source_material|reference_deck|style_template_guide|brand_asset|data_file|product_screenshot|image_library|web_link_source","summary":"one concise sentence"}]}.`,
-        },
-        {
-          role: "user",
-          content: JSON.stringify({ sources }),
-        },
-      ],
+      messages,
     })
     const data = await response.json()
     const content = data?.choices?.[0]?.message?.content
+    traceSlidesLlmResponse({ requestId, stage: "source_classify", provider: "openrouter", model, ok: typeof content === "string", status: response.status, durationMs: Date.now() - startedAt, outputChars: typeof content === "string" ? content.length : 0, usage: data?.usage })
     if (typeof content !== "string") return fallback
 
     const parsed = JSON.parse(cleanJson(content)) as { sources?: Array<{ id?: string; role?: unknown; summary?: unknown }> }
@@ -144,7 +152,8 @@ export async function classifySlidesSourcesWithOpenRouter(sources: SlidesSourceI
       const validated = slidesSourceSchema.safeParse(candidate)
       return validated.success ? validated.data : source
     })
-  } catch {
+  } catch (error) {
+    traceSlidesLlmFailure({ requestId: createSlidesTraceId("source_classify_error"), stage: "source_classify", provider: "openrouter", model: process.env.OPENROUTER_MODEL_SOURCE_INTAKE || "openai/gpt-mini-latest", durationMs: 0, error })
     return fallback
   }
 }
@@ -229,7 +238,6 @@ export async function analyzeAssets(
   // Run all vision/document/data passes in parallel
   const records = await Promise.all(
     sources.map(async (source, idx): Promise<AssetRecord> => {
-      const ext = extensionFor(source)
       const mimeType = source.mimeType?.toLowerCase() ?? ""
       const isLink = source.kind === "link" || Boolean(source.url)
 
