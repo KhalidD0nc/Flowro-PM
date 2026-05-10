@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Docs/images/home-view.png" alt="Flowro home prompt interface" width="100%" />
+  <img src="app/public/logo.png" alt="Flowro logo" width="120" />
 </p>
 
 <h1 align="center">Flowro</h1>
