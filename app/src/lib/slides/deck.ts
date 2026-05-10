@@ -14,7 +14,9 @@ import {
 } from "@/lib/slides/schema"
 import { buildAssetBag, describeAssetBag } from "@/lib/slides/assetBag"
 import { describeAssetRecords } from "@/lib/slides/sourceIntake"
-import { extractBuildBody, validateSlideCode } from "@/lib/slides/sandbox"
+import { PreviewPres } from "@/lib/slides/previewPres"
+import { validatePreviewDeckPrimitives } from "@/lib/slides/primitiveValidation"
+import { extractBuildBody, runSlideCode, validateSlideCode } from "@/lib/slides/sandbox"
 import { buildMinimalFallbackSlideCode } from "@/lib/slides/sampleDecks"
 
 function cleanJson(raw: string): string {
@@ -614,7 +616,7 @@ export async function generateSlidesDeckCode({
   evidence?: SlidesEvidence[]
   legacyDeck?: SlidesDeck
   assetRecords?: AssetRecord[]
-}): Promise<{ slideCode: string; assets: SlidesAssetBag; theme: { background: string; foreground: string; accent: string; muted: string }; provider: "openrouter" | "deterministic"; diagnostics: { fallbackReason?: string; sandboxStage: "validate" | "ok"; sandboxError?: string } }> {
+}): Promise<{ slideCode: string; assets: SlidesAssetBag; theme: { background: string; foreground: string; accent: string; muted: string }; provider: "openrouter" | "deterministic"; diagnostics: { fallbackReason?: string; sandboxStage: "validate" | "execute" | "limit" | "ok"; sandboxError?: string; sandboxDurationMs?: number } }> {
   // Phase 3: prefer AssetRecord-derived theme (vision colors) over legacy SVG extraction
   const theme = assetRecords?.length ? themeFromAssetRecords(assetRecords) : themeFromSources(sources)
   const assets = await buildAssetBag({ sources, assetRecords, evidence: evidence ?? story.evidence ?? [] })
@@ -629,14 +631,58 @@ export async function generateSlidesDeckCode({
     assets,
     theme,
     provider: "deterministic" as const,
-    diagnostics: { fallbackReason: reason, sandboxStage: "ok" as const },
+    diagnostics: { ...(reason ? { fallbackReason: reason.slice(0, 240) } : {}), sandboxStage: "ok" as const },
   })
 
-  if (!process.env.OPENROUTER_API_KEY) {
-    return fallback("no OPENROUTER_API_KEY — using deterministic fallback")
+  const validateCandidate = async (code: string) => {
+    const extracted = extractBuildBody(code)
+    if ("error" in extracted) {
+      return { ok: false as const, stage: "validate" as const, error: extracted.error, reasons: [extracted.error] }
+    }
+    const staticGate = validateSlideCode(extracted.body)
+    if (!staticGate.ok) {
+      return { ok: false as const, stage: "validate" as const, error: staticGate.reason, reasons: [staticGate.reason] }
+    }
+
+    const previewPres = new PreviewPres({ maxSlides: 24, maxShapesPerSlide: 80 })
+    const execution = await runSlideCode({
+      code,
+      pres: previewPres,
+      options: {
+        target: "preview",
+        assets,
+        wallClockMs: 8000,
+        maxSlides: 24,
+        maxShapesPerSlide: 80,
+      },
+    })
+
+    if (!execution.ok) {
+      return {
+        ok: false as const,
+        stage: execution.stage,
+        error: execution.error,
+        reasons: [`sandbox ${execution.stage} failed: ${execution.error}`],
+        durationMs: execution.diagnostics.durationMs,
+      }
+    }
+
+    const previewDeck = previewPres.finalize()
+    const primitiveValidation = validatePreviewDeckPrimitives(previewDeck)
+    if (!primitiveValidation.ok) {
+      return {
+        ok: false as const,
+        stage: "validate" as const,
+        error: primitiveValidation.reasons.join("; ").slice(0, 400),
+        reasons: primitiveValidation.reasons,
+        durationMs: execution.diagnostics.durationMs,
+      }
+    }
+
+    return { ok: true as const, durationMs: execution.diagnostics.durationMs }
   }
 
-  try {
+  const requestSlideCode = async (retryPayload?: Record<string, unknown>) => {
     const response = await generateCompletion({
       model: process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6",
       reasoning: false,
@@ -648,6 +694,7 @@ export async function generateSlidesDeckCode({
         {
           role: "user",
           content: JSON.stringify({
+            ...(retryPayload ?? {}),
             brief: story.brief,
             outline: story.outline,
             evidence: (evidence ?? story.evidence ?? []).map((e) => ({ id: e.id, query: e.query, summary: e.summary, citations: e.citations })),
@@ -658,43 +705,34 @@ export async function generateSlidesDeckCode({
     })
     const data = await response.json()
     const content = data?.choices?.[0]?.message?.content
+    return typeof content === "string" ? content : undefined
+  }
+
+  if (!process.env.OPENROUTER_API_KEY) {
+    return fallback("no OPENROUTER_API_KEY — using deterministic fallback")
+  }
+
+  try {
+    const content = await requestSlideCode()
     if (typeof content !== "string") return fallback("LLM returned no slideCode content")
 
-    const extracted = extractBuildBody(content)
-    if ("error" in extracted) {
-      // Retry once with the parse error embedded
-      const retry = await generateCompletion({
-        model: process.env.OPENROUTER_MODEL_SLIDES_CODE || process.env.OPENROUTER_MODEL_SLIDES || process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6",
-        reasoning: false,
-        maxTokens: 9000,
-        timeoutMs: 90000,
-        maxRetries: 0,
-        messages: [
-          { role: "system", content: slideCodeSystemPrompt({ assetManifest: manifest, theme: theme.description, dataContext }) },
-          {
-            role: "user",
-            content: JSON.stringify({
-              previousAttempt: content.slice(0, 4000),
-              error: extracted.error,
-              retryInstruction: "The previous emission could not be parsed. Emit ONLY the build body inside one ```js block.",
-              brief: story.brief,
-              outline: story.outline,
-            }),
-          },
-        ],
-      })
-      const retryData = await retry.json()
-      const retryContent = retryData?.choices?.[0]?.message?.content
-      if (typeof retryContent !== "string") return fallback("retry returned no content")
-      const retryExtracted = extractBuildBody(retryContent)
-      if ("error" in retryExtracted) return fallback(`could not parse: ${retryExtracted.error}`)
-      const retryValidated = validateSlideCode(retryExtracted.body)
-      if (!retryValidated.ok) return fallback(`gate rejected: ${retryValidated.reason}`)
-      return { slideCode: retryContent, assets, theme, provider: "openrouter", diagnostics: { sandboxStage: "ok" } }
+    const validated = await validateCandidate(content)
+    if (validated.ok) {
+      return { slideCode: content, assets, theme, provider: "openrouter", diagnostics: { sandboxStage: "ok", sandboxDurationMs: validated.durationMs } }
     }
-    const validated = validateSlideCode(extracted.body)
-    if (!validated.ok) return fallback(`static gate rejected slideCode: ${validated.reason}`)
-    return { slideCode: content, assets, theme, provider: "openrouter", diagnostics: { sandboxStage: "ok" } }
+
+    const retryContent = await requestSlideCode({
+      previousAttempt: content.slice(0, 4000),
+      rejectionReasons: validated.reasons,
+      retryInstruction: "The previous slideCode failed validation. Fix the listed issues, preserve the same deck story, and emit ONLY the build body inside one ```js block.",
+    })
+    if (typeof retryContent !== "string") return fallback(`retry returned no content after ${validated.stage}: ${validated.error}`)
+
+    const retryValidated = await validateCandidate(retryContent)
+    if (!retryValidated.ok) {
+      return fallback(`slideCode validation failed after retry: ${retryValidated.error}`)
+    }
+    return { slideCode: retryContent, assets, theme, provider: "openrouter", diagnostics: { sandboxStage: "ok", sandboxDurationMs: retryValidated.durationMs } }
   } catch (err) {
     return fallback(err instanceof Error ? err.message.slice(0, 200) : "unknown error")
   }
